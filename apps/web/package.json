@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@workspace/ui": "workspace:*",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.7.0",

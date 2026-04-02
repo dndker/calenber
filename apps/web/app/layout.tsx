@@ -1,6 +1,8 @@
 import { Geist_Mono, Inter } from "next/font/google"
 
 import { ThemeProvider } from "@/components/theme-provider"
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -29,6 +31,8 @@ export default function RootLayout({
         >
             <body>
                 <ThemeProvider>{children}</ThemeProvider>
+                <Analytics />
+                <SpeedInsights />
             </body>
         </html>
     )
