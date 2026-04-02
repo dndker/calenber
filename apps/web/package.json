@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev -p 3000 --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "@workspace/ui": "workspace:*",
+    "date-fns": "^4.1.0",
     "lucide-react": "^1.7.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
     "react": "^19.2.4",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {

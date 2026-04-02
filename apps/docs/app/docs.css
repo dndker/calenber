@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+:root {
+    --color-fd-background: var(--background);
+    --color-fd-foreground: var(--foreground);
+
+    --color-fd-muted: var(--muted);
+    --color-fd-muted-foreground: var(--muted-foreground);
+
+    --color-fd-card: var(--card);
+    --color-fd-card-foreground: var(--card-foreground);
+
+    --color-fd-popover: var(--popover);
+    --color-fd-popover-foreground: var(--popover-foreground);
+
+    --color-fd-border: var(--border);
+    --color-fd-input: var(--input);
+
+    --color-fd-primary: var(--primary);
+    --color-fd-primary-foreground: var(--primary-foreground);
+
+    --color-fd-secondary: var(--secondary);
+    --color-fd-secondary-foreground: var(--secondary-foreground);
+
+    --color-fd-accent: var(--accent);
+    --color-fd-accent-foreground: var(--accent-foreground);
+
+    --color-fd-destructive: var(--destructive);
+    --color-fd-destructive-foreground: var(--primary-foreground);
+
+    --color-fd-ring: var(--ring);
+}
+
+.dark {
+    --color-fd-background: var(--background);
+    --color-fd-foreground: var(--foreground);
+
+    --color-fd-muted: var(--muted);
+    --color-fd-muted-foreground: var(--muted-foreground);
+
+    --color-fd-card: var(--card);
+    --color-fd-card-foreground: var(--card-foreground);
+
+    --color-fd-popover: var(--popover);
+    --color-fd-popover-foreground: var(--popover-foreground);
+
+    --color-fd-border: var(--border);
+    --color-fd-input: var(--input);
+
+    --color-fd-primary: var(--primary);
+    --color-fd-primary-foreground: var(--primary-foreground);
+
+    --color-fd-secondary: var(--secondary);
+    --color-fd-secondary-foreground: var(--secondary-foreground);
+
+    --color-fd-accent: var(--accent);
+    --color-fd-accent-foreground: var(--accent-foreground);
+
+    --color-fd-destructive: var(--destructive);
+    --color-fd-destructive-foreground: var(--primary-foreground);
+
+    --color-fd-ring: var(--ring);
+}
+
+#nd-sidebar {
+    width: auto !important;
+}
+
+#nd-notebook-layout {
+    --fd-sidebar-col: 268px !important;
+    /* 1. 행(Rows) 설정: 헤더, 팝업, 메인 영역 순서 */
+    grid-template-rows: auto auto 1fr !important;
+
+    /* 2. 열(Columns) 설정: 5분할 구조 */
+    grid-template-columns:
+        minmax(16px, 1fr) /* 왼쪽 여백 */
+        var(--fd-sidebar-col) /* 사이드바 */
+        minmax(
+            0,
+            calc(
+                var(--fd-layout-width, 97rem) - var(--fd-sidebar-col) -
+                    var(--fd-toc-width)
+            )
+        )
+        /* 메인 */
+        var(--fd-toc-width) /* TOC(목차) */
+        minmax(16px, 1fr) !important; /* 오른쪽 여백 */
+
+    /* 3. 영역 이름(Areas) 설정: 가시적으로 매칭 */
+    grid-template-areas:
+        ".      header      header      header      ."
+        "toc-popover toc-popover toc-popover toc-popover toc-popover"
+        ".     sidebar     main        toc         ." !important;
+}
+
+#nd-notebook-layout > header > div {
+    position: relative;
+    overflow: visible;
+}
+#nd-notebook-layout > header > div::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-fd-border);
+    width: 100vw;
+    height: 1px;
+    pointer-events: none;
+}
+#nd-sidebar[data-collapsed="true"][data-hovered="false"] {
+    opacity: 0;
+    transition-property:
+        width, inset-block, translate, background-color, opacity;
+}
+
+#nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) {
+    grid-template-areas:
+        ".      header      header      header      ."
+        "toc-popover toc-popover toc-popover toc-popover toc-popover"
+        ".     main     main        toc         ." !important;
+}
+#nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) #nd-page > * {
+    max-width: 100%;
+}
+
+@media (max-width: 1279px) {
+    #nd-notebook-layout {
+        /* 2. 열(Columns) 설정: 5분할 구조 */
+        grid-template-columns:
+            minmax(16px, 1fr) /* 왼쪽 여백 */
+            var(--fd-sidebar-col) /* 사이드바 */
+            minmax(
+                0,
+                calc(
+                    var(--fd-layout-width, 97rem) - var(--fd-sidebar-col) -
+                        var(--fd-toc-width)
+                )
+            )
+            /* 메인 */
+            var(--fd-toc-width) /* TOC(목차) */
+            16px !important; /* 오른쪽 여백 */
+    }
+    #nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) {
+        --fd-sidebar-col: 0 !important;
+        --fd-toc-width: 0 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #nd-notebook-layout {
+        --fd-sidebar-col: 0 !important;
+    }
+}

@@ -24,5 +24,9 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "react-day-picker": "^9.14.0",
+    "sonner": "^2.0.7"
+  }
 }

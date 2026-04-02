@@ -1,7 +1,6 @@
-dist/
-node_modules/
-.next/
-.turbo/
-coverage/
-pnpm-lock.yaml
-.pnpm-store/
+node_modules
+.next
+.source
+out
+build
+*.log

@@ -1,0 +1,269 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@source "../../node_modules/fumadocs-ui/dist/**/*.js";
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --breakpoint-xs: 30rem;
+    --breakpoint-2xl: 100rem;
+    --breakpoint-3xl: 120rem;
+}
+
+:root {
+    --color-fd-background: #ffffff;
+    --color-fd-foreground: #0f172a;
+    --color-fd-muted: #f1f5f9;
+    --color-fd-muted-foreground: #64748b;
+    --color-fd-card: #ffffff;
+    --color-fd-card-foreground: #0f172a;
+    --color-fd-popover: #ffffff;
+    --color-fd-popover-foreground: #0f172a;
+    --color-fd-border: #e2e8f0;
+    --color-fd-input: #e2e8f0;
+    /* --color-fd-primary: #0f172a; */
+    --color-fd-primary: #0f172a;
+    --color-fd-primary-foreground: #f8fafc;
+    --color-fd-secondary: #f1f5f9;
+    --color-fd-secondary-foreground: #0f172a;
+    --color-fd-accent: #f1f5f9;
+    --color-fd-accent-foreground: #0f172a;
+    --color-fd-destructive: #ff0000;
+    --color-fd-destructive-foreground: #f8fafc;
+    --color-fd-ring: #94a3b8;
+
+    /* Lift Dialog, Sheet z-index for documentation */
+    --layer-index: 100;
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+}
+
+.dark {
+    --color-fd-background: #121212;
+    --color-fd-foreground: #ebebeb;
+    --color-fd-muted: #212121;
+    --color-fd-muted-foreground: #9b9b9b;
+    --color-fd-popover: #191919;
+    --color-fd-popover-foreground: #e0e0e0;
+    --color-fd-card: #1a1a1a;
+    --color-fd-card-foreground: #fafafa;
+    --color-fd-border: #2e2e2e;
+    /* --color-fd-primary: #fafafa; */
+    --color-fd-primary: #fafafa;
+    --color-fd-primary-foreground: #171717;
+    --color-fd-secondary: #212121;
+    --color-fd-secondary-foreground: #fafafa;
+    --color-fd-accent: #2b2b2b;
+    --color-fd-accent-foreground: #e6e6e6;
+    --color-fd-ring: #262626;
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+#nd-sidebar {
+    width: auto !important;
+}
+
+#nd-notebook-layout {
+    --fd-sidebar-col: 268px !important;
+    /* 1. 행(Rows) 설정: 헤더, 팝업, 메인 영역 순서 */
+    grid-template-rows: auto auto 1fr !important;
+
+    /* 2. 열(Columns) 설정: 5분할 구조 */
+    grid-template-columns:
+        minmax(16px, 1fr) /* 왼쪽 여백 */
+        var(--fd-sidebar-col) /* 사이드바 */
+        minmax(
+            0,
+            calc(
+                var(--fd-layout-width, 97rem) - var(--fd-sidebar-col) -
+                    var(--fd-toc-width)
+            )
+        )
+        /* 메인 */
+        var(--fd-toc-width) /* TOC(목차) */
+        minmax(16px, 1fr) !important; /* 오른쪽 여백 */
+
+    /* 3. 영역 이름(Areas) 설정: 가시적으로 매칭 */
+    grid-template-areas:
+        ".      header      header      header      ."
+        "toc-popover toc-popover toc-popover toc-popover toc-popover"
+        ".     sidebar     main        toc         ." !important;
+}
+
+#nd-notebook-layout > header > div {
+    position: relative;
+    overflow: visible;
+}
+#nd-notebook-layout > header > div::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-fd-border);
+    width: 100vw;
+    height: 1px;
+    pointer-events: none;
+}
+#nd-sidebar[data-collapsed="true"][data-hovered="false"] {
+    opacity: 0;
+    transition-property:
+        width, inset-block, translate, background-color, opacity;
+}
+
+#nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) {
+    grid-template-areas:
+        ".      header      header      header      ."
+        "toc-popover toc-popover toc-popover toc-popover toc-popover"
+        ".     main     main        toc         ." !important;
+}
+#nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) #nd-page > * {
+    max-width: 100%;
+}
+
+@media (max-width: 1279px) {
+    #nd-notebook-layout {
+        /* 2. 열(Columns) 설정: 5분할 구조 */
+        grid-template-columns:
+            minmax(16px, 1fr) /* 왼쪽 여백 */
+            var(--fd-sidebar-col) /* 사이드바 */
+            minmax(
+                0,
+                calc(
+                    var(--fd-layout-width, 97rem) - var(--fd-sidebar-col) -
+                        var(--fd-toc-width)
+                )
+            )
+            /* 메인 */
+            var(--fd-toc-width) /* TOC(목차) */
+            16px !important; /* 오른쪽 여백 */
+    }
+    #nd-notebook-layout:has(#nd-sidebar[data-collapsed="true"]) {
+        --fd-sidebar-col: 0 !important;
+        --fd-toc-width: 0 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #nd-notebook-layout {
+        --fd-sidebar-col: 0 !important;
+    }
+}
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    /* body {
+        @apply bg-background text-foreground;
+    } */
+    html {
+        @apply font-sans;
+    }
+}

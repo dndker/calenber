@@ -1,21 +1,15 @@
-# shadcn/ui monorepo template
+# calenber
 
-This is a Next.js monorepo template with shadcn/ui.
-
-## Adding components
-
-To add components to your app, run the following command at the root of your `web` app:
+To install dependencies:
 
 ```bash
-pnpm dlx shadcn@latest add button -c apps/web
+bun install
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+To run:
 
-## Using components
-
-To use the components in your app, import them from the `ui` package.
-
-```tsx
-import { Button } from "@workspace/ui/components/button";
+```bash
+bun run index.ts
 ```
+
+This project was created using `bun init` in bun v1.3.5. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.

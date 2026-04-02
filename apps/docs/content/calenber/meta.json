@@ -1,0 +1,13 @@
+{
+    "title": "Calenber Docs",
+    "description": "Calenber 문서",
+    "icon": "Atom",
+    "pages": [
+        "index",
+        "---Getting Started---",
+        "...getting-started",
+        "---Components---",
+        "...components",
+        "..."
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "abusaidm.html-snippets",
+        "bradgashler.htmltagwrap",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "formulahendry.auto-rename-tag",
+        "pkief.material-icon-theme",
+        "unifiedjs.vscode-mdx",
+        "usernamehw.errorlens"
+    ]
+}
