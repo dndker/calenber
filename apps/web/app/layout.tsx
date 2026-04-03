@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
+import { cookies } from "next/headers"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -13,11 +14,13 @@ const fontMono = Geist_Mono({
     variable: "--font-mono",
 })
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: Readonly<{
     children: React.ReactNode
 }>) {
+    const cookieStore = await cookies()
+    const theme = cookieStore.get("theme")?.value ?? "system"
     return (
         <html
             lang="ko"
@@ -30,7 +33,14 @@ export default function RootLayout({
             )}
         >
             <body>
-                <ThemeProvider>{children}</ThemeProvider>
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme={theme}
+                    disableTransitionOnChange
+                    enableSystem
+                >
+                    {children}
+                </ThemeProvider>
                 <Analytics />
                 <SpeedInsights />
             </body>
