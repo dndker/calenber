@@ -33,5 +33,13 @@
     "files.exclude": {
         "**/.next": true,
         "**/.source": true
+    },
+    "tailwindCSS.experimental.configFile": "packages/ui/src/styles/globals.css",
+    "tailwindCSS.includeLanguages": {
+        "typescriptreact": "typescriptreact",
+        "javascriptreact": "javascriptreact"
+    },
+    "editor.quickSuggestions": {
+        "strings": true
     }
 }
