@@ -41,5 +41,8 @@
     },
     "editor.quickSuggestions": {
         "strings": true
-    }
+    },
+    "debug.console.fontFamily": "D2Coding",
+    "terminal.integrated.fontFamily": "D2Coding",
+    "files.eol": "\n"
 }
