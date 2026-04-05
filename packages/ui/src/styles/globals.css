@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tailwind-scrollbar-hide/v4";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -123,6 +124,21 @@
     * {
         @apply border-border outline-ring/50;
     }
+
+    *:not([data-radix-menu-content]):not([data-day]):focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        --tw-ring-offset-width: 0px !important;
+        --tw-ring-width: 0px !important;
+    }
+
+    button:not(disabled) {
+        cursor: pointer;
+    }
+    select:not(disabled) {
+        cursor: pointer;
+    }
+
     body {
         @apply bg-background text-foreground;
     }

@@ -1,3 +1,5 @@
+import MonthView from "@/components/calendar/month-view"
+
 export default function Page() {
-    return <div>main</div>
+    return <MonthView />
 }

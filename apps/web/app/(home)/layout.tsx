@@ -1,12 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { CalendarBreadcrumb } from "@/components/calendar-breadcrumb"
 import { NavActions } from "@/components/nav-actions"
-import {
-    Breadcrumb,
-    BreadcrumbItem,
-    BreadcrumbList,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-} from "@workspace/ui/components/breadcrumb"
 import { Button } from "@workspace/ui/components/button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { Separator } from "@workspace/ui/components/separator"
@@ -19,9 +13,9 @@ import { Search } from "lucide-react"
 
 export default function Layout({ children }: { children: React.ReactNode }) {
     return (
-        <SidebarProvider>
+        <SidebarProvider className="h-screen overflow-hidden">
             <AppSidebar />
-            <SidebarInset>
+            <SidebarInset className="h-screen overflow-hidden">
                 <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2.5 border-b bg-background px-4">
                     <div className="flex shrink-0 items-center gap-1">
                         <SidebarTrigger className="-ml-1" />
@@ -31,19 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         />
                     </div>
                     <div className="flex flex-1 items-center justify-between">
-                        <Breadcrumb>
-                            <BreadcrumbList>
-                                <BreadcrumbItem>
-                                    <BreadcrumbPage>My Calendar</BreadcrumbPage>
-                                </BreadcrumbItem>
-                                <BreadcrumbSeparator />
-                                <BreadcrumbItem>
-                                    <BreadcrumbPage>
-                                        Schedule Calendar
-                                    </BreadcrumbPage>
-                                </BreadcrumbItem>
-                            </BreadcrumbList>
-                        </Breadcrumb>
+                        <CalendarBreadcrumb />
 
                         <div className="absolute top-1/2 left-1/2 -translate-1/2">
                             <Button
@@ -70,7 +52,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </header>
 
                 {/* 페이지 콘텐츠가 렌더링되는 곳 */}
-                <main className="flex flex-1 flex-col gap-4 p-4">
+                <main className="box-border flex flex-1 flex-col overflow-hidden">
                     {children}
                 </main>
             </SidebarInset>
