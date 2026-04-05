@@ -49,6 +49,16 @@ export function DatePicker() {
         [setSelectedDate, setViewportDate]
     )
 
+    const handleMonthSelected = useCallback(
+        (d?: Date) => {
+            if (!d) return
+            setSelectedDate(d)
+            setViewportMiniDate(d)
+            setViewportDate(d)
+        },
+        [setSelectedDate, setViewportMiniDate, setViewportDate]
+    )
+
     return (
         <SidebarGroup className="px-0">
             <SidebarGroupContent>
@@ -56,6 +66,7 @@ export function DatePicker() {
                     mode="single"
                     month={month}
                     onMonthChange={setViewportMiniDate}
+                    onMonthSelected={handleMonthSelected}
                     onClickToday={onClickToday}
                     showTodayButton={!isToday}
                     selected={selected}

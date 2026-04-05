@@ -8,7 +8,6 @@ import {
     BreadcrumbPage,
 } from "@workspace/ui/components/breadcrumb"
 import dayjs from "dayjs"
-import TextTransition, { presets } from "react-text-transition"
 
 export const CalendarBreadcrumb = () => {
     const viewport = useCalendarStore((s) => s.viewport)
@@ -25,9 +24,7 @@ export const CalendarBreadcrumb = () => {
                 <BreadcrumbSeparator /> */}
                 <BreadcrumbItem>
                     <BreadcrumbPage className="text-base font-medium">
-                        <TextTransition springConfig={presets.stiff}>
-                            {dayjs(viewport).format("YYYY년 M월")}
-                        </TextTransition>
+                        {dayjs(viewport).format("YYYY년 M월")}
                     </BreadcrumbPage>
                 </BreadcrumbItem>
             </BreadcrumbList>

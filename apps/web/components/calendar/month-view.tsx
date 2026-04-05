@@ -11,17 +11,18 @@ export default function Calendar({ targetDate }: { targetDate?: Date }) {
     const [containerHeight, setContainerHeight] = useState(0)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const setViewportDate = useCalendarStore((s) => s.setViewportDate)
+    const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
 
     const onVisibleMonthChange = useCallback(
         (date: Date) => {
             setViewportDate(date)
+            setViewportMiniDate(date)
         },
-        [setViewportDate]
+        [setViewportDate, setViewportMiniDate]
     )
 
     useEffect(() => {
         if (!parentRef.current) return
-        console.log(parentRef.current)
 
         const update = () => {
             const h = parentRef.current!.clientHeight
