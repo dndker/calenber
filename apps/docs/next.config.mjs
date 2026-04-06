@@ -4,6 +4,10 @@ const withMDX = createMDX()
 
 /** @type {import('next').NextConfig} */
 const config = {
+    turbopack: {},
+    experimental: {
+        manualClientBasePath: false,
+    },
     compiler: {
         removeConsole: {
             exclude: ["error", "warn"],
