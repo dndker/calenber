@@ -42,7 +42,7 @@ export default function HomePage() {
 
                     <div className="flex flex-wrap gap-4">
                         <Link
-                            href="/docs"
+                            href="/calendar"
                             className="text-md rounded-full bg-blue-400 px-8 py-3 font-bold text-black shadow-lg shadow-blue-400/20 transition-all hover:bg-blue-300"
                         >
                             Getting Started

@@ -11,6 +11,7 @@ import {
 
 import { Button, buttonVariants } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
+import clsx from "clsx"
 import dayjs from "dayjs"
 import {
     ChevronDownIcon,
@@ -31,15 +32,25 @@ const Calendar = React.memo(function Calendar({
     formatters,
     components,
     month,
+    selectedDate,
     onMonthChange,
     onMonthSelected,
+    onYearSelected,
     onClickToday,
+    onClickNav,
     showTodayButton,
     ...props
 }: React.ComponentProps<typeof DayPicker> & {
+    selectedDate: Date
     buttonVariant?: React.ComponentProps<typeof Button>["variant"]
     onClickToday?: () => void
+    onClickNav?: (
+        currentDate: Date,
+        direction: string,
+        mode: CalendarPickerMode
+    ) => void
     onMonthSelected?: (date: Date, mode: CalendarPickerMode) => void
+    onYearSelected?: (date: Date, mode?: CalendarPickerMode) => void
     showTodayButton?: boolean
 }) {
     const defaultClassNames = getDefaultClassNames()
@@ -173,7 +184,7 @@ const Calendar = React.memo(function Calendar({
                 Nav: ({ onPreviousClick, onNextClick }) => {
                     return (
                         <div className="absolute top-0.75 right-0 flex w-auto items-center">
-                            {showTodayButton && (
+                            {showTodayButton && mode == "day" && (
                                 <Button
                                     onClick={() => {
                                         onClickToday?.()
@@ -186,26 +197,32 @@ const Calendar = React.memo(function Calendar({
                                 </Button>
                             )}
 
-                            {mode !== "month" && (
-                                <>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={onPreviousClick}
-                                        className="size-7 p-0 select-none aria-disabled:opacity-50"
-                                    >
-                                        <ChevronLeftIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={onNextClick}
-                                        className="size-7 p-0 select-none aria-disabled:opacity-50"
-                                    >
-                                        <ChevronRightIcon />
-                                    </Button>
-                                </>
-                            )}
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={
+                                    mode === "day"
+                                        ? onPreviousClick
+                                        : () =>
+                                              onClickNav?.(month!, "prev", mode)
+                                }
+                                className="size-7 p-0 select-none aria-disabled:opacity-50"
+                            >
+                                <ChevronLeftIcon />
+                            </Button>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={
+                                    mode === "day"
+                                        ? onNextClick
+                                        : () =>
+                                              onClickNav?.(month!, "next", mode)
+                                }
+                                className="size-7 p-0 select-none aria-disabled:opacity-50"
+                            >
+                                <ChevronRightIcon />
+                            </Button>
                         </div>
                     )
                 },
@@ -255,18 +272,28 @@ const Calendar = React.memo(function Calendar({
                         <div className="flex items-center -space-x-1.75 *:px-1.5!">
                             <Button
                                 variant="ghost"
-                                // onClick={() => setMode("year")}
+                                onClick={() =>
+                                    setMode(mode === "year" ? "day" : "year")
+                                }
+                                className={clsx({
+                                    "bg-muted underline dark:hover:bg-muted/50":
+                                        mode === "year",
+                                })}
                             >
                                 {year}
                             </Button>
-                            {mode !== "month" && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={() => setMode("month")}
-                                >
-                                    {month}
-                                </Button>
-                            )}
+                            <Button
+                                variant="ghost"
+                                onClick={() =>
+                                    setMode(mode === "month" ? "day" : "month")
+                                }
+                                className={clsx({
+                                    "bg-muted underline dark:hover:bg-muted/50":
+                                        mode === "month",
+                                })}
+                            >
+                                {month}
+                            </Button>
                         </div>
                     )
                 },
@@ -274,6 +301,7 @@ const Calendar = React.memo(function Calendar({
                     if (mode === "month") {
                         return (
                             <CalendarMonthGrid
+                                selectedDate={selectedDate}
                                 month={month || new Date()}
                                 onMonthChange={(date) => {
                                     onMonthSelected?.(date, "month")
@@ -283,7 +311,16 @@ const Calendar = React.memo(function Calendar({
                         )
                     }
                     if (mode === "year") {
-                        return <div>year</div>
+                        return (
+                            <CalendarYearGrid
+                                selectedDate={selectedDate}
+                                year={month || new Date()}
+                                onYearChange={(date) => {
+                                    onYearSelected?.(date)
+                                    setMode("month")
+                                }}
+                            />
+                        )
                     }
 
                     return <DefaultMonthGrid {...props} />
@@ -296,22 +333,78 @@ const Calendar = React.memo(function Calendar({
     )
 })
 
-function CalendarMonthGrid({
+const CalendarYearGrid = React.memo(function CalendarYearGrid({
+    selectedDate,
+    year,
+    onYearChange,
+}: {
+    selectedDate: Date
+    year: Date
+    onYearChange?: (date: Date) => void
+}) {
+    const current = dayjs(year)
+    const currentYear = current.year()
+
+    const selected = dayjs(selectedDate)
+    const selectedYear = selected.year()
+
+    // ✅ 현재 year가 포함된 9개 묶음 시작점
+    const baseYear = Math.floor(currentYear / 12) * 12
+
+    const years = Array.from({ length: 12 }, (_, i) => baseYear + i)
+    // years[0]! + 9
+
+    return (
+        <div className="mb-1 grid grid-cols-4 gap-2.5">
+            {years.map((y) => {
+                const isSelected = y === selectedYear
+
+                return (
+                    <Button
+                        variant="ghost"
+                        key={y}
+                        onClick={() => {
+                            const newDate = current.year(y).toDate()
+                            onYearChange?.(newDate)
+                        }}
+                        data-selected-single={isSelected}
+                        className={cn(
+                            "relative isolate z-10 flex aspect-square h-auto items-center justify-center rounded-lg border-0 text-sm font-normal",
+                            "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground",
+                            isSelected &&
+                                "bg-primary font-medium text-primary-foreground"
+                        )}
+                    >
+                        {y}
+                    </Button>
+                )
+            })}
+        </div>
+    )
+})
+
+const CalendarMonthGrid = React.memo(function CalendarMonthGrid({
+    selectedDate,
     month,
     onMonthChange,
 }: {
+    selectedDate: Date
     month: Date
     onMonthChange?: (date: Date) => void
 }) {
     const current = dayjs(month).startOf("month")
-    const currentMonth = current.month()
+
+    const selected = dayjs(selectedDate)
+    const selectedMonth = selected.month()
+    const selectedYear = selected.year()
 
     const months = Array.from({ length: 12 }, (_, i) => i)
 
     return (
         <div className="mb-1 grid grid-cols-4 gap-2.5">
             {months.map((m) => {
-                const isSelected = m === currentMonth
+                const isSelected =
+                    m === selectedMonth && current.year() === selectedYear
 
                 return (
                     <Button
@@ -323,7 +416,7 @@ function CalendarMonthGrid({
                         }}
                         data-selected-single={isSelected}
                         className={cn(
-                            "dark:not[data-selected=true]:hover:text-foreground relative isolate z-10 flex aspect-square h-auto flex-col gap-1 rounded-sm border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground [&>span]:text-xs [&>span]:opacity-70",
+                            "dark:not[data-selected=true]:hover:text-foreground relative isolate z-10 flex aspect-square h-auto flex-col gap-1 rounded-md border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground [&>span]:text-xs [&>span]:opacity-70",
                             isSelected &&
                                 "bg-primary font-medium text-primary-foreground"
                         )}
@@ -334,7 +427,7 @@ function CalendarMonthGrid({
             })}
         </div>
     )
-}
+})
 
 const CalendarDayButton = React.memo(function CalendarDayButton({
     className,
