@@ -42,7 +42,7 @@
     "editor.quickSuggestions": {
         "strings": true
     },
-    "debug.console.fontFamily": "D2Coding",
-    "terminal.integrated.fontFamily": "D2Coding",
+    "editor.fontFamily": "D2Coding, Menlo, Monaco, 'Courier New', monospace, MesloLGS NF",
+    "terminal.integrated.fontFamily": "D2Coding, Menlo, Monaco, monospace, MesloLGS NF",
     "files.eol": "\n"
 }
