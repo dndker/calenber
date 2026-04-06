@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>(인터넷 끊김) - 캘린버</title>
+        <style>
+            html {
+                background: #fff;
+            }
+            html.dark {
+                background: #0c0d0e;
+                color: #fff;
+            }
+
+            html,
+            body {
+                padding: 0;
+                margin: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+
+            .offline__contaienr {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
+                height: 100%;
+                box-sizing: border-box;
+            }
+
+            .offline__contaienr img {
+                filter: grayscale(1);
+                opacity: 0.5;
+            }
+            .offline__contaienr > div {
+                max-width: 350px;
+                width: 100%;
+                padding: 0 32px;
+                box-sizing: border-box;
+            }
+
+            .offline__contaienr > div > strong {
+                display: block;
+                font-size: 20px;
+                margin: 20px 0;
+            }
+
+            .offline__contaienr > div > p {
+                opacity: 0.8;
+                font-size: 15px;
+                line-height: 24px;
+            }
+
+            .offline__contaienr button {
+                appearance: none;
+                outline: none !important;
+                border: none !important;
+                background: #f3f3f3;
+                border-radius: 50px;
+                color: #111;
+                height: 40px;
+                line-height: 40px;
+                text-align: center;
+                padding: 0 16px;
+                font-weight: 500;
+                cursor: pointer;
+                margin-top: 20px;
+                font-size: 14px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="offline__contaienr">
+            <div>
+                <div><img src="/symbol.svg" alt="" width="50" /></div>
+                <strong>인터넷 연결이 끊겼어요 :(</strong>
+                <p>
+                    네트워크에 연결되어 있지 않습니다.<br />
+                    다시 시도하려면 새로고침하세요.
+                </p>
+                <button type="button" onclick="location.reload()">
+                    새로고침
+                </button>
+            </div>
+        </div>
+    </body>
+
+    <script>
+        // theme 쿠키를 안전하게 읽는 헬퍼
+        function getCookie(name) {
+            const match = document.cookie.match(
+                "(^|;)\\s*" + name + "\\s*=\\s*([^;]+)"
+            );
+            return match ? decodeURIComponent(match[2]) : null;
+        }
+
+        // theme 적용
+        function applyTheme(theme) {
+            const html = document.documentElement;
+            html.classList.remove("light", "dark");
+            if (theme === "dark") {
+                html.classList.add("dark");
+            } else if (theme === "light") {
+                html.classList.add("light");
+            }
+        }
+
+        // 시스템 설정 변화 감지 (auto 모드일 때만)
+        const currentCookie = getCookie("theme");
+
+        // 초기 적용: 쿠키가 있으면 그걸, 없으면 auto
+        applyTheme(currentCookie || "light");
+    </script>
+</html>

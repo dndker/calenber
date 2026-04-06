@@ -1,13 +1,38 @@
 /** @type {import('next').NextConfig} */
+import withPWAInit from "@ducanh2912/next-pwa"
 
 export const DOCS_URL =
     process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001"
 
+const withPWA = withPWAInit({
+    // disable: process.env.NODE_ENV !== "production",
+    disable: false,
+    // register: true,
+    dest: "public",
+    fallbacks: {
+        // document: "/~offline",
+        image: "/symbol.svg",
+    },
+    reloadOnOnline: true,
+    customWorkerSrc: "worker",
+    workboxOptions: {
+        swSrc: "worker/index.ts",
+    },
+    // cacheOnFrontEndNav: true,
+    // aggressiveFrontEndNavCaching: true,
+    // customWorkerDest: "somewhere-else", // defaults to `dest`
+    // customWorkerPrefix: "worker",
+})
+
 const nextConfig = {
+    turbopack: {},
     compiler: {
-        removeConsole: {
-            exclude: ["error", "warn"],
-        },
+        removeConsole:
+            process.env.NODE_ENV === "production"
+                ? {
+                      exclude: ["error", "warn"],
+                  }
+                : false,
     },
     transpilePackages: ["@workspace/ui"],
     async rewrites() {
@@ -26,4 +51,4 @@ const nextConfig = {
     },
 }
 
-export default nextConfig
+export default withPWA(nextConfig)

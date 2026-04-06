@@ -9,8 +9,9 @@ import {
     CornerUpRight,
     FileText,
     GalleryVerticalEnd,
+    Info,
     LineChart,
-    Link,
+    Link as LinkIcon,
     MoreHorizontal,
     Search,
     Settings2,
@@ -34,9 +35,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
-import dynamic from "next/dynamic"
-
-const ThemeSwitch = dynamic(() => import("./theme-switch"), { ssr: false })
+import Link from "next/link"
+import ThemeSwitch from "./theme-switch"
 
 const data = [
     [
@@ -52,7 +52,7 @@ const data = [
     [
         {
             label: "Copy Link",
-            icon: Link,
+            icon: LinkIcon,
         },
         {
             label: "Duplicate",
@@ -109,11 +109,20 @@ export function NavActions() {
             {/* <div className="hidden font-medium text-muted-foreground md:inline-block">
                 Edit Oct 08
             </div> */}
+
+            <Button variant="outline" size="sm" className="mr-1" asChild>
+                <Link href="/docs">
+                    <Info />
+                    Support
+                </Link>
+            </Button>
+
             <Button variant="ghost" size="icon" className="size-8 sm:hidden">
                 <Search className="size-4.5" />
             </Button>
 
             <ThemeSwitch />
+
             <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
                     <Button

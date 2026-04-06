@@ -29,7 +29,7 @@ export function MonthList({
     const virtualizer = useVirtualizer({
         count: TOTAL,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => containerHeight / 5,
+        estimateSize: () => Math.floor(containerHeight / 5),
         overscan: 10,
         gap: 1,
     })
