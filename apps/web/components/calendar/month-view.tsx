@@ -58,7 +58,7 @@ export default function Calendar({ targetDate }: { targetDate?: Date }) {
             <MonthHeader />
             <div
                 ref={parentRef}
-                className="scrollbar-hide flex-1 snap-y snap-proximity overflow-auto"
+                className="scrollbar-hide flex-1 overflow-auto"
             >
                 {!isCalendarLoading ? (
                     <MonthList

@@ -1,7 +1,7 @@
 import { useNow } from "@/hooks/use-now"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
-import { Calendar } from "@workspace/ui/components/calendar"
+import { Calendar, CalendarPickerMode } from "@workspace/ui/components/calendar"
 import {
     SidebarGroup,
     SidebarGroupContent,
@@ -59,6 +59,28 @@ export function DatePicker() {
         [setSelectedDate, setViewportMiniDate, setViewportDate]
     )
 
+    const handleYearSelected = useCallback(
+        (d?: Date) => {
+            if (!d) return
+            setViewportMiniDate(d)
+        },
+        [setViewportMiniDate]
+    )
+
+    const handleClickNav = useCallback(
+        (currentDate: Date, direction: string, mode: CalendarPickerMode) => {
+            let date = dayjs(currentDate)
+            const number = mode === "month" ? 1 : 12
+            if (direction === "prev") {
+                date = date.subtract(number, "year")
+            } else if (direction === "next") {
+                date = date.add(number, "year")
+            }
+            setViewportMiniDate(date.toDate())
+        },
+        [setViewportMiniDate]
+    )
+
     return (
         <SidebarGroup className="px-0">
             <SidebarGroupContent>
@@ -67,9 +89,12 @@ export function DatePicker() {
                     month={month}
                     onMonthChange={setViewportMiniDate}
                     onMonthSelected={handleMonthSelected}
+                    onYearSelected={handleYearSelected}
                     onClickToday={onClickToday}
+                    onClickNav={handleClickNav}
                     showTodayButton={!isToday}
                     selected={selected}
+                    selectedDate={selected}
                     onSelect={handleSelect}
                     // captionLayout="dropdown"
                     className="bg-transparent py-1! [--cell-size:2.1rem]"

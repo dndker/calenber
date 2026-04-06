@@ -84,6 +84,57 @@ export function MonthList({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [virtualizer.getVirtualItems()])
 
+    // 스크롤 끝나면 스냅
+    useEffect(() => {
+        const el = parentRef.current
+        if (!el) return
+
+        let timeout: NodeJS.Timeout | null = null
+        let isSnapping = false
+
+        const handleScroll = () => {
+            if (isSnapping) return
+
+            if (timeout) clearTimeout(timeout)
+
+            timeout = setTimeout(() => {
+                const items = virtualizer.getVirtualItems()
+                if (!items.length) return
+
+                const scrollTop = el.scrollTop
+
+                let closest = items[0]!
+                let minDiff = Math.abs(items[0]!.start - scrollTop)
+
+                for (const item of items) {
+                    const diff = Math.abs(item.start - scrollTop)
+                    if (diff < minDiff) {
+                        minDiff = diff
+                        closest = item
+                    }
+                }
+
+                isSnapping = true
+
+                virtualizer.scrollToIndex(closest.index, {
+                    align: "start",
+                    behavior: "smooth",
+                })
+
+                // smooth 끝났다고 가정하고 잠깐 후 unlock
+                setTimeout(() => {
+                    isSnapping = false
+                }, 300)
+            }, 250)
+        }
+
+        el.addEventListener("scroll", handleScroll)
+
+        return () => {
+            el.removeEventListener("scroll", handleScroll)
+            if (timeout) clearTimeout(timeout)
+        }
+    }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
 
     return (
