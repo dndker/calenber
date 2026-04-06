@@ -71,7 +71,7 @@ export function DatePicker() {
                     showTodayButton={!isToday}
                     selected={selected}
                     onSelect={handleSelect}
-                    captionLayout="dropdown"
+                    // captionLayout="dropdown"
                     className="bg-transparent py-1! [--cell-size:2.1rem]"
                 />
 
