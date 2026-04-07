@@ -34,8 +34,8 @@ console.log("Changed files:\n", changedFiles)
 
 // 각 프로젝트별 허용 경로
 const projectPaths = {
-    web: ["apps/web", "packages"],
-    docs: ["apps/docs", "packages"],
+    "calenber-web": ["apps/web", "packages"],
+    "calenber-docs": ["apps/docs", "packages"],
 }
 
 // 현재 프로젝트에 해당하는 경로
