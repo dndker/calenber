@@ -42,6 +42,7 @@ const Calendar = React.memo(function Calendar({
     ...props
 }: React.ComponentProps<typeof DayPicker> & {
     selectedDate: Date
+    viewportDate: Date
     buttonVariant?: React.ComponentProps<typeof Button>["variant"]
     onClickToday?: () => void
     onClickNav?: (
@@ -266,8 +267,15 @@ const Calendar = React.memo(function Calendar({
                 },
                 MonthCaption({ calendarMonth }) {
                     const date = dayjs(calendarMonth.date)
-                    const year = date.format("YYYY년")
+                    const year = date.year()
                     const month = date.format("M월")
+
+                    const baseYear = Math.floor(year / 12) * 12
+                    const years = Array.from(
+                        { length: 12 },
+                        (_, i) => baseYear + i
+                    )
+
                     return (
                         <div className="flex items-center -space-x-1.75 *:px-1.5!">
                             <Button
@@ -275,12 +283,15 @@ const Calendar = React.memo(function Calendar({
                                 onClick={() =>
                                     setMode(mode === "year" ? "day" : "year")
                                 }
-                                className={clsx({
-                                    "bg-muted underline dark:hover:bg-muted/50":
+                                className={cn({
+                                    "bg-muted text-[13px] dark:hover:bg-muted/50":
                                         mode === "year",
+                                    "opacity-50": mode === "month",
                                 })}
                             >
-                                {year}
+                                {mode === "year"
+                                    ? `${years[0]}년~${years[11]}년`
+                                    : `${year}년`}
                             </Button>
                             <Button
                                 variant="ghost"
@@ -288,8 +299,9 @@ const Calendar = React.memo(function Calendar({
                                     setMode(mode === "month" ? "day" : "month")
                                 }
                                 className={clsx({
-                                    "bg-muted underline dark:hover:bg-muted/50":
+                                    "bg-muted dark:hover:bg-muted/50":
                                         mode === "month",
+                                    "opacity-50": mode === "year",
                                 })}
                             >
                                 {month}
@@ -301,6 +313,7 @@ const Calendar = React.memo(function Calendar({
                     if (mode === "month") {
                         return (
                             <CalendarMonthGrid
+                                mode={mode}
                                 selectedDate={selectedDate}
                                 month={month || new Date()}
                                 onMonthChange={(date) => {
@@ -313,6 +326,7 @@ const Calendar = React.memo(function Calendar({
                     if (mode === "year") {
                         return (
                             <CalendarYearGrid
+                                mode={mode}
                                 selectedDate={selectedDate}
                                 year={month || new Date()}
                                 onYearChange={(date) => {
@@ -338,6 +352,7 @@ const CalendarYearGrid = React.memo(function CalendarYearGrid({
     year,
     onYearChange,
 }: {
+    mode: CalendarPickerMode
     selectedDate: Date
     year: Date
     onYearChange?: (date: Date) => void
@@ -350,33 +365,28 @@ const CalendarYearGrid = React.memo(function CalendarYearGrid({
 
     // ✅ 현재 year가 포함된 9개 묶음 시작점
     const baseYear = Math.floor(currentYear / 12) * 12
-
     const years = Array.from({ length: 12 }, (_, i) => baseYear + i)
-    // years[0]! + 9
 
     return (
         <div className="mb-1 grid grid-cols-4 gap-2.5">
             {years.map((y) => {
+                const today = dayjs()
                 const isSelected = y === selectedYear
 
+                const isToday = y === today.year()
+
                 return (
-                    <Button
-                        variant="ghost"
+                    <CalendarGridButton
                         key={y}
+                        isToday={isToday}
                         onClick={() => {
                             const newDate = current.year(y).toDate()
                             onYearChange?.(newDate)
                         }}
-                        data-selected-single={isSelected}
-                        className={cn(
-                            "relative isolate z-10 flex aspect-square h-auto items-center justify-center rounded-lg border-0 text-sm font-normal",
-                            "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground",
-                            isSelected &&
-                                "bg-primary font-medium text-primary-foreground"
-                        )}
+                        isSelected={isSelected}
                     >
                         {y}
-                    </Button>
+                    </CalendarGridButton>
                 )
             })}
         </div>
@@ -390,6 +400,7 @@ const CalendarMonthGrid = React.memo(function CalendarMonthGrid({
 }: {
     selectedDate: Date
     month: Date
+    mode?: CalendarPickerMode
     onMonthChange?: (date: Date) => void
 }) {
     const current = dayjs(month).startOf("month")
@@ -403,29 +414,59 @@ const CalendarMonthGrid = React.memo(function CalendarMonthGrid({
     return (
         <div className="mb-1 grid grid-cols-4 gap-2.5">
             {months.map((m) => {
+                const today = dayjs()
                 const isSelected =
                     m === selectedMonth && current.year() === selectedYear
+                const isToday =
+                    m === today.month() && current.year() === today.year()
 
                 return (
-                    <Button
-                        variant="ghost"
+                    <CalendarGridButton
+                        isToday={isToday}
                         key={m}
                         onClick={() => {
                             const newDate = current.month(m).toDate()
                             onMonthChange?.(newDate)
                         }}
                         data-selected-single={isSelected}
-                        className={cn(
-                            "dark:not[data-selected=true]:hover:text-foreground relative isolate z-10 flex aspect-square h-auto flex-col gap-1 rounded-md border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground [&>span]:text-xs [&>span]:opacity-70",
-                            isSelected &&
-                                "bg-primary font-medium text-primary-foreground"
-                        )}
+                        isSelected={isSelected}
                     >
                         {m + 1}월
-                    </Button>
+                    </CalendarGridButton>
                 )
             })}
         </div>
+    )
+})
+
+const CalendarGridButton = React.memo(function CalendarDayButton({
+    isSelected,
+    isToday,
+    onClick,
+    className,
+    children,
+}: {
+    mode?: CalendarPickerMode
+    className?: string
+    isToday: boolean
+    isSelected: boolean
+    children: React.ReactNode
+    onClick: () => void
+}) {
+    return (
+        <Button
+            variant="ghost"
+            onClick={onClick}
+            data-selected-single={isSelected}
+            className={cn(
+                "dark:not[data-selected=true]:hover:text-foreground relative isolate z-10 flex aspect-square h-auto flex-col gap-1 rounded-md border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground [&>span]:text-xs [&>span]:opacity-70",
+                isSelected && "bg-primary font-medium text-primary-foreground",
+                isToday && "bg-muted dark:hover:bg-muted/50",
+                className
+            )}
+        >
+            {children}
+        </Button>
     )
 })
 
