@@ -24,6 +24,9 @@ export function DatePicker() {
             dayjs(now).isSame(viewportMini, "month")
         )
     }, [now, selectedDate, viewportMini])
+    const viewportMiniDate = useMemo(() => {
+        return dayjs(viewportMini).toDate()
+    }, [viewportMini])
 
     const selected = useMemo(() => dayjs(selectedDate).toDate(), [selectedDate])
     const month = useMemo(
@@ -95,6 +98,7 @@ export function DatePicker() {
                     showTodayButton={!isToday}
                     selected={selected}
                     selectedDate={selected}
+                    viewportDate={viewportMiniDate}
                     onSelect={handleSelect}
                     // captionLayout="dropdown"
                     className="bg-transparent py-1! [--cell-size:2.1rem]"
