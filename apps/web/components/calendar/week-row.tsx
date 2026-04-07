@@ -2,6 +2,7 @@ import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
 import { memo, useMemo } from "react"
 import { DayCell } from "./day-cell"
+import { EventRow } from "./event-row"
 
 export const WeekRow = memo(
     ({
@@ -44,6 +45,8 @@ export const WeekRow = memo(
                         isCurrentMonth={getMonthKey(day) === currentMonthKey}
                     />
                 ))}
+
+                <EventRow week={week} />
             </div>
         )
     }

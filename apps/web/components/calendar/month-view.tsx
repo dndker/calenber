@@ -1,8 +1,8 @@
 "use client"
 
+import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
-import dayjs from "dayjs"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { MonthHeader } from "./month-header"
 import { MonthList } from "./month-list"
@@ -58,7 +58,7 @@ export default function Calendar({ targetDate }: { targetDate?: Date }) {
             <MonthHeader />
             <div
                 ref={parentRef}
-                className="scrollbar-hide flex-1 overflow-auto"
+                className="scrollbar-hide max-w-full flex-1 overflow-x-hidden overflow-y-auto"
             >
                 {!isCalendarLoading ? (
                     <MonthList

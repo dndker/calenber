@@ -143,3 +143,9 @@
         @apply bg-background text-foreground;
     }
 }
+
+@layer utilities {
+    .pointer-events-all {
+        pointer-events: all;
+    }
+}

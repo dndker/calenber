@@ -1,4 +1,5 @@
 import { useNow } from "@/hooks/use-now"
+import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar, CalendarPickerMode } from "@workspace/ui/components/calendar"
@@ -6,7 +7,6 @@ import {
     SidebarGroup,
     SidebarGroupContent,
 } from "@workspace/ui/components/sidebar"
-import dayjs from "dayjs"
 import { CalendarPlus } from "lucide-react"
 import { useCallback, useMemo } from "react"
 

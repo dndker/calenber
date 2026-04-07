@@ -1,5 +1,6 @@
 "use client"
 
+import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Breadcrumb,
@@ -7,7 +8,6 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
 } from "@workspace/ui/components/breadcrumb"
-import dayjs from "dayjs"
 
 export const CalendarBreadcrumb = () => {
     const viewport = useCalendarStore((s) => s.viewport)

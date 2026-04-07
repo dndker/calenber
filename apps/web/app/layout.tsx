@@ -7,13 +7,8 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
-import dayjs from "dayjs"
-import timezone from "dayjs/plugin/timezone"
 import type { Metadata, Viewport } from "next"
 import { cookies } from "next/headers"
-dayjs.locale("ko")
-dayjs.extend(timezone)
-dayjs.tz.setDefault("Asia/Seoul")
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 

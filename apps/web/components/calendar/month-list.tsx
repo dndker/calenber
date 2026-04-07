@@ -1,11 +1,13 @@
+import dayjs from "@/lib/dayjs"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     CENTER_INDEX,
     TOTAL,
     getMonthKey,
     getWeekOffset,
 } from "@/utils/calendar"
+import { DndContext } from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import dayjs from "dayjs"
 import { useEffect, useRef, useState } from "react"
 import { WeekRow } from "./week-row"
 
@@ -20,6 +22,8 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
+    const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const setDragging = useCalendarStore((s) => s.setDraggingEventId)
     const baseDateRef = useRef(new Date())
     const prevMonthRef = useRef<string | null>(null)
     const [currentMonthKey, setCurrentMonthKey] = useState(
@@ -138,26 +142,62 @@ export function MonthList({
     const items = virtualizer.getVirtualItems()
 
     return (
-        <div
-            style={{
-                height: virtualizer.getTotalSize(),
-                position: "relative",
+        <DndContext
+            autoScroll={{
+                threshold: {
+                    x: 0, // x축 임계값을 0으로 설정하여 감지 범위를 없애거나
+                    y: 0.2, // y축만 활성화
+                },
+            }}
+            onDragOver={({ over }) => {
+                if (!over) return
+                setDragging(over.id as string)
+            }}
+            onDragEnd={({ active, over }) => {
+                if (!over) return
+                setDragging(undefined)
+
+                const id = active.id as string
+                const newDate = over.id as string
+
+                const event = useCalendarStore
+                    .getState()
+                    .events.find((e) => e.id === id)
+
+                if (!event) return
+
+                const duration = dayjs(event.end).diff(event.start, "minute")
+
+                updateEvent(id, {
+                    start: dayjs(newDate).toISOString(),
+                    end: dayjs(newDate).add(duration, "minute").toISOString(),
+                })
             }}
         >
-            {items.map((item) => {
-                const weekOffset = item.index - CENTER_INDEX
-                const weekDate = getWeekOffset(baseDateRef.current, weekOffset)
+            <div
+                style={{
+                    height: virtualizer.getTotalSize(),
+                    position: "relative",
+                }}
+            >
+                {items.map((item) => {
+                    const weekOffset = item.index - CENTER_INDEX
+                    const weekDate = getWeekOffset(
+                        baseDateRef.current,
+                        weekOffset
+                    )
 
-                return (
-                    <WeekRow
-                        key={item.key}
-                        start={item.start}
-                        size={item.size}
-                        weekDate={weekDate}
-                        currentMonthKey={currentMonthKey}
-                    />
-                )
-            })}
-        </div>
+                    return (
+                        <WeekRow
+                            key={item.key}
+                            start={item.start}
+                            size={item.size}
+                            weekDate={weekDate}
+                            currentMonthKey={currentMonthKey}
+                        />
+                    )
+                })}
+            </div>
+        </DndContext>
     )
 }
