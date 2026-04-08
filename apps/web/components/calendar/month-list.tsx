@@ -35,7 +35,9 @@ function createCollision(
         const event = events.find((e) => e.id === active.id)
         if (!event) return []
 
-        const totalDays = dayjs(event.end).diff(dayjs(event.start), "day") + 1
+        const DAY = 1000 * 60 * 60 * 24
+
+        const totalDays = Math.floor((event.end - event.start) / DAY) + 1
 
         const dayWidth = activeRect.width / totalDays
 
@@ -261,14 +263,16 @@ export function MonthList({
                 const newDate = over.id as string
 
                 const event = events.find((e) => e.id === id)
-
                 if (!event) return
 
-                const duration = dayjs(event.end).diff(event.start, "minute")
+                const duration = event.end - event.start
+
+                const newStart = dayjs(newDate).valueOf()
+                const newEnd = newStart + duration
 
                 updateEvent(id, {
-                    start: dayjs(newDate).toISOString(),
-                    end: dayjs(newDate).add(duration, "minute").toISOString(),
+                    start: newStart,
+                    end: newEnd,
                 })
             }}
         >

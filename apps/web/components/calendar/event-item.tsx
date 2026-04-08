@@ -5,28 +5,29 @@ import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
 import { memo } from "react"
 
+const DAY = 1000 * 60 * 60 * 24
+
 export function getEventPosition(event: CalendarEvent, week: Date[]) {
-    const start = dayjs(event.start)
-    const end = dayjs(event.end)
+    const tz = event.timezone
 
-    const weekStart = dayjs(week[0]).startOf("day")
-    const weekEnd = dayjs(week[6]).endOf("day")
+    const start = dayjs(event.start).tz(tz).startOf("day").valueOf()
+    const end = dayjs(event.end).tz(tz).endOf("day").valueOf()
 
-    // ✅ 주 기준으로 clamp
-    const effectiveStart = start.isBefore(weekStart) ? weekStart : start
-    const effectiveEnd = end.isAfter(weekEnd) ? weekEnd : end
+    const weekStart = dayjs(week[0]).startOf("day").valueOf()
+    const weekEnd = dayjs(week[6]).endOf("day").valueOf()
 
-    // ✅ index 안전하게 계산
-    const startIndex = effectiveStart.diff(weekStart, "day")
-    const endIndex = effectiveEnd.diff(weekStart, "day")
+    const effectiveStart = Math.max(start, weekStart)
+    const effectiveEnd = Math.min(end, weekEnd)
+
+    const startIndex = Math.floor((effectiveStart - weekStart) / DAY)
+    const endIndex = Math.floor((effectiveEnd - weekStart) / DAY)
 
     const span = endIndex - startIndex + 1
 
-    // ✅ 주 기준 시작/끝 여부
-    const isStartInThisWeek = start.isSameOrAfter(weekStart)
-    const isEndInThisWeek = end.isSameOrBefore(weekEnd)
+    const isStartInThisWeek = start >= weekStart
+    const isEndInThisWeek = end <= weekEnd
 
-    const GAP = 4 // px
+    const GAP = 4
 
     const baseLeft = (startIndex / 7) * 100
     const baseWidth = (span / 7) * 100
@@ -37,14 +38,6 @@ export function getEventPosition(event: CalendarEvent, week: Date[]) {
     return {
         left: `calc(${baseLeft}% + ${leftGap}px)`,
         width: `calc(${baseWidth}% - ${leftGap + rightGap}px)`,
-
-        // 🔥 border radius 핵심
-        borderTopLeftRadius: isStartInThisWeek ? 6 : 0,
-        borderBottomLeftRadius: isStartInThisWeek ? 6 : 0,
-        borderLeftWidth: isStartInThisWeek ? 1 : 0,
-        borderTopRightRadius: isEndInThisWeek ? 6 : 0,
-        borderBottomRightRadius: isEndInThisWeek ? 6 : 0,
-        borderRightWidth: isEndInThisWeek ? 1 : 0,
     }
 }
 

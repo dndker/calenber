@@ -10,8 +10,8 @@ export type CalendarEvent = {
     description?: string
 
     // 시간
-    start: string // ISO (UTC)
-    end: string // ISO (UTC)
+    start: number // ISO (UTC)
+    end: number // ISO (UTC)
 
     allDay?: boolean
 
@@ -33,13 +33,9 @@ export type CalendarEvent = {
     // 예외
     exceptions?: string[] // 제외 날짜
 
-    // 드래그용 메타
-    draggable?: boolean
-    resizable?: boolean
-
     // 메타
-    createdAt: string
-    updatedAt: string
+    createdAt: number
+    updatedAt: number
 }
 
 type CalendarStoreState = {

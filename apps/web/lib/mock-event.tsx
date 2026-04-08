@@ -32,8 +32,8 @@ export function generateMockEvents(): CalendarEvent[] {
             id: nanoid(),
             title: `${durationDays}일 일정 ${i + 1}`,
 
-            start: start.toISOString(),
-            end: end.toISOString(),
+            start: start.valueOf(),
+            end: end.valueOf(),
 
             allDay: isAllDay,
 
@@ -43,8 +43,8 @@ export function generateMockEvents(): CalendarEvent[] {
                 i % 5
             ]!,
 
-            createdAt: dayjs().toISOString(),
-            updatedAt: dayjs().toISOString(),
+            createdAt: dayjs().valueOf(),
+            updatedAt: dayjs().valueOf(),
         }
     })
 }
