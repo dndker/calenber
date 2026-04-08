@@ -38,20 +38,20 @@ export const DayCell = memo(
         /** 🔥 핵심: hover range 정확 계산 */
         let isHoverTarget = false
 
+        const DAY = 1000 * 60 * 60 * 24
+
         if (draggingEvent && draggingOverDate) {
-            const start = dayjs(draggingOverDate).startOf("day")
+            const start = dayjs(draggingOverDate).startOf("day").valueOf()
 
-            // inclusive 처리
-            const duration = dayjs(draggingEvent.end)
-                .startOf("day")
-                .diff(dayjs(draggingEvent.start).startOf("day"), "day")
+            const duration = Math.floor(
+                (draggingEvent.end - draggingEvent.start) / DAY
+            )
 
-            const end = start.add(duration, "day")
+            const end = start + duration * DAY
 
-            const current = dayjs(day).startOf("day")
+            const current = dayjs(day).startOf("day").valueOf()
 
-            isHoverTarget =
-                current.isSameOrAfter(start) && current.isSameOrBefore(end)
+            isHoverTarget = current >= start && current <= end
         }
 
         return (
