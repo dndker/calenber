@@ -57,7 +57,6 @@ type CalendarStoreState = {
     // 일정 레이아웃
     events: CalendarEvent[]
 
-    selectedRange: { start: Date; end: Date } | null
     draggingEventId?: string
     draggingOverDate?: string
 
@@ -65,11 +64,13 @@ type CalendarStoreState = {
     addEvent: (event: CalendarEvent) => void
     updateEvent: (id: string, patch: Partial<CalendarEvent>) => void
     removeEvent: (id: string) => void
-    setRange: (range: CalendarStoreState["selectedRange"]) => void
     draggingEvent?: CalendarEvent
     setDraggingEvent: (event?: CalendarEvent) => void
     setDraggingEventId: (id?: string) => void
     setDraggingOverDate: (date?: string) => void
+
+    dragOffset: number
+    setDragOffset: (x: number) => void
 }
 
 export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
@@ -99,7 +100,6 @@ export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
 
     // 일정 레이아웃
     events: [],
-    selectedRange: null,
 
     draggingEvent: undefined,
     draggingOverDate: undefined,
@@ -117,13 +117,19 @@ export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
             events: s.events.filter((e) => e.id !== id),
         })),
 
-    setRange: (range) => set({ selectedRange: range }),
     setDraggingEvent: (event) => set({ draggingEvent: event }),
     setDraggingEventId: (id) =>
         set({
             draggingEventId: id,
         }),
     setDraggingOverDate: (date) => set({ draggingOverDate: date }),
+
+    dragOffset: 0,
+
+    setDragOffset: (x) =>
+        set({
+            dragOffset: x,
+        }),
 }))
 
 export const CalendarStoreProvider = useCalendarStore.StoreProvider

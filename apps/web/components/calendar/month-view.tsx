@@ -46,7 +46,7 @@ export default function Calendar() {
     }, [setIsCalendarLoading])
 
     return (
-        <div className="relative flex h-full flex-col overflow-hidden bg-border/65">
+        <div className="relative flex h-full flex-col overflow-hidden bg-border/70">
             {isCalendarLoading && (
                 <div className="absolute top-0 left-0 z-20 flex h-full w-full items-start justify-start bg-muted/45 px-4 py-3">
                     <div className="-ml-1 flex size-7 items-center justify-center">
@@ -62,7 +62,7 @@ export default function Calendar() {
             >
                 {!isCalendarLoading ? (
                     <MonthList
-                        key={containerHeight}
+                        // key={containerHeight}
                         parentRef={parentRef}
                         containerHeight={containerHeight}
                         targetDate={dayjs(selectedDate)

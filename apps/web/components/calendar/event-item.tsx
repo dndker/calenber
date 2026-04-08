@@ -1,5 +1,5 @@
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent } from "@/store/useCalendarStore"
+import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
@@ -63,10 +63,27 @@ export const EventItem = memo(function EventItem({
         id: event.id,
     })
 
-    const pos = week.length ? getEventPosition(event, week) : null
+    const pos = !overlay ? getEventPosition(event, week) : null
 
-    if (overlay) {
-        console.log(pos)
+    const mergedListeners = {
+        ...listeners,
+        onPointerDown: (e: React.PointerEvent) => {
+            const rect = e.currentTarget.getBoundingClientRect()
+            if (!rect) return
+
+            const offsetX = e.clientX - rect.left
+
+            const totalDays =
+                dayjs(event.end).diff(dayjs(event.start), "day") + 1
+
+            const dayWidth = rect.width / totalDays
+
+            const index = Math.floor(offsetX / dayWidth)
+
+            useCalendarStore.getState().setDragOffset(index)
+
+            listeners?.onPointerDown?.(e)
+        },
     }
 
     return (
@@ -74,19 +91,18 @@ export const EventItem = memo(function EventItem({
             variant="outline"
             size="sm"
             ref={setNodeRef}
-            {...listeners}
+            {...mergedListeners}
             {...attributes}
             className={clsx(
-                "pointer-events-all absolute justify-start rounded px-1 transition-none",
+                "pointer-events-all absolute justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c]",
                 {
-                    "event-drag-row": isDragging,
-                    "cursor-grab opacity-50 active:cursor-grabbing": overlay,
+                    "event-drag-row opacity-50": isDragging,
+                    "cursor-grab active:cursor-grabbing": overlay,
                 }
             )}
             style={{
                 ...pos,
                 width: overlay ? "100%" : pos?.width,
-                left: overlay ? "0" : pos?.left,
                 top: `${top * 32}px`, // 🔥 stacking
                 zIndex: isDragging ? 100 : 1,
                 // background: event.color,

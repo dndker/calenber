@@ -4,7 +4,8 @@ import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { memo, useCallback, useRef } from "react"
+import { memo, useCallback } from "react"
+import { shallow } from "zustand/shallow"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
@@ -15,44 +16,21 @@ export const DayCell = memo(
         const now = useNow()
         const dayValue = dayjs(day).startOf("day").valueOf()
 
-        const draggingEvent = useCalendarStore((s) => s.draggingEvent)
-        const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
+        const { draggingEvent, draggingOverDate } = useCalendarStore(
+            (s) => ({
+                draggingEvent: s.draggingEvent,
+                draggingOverDate: s.draggingOverDate,
+            }),
+            shallow
+        )
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
         const setViewportMiniDate = useCalendarStore(
             (s) => s.setViewportMiniDate
         )
-        const setRange = useCalendarStore((s) => s.setRange)
-        const selectedRange = useCalendarStore((s) => s.selectedRange)
-
-        /** 드래그 딜레이 */
-        const dragTimer = useRef<NodeJS.Timeout | null>(null)
-        const isDragging = useRef(false)
-
-        const startRange = (date: Date) => {
-            dragTimer.current = setTimeout(() => {
-                isDragging.current = true
-                setRange({ start: date, end: date })
-            }, 300)
-        }
-
-        const updateRange = (date: Date) => {
-            if (!isDragging.current || !selectedRange) return
-
-            setRange({
-                start: selectedRange.start,
-                end: date,
-            })
-        }
-
-        const endRange = () => {
-            if (dragTimer.current) clearTimeout(dragTimer.current)
-            isDragging.current = false
-        }
 
         const handleClick = useCallback(() => {
-            if (isDragging.current) return
             setSelectedDate(day)
             setViewportMiniDate(day)
         }, [day, setSelectedDate, setViewportMiniDate])
@@ -79,9 +57,6 @@ export const DayCell = memo(
         return (
             <div
                 ref={setNodeRef}
-                onPointerDown={() => startRange(day)}
-                onPointerEnter={() => updateRange(day)}
-                onPointerUp={endRange}
                 onClick={handleClick}
                 className={cn(
                     "flex flex-col p-3 text-sm font-medium select-none",
@@ -89,7 +64,7 @@ export const DayCell = memo(
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
                     isHoverTarget &&
-                        "drag-event bg-blue-50/97.5 dark:bg-blue-50/10"
+                        "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
                 )}
             >
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
@@ -110,7 +85,10 @@ export const DayCell = memo(
                 </div>
             </div>
         )
-    }
+    },
+    (prev, next) =>
+        prev.day.getTime() === next.day.getTime() &&
+        prev.isCurrentMonth === next.isCurrentMonth
 )
 
 DayCell.displayName = "DayCell"

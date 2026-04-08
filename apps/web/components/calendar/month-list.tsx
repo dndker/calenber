@@ -1,5 +1,5 @@
 import dayjs from "@/lib/dayjs"
-import { useCalendarStore } from "@/store/useCalendarStore"
+import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import {
     CENTER_INDEX,
     TOTAL,
@@ -8,6 +8,7 @@ import {
     getWeekOffset,
 } from "@/utils/calendar"
 import {
+    CollisionDetection,
     DndContext,
     DragOverlay,
     PointerSensor,
@@ -16,9 +17,39 @@ import {
     useSensors,
 } from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { EventItem } from "./event-item"
 import { WeekRow } from "./week-row"
+
+function createCollision(
+    dragOffset: number,
+    events: CalendarEvent[]
+): CollisionDetection {
+    return (args) => {
+        const { pointerCoordinates, active } = args
+        if (!pointerCoordinates) return []
+
+        const activeRect = active.rect.current.translated
+        if (!activeRect) return []
+
+        const event = events.find((e) => e.id === active.id)
+        if (!event) return []
+
+        const totalDays = dayjs(event.end).diff(dayjs(event.start), "day") + 1
+
+        const dayWidth = activeRect.width / totalDays
+
+        const adjustedPointer = {
+            x: pointerCoordinates.x - dragOffset * dayWidth,
+            y: pointerCoordinates.y,
+        }
+
+        return pointerWithin({
+            ...args,
+            pointerCoordinates: adjustedPointer,
+        })
+    }
+}
 
 export function MonthList({
     parentRef,
@@ -31,6 +62,8 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
+    const events = useCalendarStore((s) => s.events)
+    const dragOffset = useCalendarStore((s) => s.dragOffset)
     const newDate = dayjs().startOf("isoWeek").toDate()
     const draggingEvent = useCalendarStore((s) => s.draggingEvent)
     const updateEvent = useCalendarStore((s) => s.updateEvent)
@@ -57,10 +90,16 @@ export function MonthList({
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                delay: 50, // 👈 클릭 방지 핵심
-                tolerance: 5,
+                // delay: 50,
+                // tolerance: 5,
+                distance: 5,
             },
         })
+    )
+
+    const collision = useMemo(
+        () => createCollision(dragOffset, events),
+        [dragOffset, events]
     )
 
     // 초기 위치
@@ -107,6 +146,7 @@ export function MonthList({
     }, [targetDate])
 
     // 현재 월 계산
+
     useEffect(() => {
         const items = virtualizer.getVirtualItems()
         if (!items.length) return
@@ -183,7 +223,7 @@ export function MonthList({
 
     return (
         <DndContext
-            collisionDetection={pointerWithin}
+            collisionDetection={collision}
             sensors={sensors}
             autoScroll={{
                 threshold: {
@@ -196,9 +236,7 @@ export function MonthList({
                 const id = over.id as string
                 setDragging(id)
 
-                const event = useCalendarStore
-                    .getState()
-                    .events.find((e) => e.id === id)
+                const event = events.find((e) => e.id === id)
                 setDraggingOverDate(over.id as string)
 
                 if (!event) return
@@ -206,11 +244,8 @@ export function MonthList({
             }}
             onDragStart={({ active }) => {
                 const id = active.id as string
-                console.log(active.id)
 
-                const event = useCalendarStore
-                    .getState()
-                    .events.find((e) => e.id === id)
+                const event = events.find((e) => e.id === id)
 
                 if (!event) return
 
@@ -225,9 +260,7 @@ export function MonthList({
                 const id = active.id as string
                 const newDate = over.id as string
 
-                const event = useCalendarStore
-                    .getState()
-                    .events.find((e) => e.id === id)
+                const event = events.find((e) => e.id === id)
 
                 if (!event) return
 
@@ -263,7 +296,7 @@ export function MonthList({
                     )
                 })}
             </div>
-            <DragOverlay dropAnimation={null}>
+            <DragOverlay dropAnimation={null} style={{ pointerEvents: "none" }}>
                 {draggingEvent ? (
                     <EventItem
                         event={draggingEvent}

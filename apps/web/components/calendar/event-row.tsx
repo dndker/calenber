@@ -37,24 +37,25 @@ export const EventRow = memo(function EventRow({ week }: { week: Date[] }) {
     })
 
     // 3. stacking 계산
+    const lanes: CalendarEvent[][] = []
     const rows: PositionedEvent[] = []
 
     sorted.forEach((event) => {
-        let rowIndex = 0
+        let placed = false
 
-        while (true) {
-            const conflict = rows.find(
-                (r) => r.top === rowIndex && isOverlap(r.event, event)
-            )
-
-            if (!conflict) break
-            rowIndex++
+        for (let i = 0; i < lanes.length; i++) {
+            if (!lanes[i]!.some((e) => isOverlap(e, event))) {
+                lanes[i]!.push(event)
+                rows.push({ event, top: i })
+                placed = true
+                break
+            }
         }
 
-        rows.push({
-            event,
-            top: rowIndex,
-        })
+        if (!placed) {
+            lanes.push([event])
+            rows.push({ event, top: lanes.length - 1 })
+        }
     })
 
     return (

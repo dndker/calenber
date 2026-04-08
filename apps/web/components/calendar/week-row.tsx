@@ -1,6 +1,6 @@
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
-import { memo, useMemo } from "react"
+import { memo } from "react"
 import { DayCell } from "./day-cell"
 import { EventRow } from "./event-row"
 
@@ -18,7 +18,7 @@ export const WeekRow = memo(
         weekDate: Date
         currentMonthKey: string
     }) => {
-        const week = useMemo(() => getWeek(weekDate), [weekDate])
+        const week = getWeek(weekDate)
 
         return (
             <div
