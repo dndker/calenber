@@ -1,5 +1,6 @@
 import dayjs from "@/lib/dayjs"
 import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import { memo } from "react"
 import { EventItem } from "./event-item"
 
 type PositionedEvent = {
@@ -7,7 +8,7 @@ type PositionedEvent = {
     top: number
 }
 
-export function EventRow({ week }: { week: Date[] }) {
+export const EventRow = memo(function EventRow({ week }: { week: Date[] }) {
     const events = useCalendarStore((s) => s.events)
 
     const weekStart = dayjs(week[0]).startOf("day")
@@ -24,7 +25,15 @@ export function EventRow({ week }: { week: Date[] }) {
     const sorted = [...filtered].sort((a, b) => {
         const aDur = dayjs(a.end).diff(a.start)
         const bDur = dayjs(b.end).diff(b.start)
-        return bDur - aDur
+
+        if (bDur !== aDur) return bDur - aDur
+
+        const aStart = dayjs(a.start).valueOf()
+        const bStart = dayjs(b.start).valueOf()
+
+        if (aStart !== bStart) return aStart - bStart
+
+        return a.id.localeCompare(b.id)
     })
 
     // 3. stacking 계산
@@ -55,7 +64,7 @@ export function EventRow({ week }: { week: Date[] }) {
             ))}
         </div>
     )
-}
+})
 
 function isOverlap(a: CalendarEvent, b: CalendarEvent) {
     const aStart = dayjs(a.start)

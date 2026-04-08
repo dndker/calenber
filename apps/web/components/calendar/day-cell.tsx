@@ -13,9 +13,10 @@ export const DayCell = memo(
         })
 
         const now = useNow()
-
         const dayValue = dayjs(day).startOf("day").valueOf()
-        const draggingId = useCalendarStore((s) => s.draggingEventId)
+
+        const draggingEvent = useCalendarStore((s) => s.draggingEvent)
+        const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
@@ -25,11 +26,15 @@ export const DayCell = memo(
         const setRange = useCalendarStore((s) => s.setRange)
         const selectedRange = useCalendarStore((s) => s.selectedRange)
 
+        /** 드래그 딜레이 */
+        const dragTimer = useRef<NodeJS.Timeout | null>(null)
         const isDragging = useRef(false)
 
         const startRange = (date: Date) => {
-            isDragging.current = true
-            setRange({ start: date, end: date })
+            dragTimer.current = setTimeout(() => {
+                isDragging.current = true
+                setRange({ start: date, end: date })
+            }, 300)
         }
 
         const updateRange = (date: Date) => {
@@ -42,15 +47,34 @@ export const DayCell = memo(
         }
 
         const endRange = () => {
+            if (dragTimer.current) clearTimeout(dragTimer.current)
             isDragging.current = false
         }
 
         const handleClick = useCallback(() => {
+            if (isDragging.current) return
             setSelectedDate(day)
             setViewportMiniDate(day)
         }, [day, setSelectedDate, setViewportMiniDate])
 
-        const isHoverTarget = draggingId === dayjs(day).format("YYYY-MM-DD")
+        /** 🔥 핵심: hover range 정확 계산 */
+        let isHoverTarget = false
+
+        if (draggingEvent && draggingOverDate) {
+            const start = dayjs(draggingOverDate).startOf("day")
+
+            // inclusive 처리
+            const duration = dayjs(draggingEvent.end)
+                .startOf("day")
+                .diff(dayjs(draggingEvent.start).startOf("day"), "day")
+
+            const end = start.add(duration, "day")
+
+            const current = dayjs(day).startOf("day")
+
+            isHoverTarget =
+                current.isSameOrAfter(start) && current.isSameOrBefore(end)
+        }
 
         return (
             <div
@@ -64,12 +88,13 @@ export const DayCell = memo(
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
-                    isHoverTarget && "bg-muted/10"
+                    isHoverTarget &&
+                        "drag-event bg-blue-50/97.5 dark:bg-blue-50/10"
                 )}
             >
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
                     {day.getDate() === 1 && (
-                        <span className="text-sm font-medium text-muted-foreground/80">
+                        <span className="text-sm text-muted-foreground/80">
                             {dayjs(day).format("M월")}
                         </span>
                     )}

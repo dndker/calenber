@@ -8,7 +8,7 @@ import { MonthHeader } from "./month-header"
 import { MonthList } from "./month-list"
 import { MonthSkeleton } from "./month-skeleton"
 
-export default function Calendar({ targetDate }: { targetDate?: Date }) {
+export default function Calendar() {
     const parentRef = useRef<HTMLDivElement>(null)
     const [containerHeight, setContainerHeight] = useState(0)
     const isCalendarLoading = useCalendarStore((s) => s.isCalendarLoading)

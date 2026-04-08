@@ -1,6 +1,7 @@
+"use client"
+
 import dayjs from "@/lib/dayjs"
-import { generateMockEvents } from "@/lib/mock-event"
-import { create } from "zustand"
+import { createSSRStore } from "./createSSRStore"
 
 export type CalendarEvent = {
     id: string
@@ -41,7 +42,7 @@ export type CalendarEvent = {
     updatedAt: string
 }
 
-type CalendarState = {
+type CalendarStoreState = {
     isCalendarLoading: boolean
 
     // 캘린더 레이아웃
@@ -58,15 +59,20 @@ type CalendarState = {
 
     selectedRange: { start: Date; end: Date } | null
     draggingEventId?: string
+    draggingOverDate?: string
 
+    setEvents: (events: CalendarEvent[]) => void
     addEvent: (event: CalendarEvent) => void
     updateEvent: (id: string, patch: Partial<CalendarEvent>) => void
     removeEvent: (id: string) => void
-    setRange: (range: CalendarState["selectedRange"]) => void
+    setRange: (range: CalendarStoreState["selectedRange"]) => void
+    draggingEvent?: CalendarEvent
+    setDraggingEvent: (event?: CalendarEvent) => void
     setDraggingEventId: (id?: string) => void
+    setDraggingOverDate: (date?: string) => void
 }
 
-export const useCalendarStore = create<CalendarState>((set) => ({
+export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
     isCalendarLoading: true,
 
     // 캘린더 레이아웃
@@ -92,9 +98,13 @@ export const useCalendarStore = create<CalendarState>((set) => ({
         }),
 
     // 일정 레이아웃
-    events: generateMockEvents(),
+    events: [],
     selectedRange: null,
 
+    draggingEvent: undefined,
+    draggingOverDate: undefined,
+
+    setEvents: (events) => set({ events }),
     addEvent: (event) => set((s) => ({ events: [...s.events, event] })),
 
     updateEvent: (id, patch) =>
@@ -108,8 +118,12 @@ export const useCalendarStore = create<CalendarState>((set) => ({
         })),
 
     setRange: (range) => set({ selectedRange: range }),
+    setDraggingEvent: (event) => set({ draggingEvent: event }),
     setDraggingEventId: (id) =>
         set({
             draggingEventId: id,
         }),
+    setDraggingOverDate: (date) => set({ draggingOverDate: date }),
 }))
+
+export const CalendarStoreProvider = useCalendarStore.StoreProvider

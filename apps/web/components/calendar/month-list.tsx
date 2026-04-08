@@ -4,11 +4,20 @@ import {
     CENTER_INDEX,
     TOTAL,
     getMonthKey,
+    getWeek,
     getWeekOffset,
 } from "@/utils/calendar"
-import { DndContext } from "@dnd-kit/core"
+import {
+    DndContext,
+    DragOverlay,
+    PointerSensor,
+    pointerWithin,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useEffect, useRef, useState } from "react"
+import { EventItem } from "./event-item"
 import { WeekRow } from "./week-row"
 
 export function MonthList({
@@ -22,13 +31,20 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
+    const newDate = dayjs().startOf("isoWeek").toDate()
+    const draggingEvent = useCalendarStore((s) => s.draggingEvent)
     const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const setDraggingEvent = useCalendarStore((s) => s.setDraggingEvent)
+    const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
+    const setDraggingOverDate = useCalendarStore((s) => s.setDraggingOverDate)
     const setDragging = useCalendarStore((s) => s.setDraggingEventId)
-    const baseDateRef = useRef(new Date())
+    const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
-    const [currentMonthKey, setCurrentMonthKey] = useState(
-        getMonthKey(new Date())
-    )
+    const [currentMonthKey, setCurrentMonthKey] = useState(getMonthKey(newDate))
+
+    const overlayWeek = draggingOverDate
+        ? getWeek(dayjs(draggingOverDate).toDate())
+        : []
 
     const virtualizer = useVirtualizer({
         count: TOTAL,
@@ -38,18 +54,34 @@ export function MonthList({
         gap: 1,
     })
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                delay: 50, // 👈 클릭 방지 핵심
+                tolerance: 5,
+            },
+        })
+    )
+
     // 초기 위치
     useEffect(() => {
-        const today = new Date()
+        const base = baseDateRef.current
+
+        // 👇 핵심: 해당 달의 1일
+        const firstDayOfMonth = dayjs(newDate).startOf("month")
+
+        // 👇 그 1일이 포함된 주 시작
+        const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
 
         const diff = Math.floor(
-            (today.getTime() - baseDateRef.current.getTime()) /
+            (firstWeekStart.toDate().getTime() - base.getTime()) /
                 (1000 * 60 * 60 * 24 * 7)
         )
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
             align: "start",
         })
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
@@ -57,12 +89,20 @@ export function MonthList({
     useEffect(() => {
         if (!targetDate) return
 
+        const base = baseDateRef.current
+
+        const firstDayOfMonth = dayjs(targetDate).startOf("month")
+        const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
+
         const diff = Math.floor(
-            (targetDate.getTime() - baseDateRef.current.getTime()) /
+            (firstWeekStart.toDate().getTime() - base.getTime()) /
                 (1000 * 60 * 60 * 24 * 7)
         )
 
-        virtualizer.scrollToIndex(CENTER_INDEX + diff, { align: "start" })
+        virtualizer.scrollToIndex(CENTER_INDEX + diff, {
+            align: "start",
+        })
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetDate])
 
@@ -143,6 +183,8 @@ export function MonthList({
 
     return (
         <DndContext
+            collisionDetection={pointerWithin}
+            sensors={sensors}
             autoScroll={{
                 threshold: {
                     x: 0, // x축 임계값을 0으로 설정하여 감지 범위를 없애거나
@@ -151,11 +193,34 @@ export function MonthList({
             }}
             onDragOver={({ over }) => {
                 if (!over) return
-                setDragging(over.id as string)
+                const id = over.id as string
+                setDragging(id)
+
+                const event = useCalendarStore
+                    .getState()
+                    .events.find((e) => e.id === id)
+                setDraggingOverDate(over.id as string)
+
+                if (!event) return
+                setDraggingEvent(event)
+            }}
+            onDragStart={({ active }) => {
+                const id = active.id as string
+                console.log(active.id)
+
+                const event = useCalendarStore
+                    .getState()
+                    .events.find((e) => e.id === id)
+
+                if (!event) return
+
+                setDraggingEvent(event)
             }}
             onDragEnd={({ active, over }) => {
                 if (!over) return
                 setDragging(undefined)
+                setDraggingEvent(undefined)
+                setDraggingOverDate(undefined)
 
                 const id = active.id as string
                 const newDate = over.id as string
@@ -198,6 +263,16 @@ export function MonthList({
                     )
                 })}
             </div>
+            <DragOverlay dropAnimation={null}>
+                {draggingEvent ? (
+                    <EventItem
+                        event={draggingEvent}
+                        week={overlayWeek}
+                        top={0}
+                        overlay
+                    />
+                ) : null}
+            </DragOverlay>
         </DndContext>
     )
 }

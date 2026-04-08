@@ -3,6 +3,11 @@ import { CalendarEvent } from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
 
 export function generateMockEvents(): CalendarEvent[] {
+    // console.log(
+    //     typeof window === "undefined" ? "SSR" : "CSR",
+    //     "generateMockEvents"
+    // )
+
     return Array.from({ length: 10 }).map((_, i) => {
         const base = dayjs().add(i - 10, "day")
 
@@ -10,7 +15,7 @@ export function generateMockEvents(): CalendarEvent[] {
         const durationDays = Math.floor(Math.random() * 3) + 1
 
         // allDay 여부 랜덤
-        const isAllDay = Math.random() > 0.5
+        const isAllDay = true
 
         // 시작 시간 랜덤 (시간 이벤트일 때만)
         const startHour = Math.floor(Math.random() * 8) + 8 // 8~16시
@@ -38,8 +43,8 @@ export function generateMockEvents(): CalendarEvent[] {
                 i % 5
             ]!,
 
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: dayjs().toISOString(),
+            updatedAt: dayjs().toISOString(),
         }
     })
 }

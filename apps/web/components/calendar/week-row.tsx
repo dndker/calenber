@@ -34,7 +34,7 @@ export const WeekRow = memo(
                           }
                         : {}
                 }
-                className={clsx("grid snap-start grid-cols-7 gap-px", {
+                className={clsx("relative grid snap-start grid-cols-7 gap-px", {
                     "h-1/5": skeleton,
                 })}
             >

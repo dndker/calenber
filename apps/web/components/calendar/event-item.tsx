@@ -3,6 +3,7 @@ import { CalendarEvent } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
+import { memo } from "react"
 
 export function getEventPosition(event: CalendarEvent, week: Date[]) {
     const start = dayjs(event.start)
@@ -47,21 +48,26 @@ export function getEventPosition(event: CalendarEvent, week: Date[]) {
     }
 }
 
-export function EventItem({
+export const EventItem = memo(function EventItem({
     event,
     week,
     top,
+    overlay = false,
 }: {
     event: CalendarEvent
     week: Date[]
     top: number
+    overlay?: boolean
 }) {
-    const { setNodeRef, listeners, attributes, transform, isDragging } =
-        useDraggable({
-            id: event.id,
-        })
+    const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+        id: event.id,
+    })
 
-    const pos = getEventPosition(event, week)
+    const pos = week.length ? getEventPosition(event, week) : null
+
+    if (overlay) {
+        console.log(pos)
+    }
 
     return (
         <Button
@@ -71,20 +77,22 @@ export function EventItem({
             {...listeners}
             {...attributes}
             className={clsx(
-                "pointer-events-all absolute cursor-grab justify-start rounded px-1 transition-none active:cursor-grabbing",
-                { "event-drag-row": isDragging }
+                "pointer-events-all absolute justify-start rounded px-1 transition-none",
+                {
+                    "event-drag-row": isDragging,
+                    "cursor-grab opacity-50 active:cursor-grabbing": overlay,
+                }
             )}
             style={{
                 ...pos,
+                width: overlay ? "100%" : pos?.width,
+                left: overlay ? "0" : pos?.left,
                 top: `${top * 32}px`, // 🔥 stacking
                 zIndex: isDragging ? 100 : 1,
-                transform: transform
-                    ? `translate(${transform.x}px, ${transform.y}px)`
-                    : undefined,
                 // background: event.color,
             }}
         >
             {event.title}
         </Button>
     )
-}
+})
