@@ -20,7 +20,7 @@
         "dev": {
             "cache": false,
             "persistent": true,
-            "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
+            "env": ["NODE_ENV", "NEXT_PUBLIC_*", "VERCEL_ENV"]
         }
     }
 }

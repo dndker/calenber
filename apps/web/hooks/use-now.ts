@@ -1,4 +1,4 @@
-import dayjs from "dayjs"
+import dayjs from "@/lib/dayjs"
 import { useEffect, useState } from "react"
 
 export const useNow = () => {

@@ -23,7 +23,7 @@ const data = {
     user: {
         name: "woong",
         email: "example@gmail.com",
-        avatar: "/avatars/shadcn.jpg",
+        avatar: "/icons/square/ios/144.png",
         calendars: [
             {
                 name: "플랫폼디자인팀",

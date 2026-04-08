@@ -1,13 +1,55 @@
+import dayjs from "@/lib/dayjs"
+import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import {
     CENTER_INDEX,
     TOTAL,
     getMonthKey,
+    getWeek,
     getWeekOffset,
 } from "@/utils/calendar"
+import {
+    CollisionDetection,
+    DndContext,
+    DragOverlay,
+    PointerSensor,
+    pointerWithin,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import dayjs from "dayjs"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { EventItem } from "./event-item"
 import { WeekRow } from "./week-row"
+
+function createCollision(
+    dragOffset: number,
+    events: CalendarEvent[]
+): CollisionDetection {
+    return (args) => {
+        const { pointerCoordinates, active } = args
+        if (!pointerCoordinates) return []
+
+        const activeRect = active.rect.current.translated
+        if (!activeRect) return []
+
+        const event = events.find((e) => e.id === active.id)
+        if (!event) return []
+
+        const totalDays = dayjs(event.end).diff(dayjs(event.start), "day") + 1
+
+        const dayWidth = activeRect.width / totalDays
+
+        const adjustedPointer = {
+            x: pointerCoordinates.x - dragOffset * dayWidth,
+            y: pointerCoordinates.y,
+        }
+
+        return pointerWithin({
+            ...args,
+            pointerCoordinates: adjustedPointer,
+        })
+    }
+}
 
 export function MonthList({
     parentRef,
@@ -20,11 +62,22 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
-    const baseDateRef = useRef(new Date())
+    const events = useCalendarStore((s) => s.events)
+    const dragOffset = useCalendarStore((s) => s.dragOffset)
+    const newDate = dayjs().startOf("isoWeek").toDate()
+    const draggingEvent = useCalendarStore((s) => s.draggingEvent)
+    const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const setDraggingEvent = useCalendarStore((s) => s.setDraggingEvent)
+    const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
+    const setDraggingOverDate = useCalendarStore((s) => s.setDraggingOverDate)
+    const setDragging = useCalendarStore((s) => s.setDraggingEventId)
+    const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
-    const [currentMonthKey, setCurrentMonthKey] = useState(
-        getMonthKey(new Date())
-    )
+    const [currentMonthKey, setCurrentMonthKey] = useState(getMonthKey(newDate))
+
+    const overlayWeek = draggingOverDate
+        ? getWeek(dayjs(draggingOverDate).toDate())
+        : []
 
     const virtualizer = useVirtualizer({
         count: TOTAL,
@@ -34,18 +87,40 @@ export function MonthList({
         gap: 1,
     })
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                // delay: 50,
+                // tolerance: 5,
+                distance: 5,
+            },
+        })
+    )
+
+    const collision = useMemo(
+        () => createCollision(dragOffset, events),
+        [dragOffset, events]
+    )
+
     // 초기 위치
     useEffect(() => {
-        const today = new Date()
+        const base = baseDateRef.current
+
+        // 👇 핵심: 해당 달의 1일
+        const firstDayOfMonth = dayjs(newDate).startOf("month")
+
+        // 👇 그 1일이 포함된 주 시작
+        const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
 
         const diff = Math.floor(
-            (today.getTime() - baseDateRef.current.getTime()) /
+            (firstWeekStart.toDate().getTime() - base.getTime()) /
                 (1000 * 60 * 60 * 24 * 7)
         )
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
             align: "start",
         })
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
@@ -53,16 +128,25 @@ export function MonthList({
     useEffect(() => {
         if (!targetDate) return
 
+        const base = baseDateRef.current
+
+        const firstDayOfMonth = dayjs(targetDate).startOf("month")
+        const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
+
         const diff = Math.floor(
-            (targetDate.getTime() - baseDateRef.current.getTime()) /
+            (firstWeekStart.toDate().getTime() - base.getTime()) /
                 (1000 * 60 * 60 * 24 * 7)
         )
 
-        virtualizer.scrollToIndex(CENTER_INDEX + diff, { align: "start" })
+        virtualizer.scrollToIndex(CENTER_INDEX + diff, {
+            align: "start",
+        })
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetDate])
 
     // 현재 월 계산
+
     useEffect(() => {
         const items = virtualizer.getVirtualItems()
         if (!items.length) return
@@ -138,26 +222,90 @@ export function MonthList({
     const items = virtualizer.getVirtualItems()
 
     return (
-        <div
-            style={{
-                height: virtualizer.getTotalSize(),
-                position: "relative",
+        <DndContext
+            collisionDetection={collision}
+            sensors={sensors}
+            autoScroll={{
+                threshold: {
+                    x: 0, // x축 임계값을 0으로 설정하여 감지 범위를 없애거나
+                    y: 0.2, // y축만 활성화
+                },
+            }}
+            onDragOver={({ over }) => {
+                if (!over) return
+                const id = over.id as string
+                setDragging(id)
+
+                const event = events.find((e) => e.id === id)
+                setDraggingOverDate(over.id as string)
+
+                if (!event) return
+                setDraggingEvent(event)
+            }}
+            onDragStart={({ active }) => {
+                const id = active.id as string
+
+                const event = events.find((e) => e.id === id)
+
+                if (!event) return
+
+                setDraggingEvent(event)
+            }}
+            onDragEnd={({ active, over }) => {
+                if (!over) return
+                setDragging(undefined)
+                setDraggingEvent(undefined)
+                setDraggingOverDate(undefined)
+
+                const id = active.id as string
+                const newDate = over.id as string
+
+                const event = events.find((e) => e.id === id)
+
+                if (!event) return
+
+                const duration = dayjs(event.end).diff(event.start, "minute")
+
+                updateEvent(id, {
+                    start: dayjs(newDate).toISOString(),
+                    end: dayjs(newDate).add(duration, "minute").toISOString(),
+                })
             }}
         >
-            {items.map((item) => {
-                const weekOffset = item.index - CENTER_INDEX
-                const weekDate = getWeekOffset(baseDateRef.current, weekOffset)
+            <div
+                style={{
+                    height: virtualizer.getTotalSize(),
+                    position: "relative",
+                }}
+            >
+                {items.map((item) => {
+                    const weekOffset = item.index - CENTER_INDEX
+                    const weekDate = getWeekOffset(
+                        baseDateRef.current,
+                        weekOffset
+                    )
 
-                return (
-                    <WeekRow
-                        key={item.key}
-                        start={item.start}
-                        size={item.size}
-                        weekDate={weekDate}
-                        currentMonthKey={currentMonthKey}
+                    return (
+                        <WeekRow
+                            key={item.key}
+                            start={item.start}
+                            size={item.size}
+                            weekDate={weekDate}
+                            currentMonthKey={currentMonthKey}
+                        />
+                    )
+                })}
+            </div>
+            <DragOverlay dropAnimation={null} style={{ pointerEvents: "none" }}>
+                {draggingEvent ? (
+                    <EventItem
+                        event={draggingEvent}
+                        week={overlayWeek}
+                        top={0}
+                        overlay
                     />
-                )
-            })}
-        </div>
+                ) : null}
+            </DragOverlay>
+        </DndContext>
     )
 }

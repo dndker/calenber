@@ -1,6 +1,8 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CalendarBreadcrumb } from "@/components/calendar-breadcrumb"
 import { NavActions } from "@/components/nav-actions"
+import { generateMockEvents } from "@/lib/mock-event"
+import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { Separator } from "@workspace/ui/components/separator"
@@ -12,50 +14,54 @@ import {
 import { Search } from "lucide-react"
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+    const events = generateMockEvents()
+
     return (
-        <SidebarProvider className="h-screen overflow-hidden">
-            <AppSidebar />
-            <SidebarInset className="h-screen overflow-hidden">
-                <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2.5 border-b bg-background px-4">
-                    <div className="flex shrink-0 items-center gap-1">
-                        <SidebarTrigger className="-ml-1" />
-                        <Separator
-                            orientation="vertical"
-                            className="data-vertical:h-4 data-vertical:self-auto"
-                        />
-                    </div>
-                    <div className="flex flex-1 items-center justify-between">
-                        <CalendarBreadcrumb />
-
-                        <div className="absolute top-1/2 left-1/2 -translate-1/2">
-                            <Button
-                                variant="outline"
-                                size="default"
-                                className="relative inline-flex h-8 w-full shrink-0 items-center justify-between gap-2 rounded-lg border px-2 py-2 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none transition-all outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:w-48 lg:w-40 xl:w-64"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Search className="size-4" />
-                                    <span>Search</span>
-                                </div>
-
-                                <KbdGroup>
-                                    <Kbd>⌘</Kbd>
-                                    <Kbd>k</Kbd>
-                                </KbdGroup>
-                            </Button>
+        <CalendarStoreProvider initialState={{ events }}>
+            <SidebarProvider className="h-screen overflow-hidden">
+                <AppSidebar />
+                <SidebarInset className="h-screen overflow-hidden">
+                    <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2.5 border-b bg-background px-4">
+                        <div className="flex shrink-0 items-center gap-1">
+                            <SidebarTrigger className="-ml-1" />
+                            <Separator
+                                orientation="vertical"
+                                className="data-vertical:h-4 data-vertical:self-auto"
+                            />
                         </div>
+                        <div className="flex flex-1 items-center justify-between">
+                            <CalendarBreadcrumb />
 
-                        <div className="px-3">
-                            <NavActions />
+                            <div className="absolute top-1/2 left-1/2 -translate-1/2">
+                                <Button
+                                    variant="outline"
+                                    size="default"
+                                    className="relative inline-flex h-8 w-full shrink-0 items-center justify-between gap-2 rounded-lg border px-2 py-2 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none transition-all outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:w-48 lg:w-40 xl:w-64"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Search className="size-4" />
+                                        <span>Search</span>
+                                    </div>
+
+                                    <KbdGroup>
+                                        <Kbd>⌘</Kbd>
+                                        <Kbd>k</Kbd>
+                                    </KbdGroup>
+                                </Button>
+                            </div>
+
+                            <div className="px-3">
+                                <NavActions />
+                            </div>
                         </div>
-                    </div>
-                </header>
+                    </header>
 
-                {/* 페이지 콘텐츠가 렌더링되는 곳 */}
-                <main className="box-border flex flex-1 flex-col overflow-hidden">
-                    {children}
-                </main>
-            </SidebarInset>
-        </SidebarProvider>
+                    {/* 페이지 콘텐츠가 렌더링되는 곳 */}
+                    <main className="box-border flex flex-1 flex-col overflow-hidden">
+                        {children}
+                    </main>
+                </SidebarInset>
+            </SidebarProvider>
+        </CalendarStoreProvider>
     )
 }

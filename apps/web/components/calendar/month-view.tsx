@@ -1,14 +1,14 @@
 "use client"
 
+import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
-import dayjs from "dayjs"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { MonthHeader } from "./month-header"
 import { MonthList } from "./month-list"
 import { MonthSkeleton } from "./month-skeleton"
 
-export default function Calendar({ targetDate }: { targetDate?: Date }) {
+export default function Calendar() {
     const parentRef = useRef<HTMLDivElement>(null)
     const [containerHeight, setContainerHeight] = useState(0)
     const isCalendarLoading = useCalendarStore((s) => s.isCalendarLoading)
@@ -46,7 +46,7 @@ export default function Calendar({ targetDate }: { targetDate?: Date }) {
     }, [setIsCalendarLoading])
 
     return (
-        <div className="relative flex h-full flex-col overflow-hidden bg-border/65">
+        <div className="relative flex h-full flex-col overflow-hidden bg-border/70">
             {isCalendarLoading && (
                 <div className="absolute top-0 left-0 z-20 flex h-full w-full items-start justify-start bg-muted/45 px-4 py-3">
                     <div className="-ml-1 flex size-7 items-center justify-center">
@@ -58,11 +58,11 @@ export default function Calendar({ targetDate }: { targetDate?: Date }) {
             <MonthHeader />
             <div
                 ref={parentRef}
-                className="scrollbar-hide flex-1 overflow-auto"
+                className="scrollbar-hide max-w-full flex-1 overflow-x-hidden overflow-y-auto"
             >
                 {!isCalendarLoading ? (
                     <MonthList
-                        key={containerHeight}
+                        // key={containerHeight}
                         parentRef={parentRef}
                         containerHeight={containerHeight}
                         targetDate={dayjs(selectedDate)

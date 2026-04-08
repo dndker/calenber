@@ -1,5 +1,5 @@
+import dayjs from "@/lib/dayjs"
 import { getMonthKey } from "@/utils/calendar"
-import dayjs from "dayjs"
 import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
