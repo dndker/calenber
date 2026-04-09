@@ -39,12 +39,14 @@ export type CalendarEvent = {
 }
 
 type CalendarStoreState = {
+    calendarTimezone: string
     isCalendarLoading: boolean
 
     // 캘린더 레이아웃
     selectedDate: number
     viewport: number
     viewportMini: number
+    setCalendarTimezone: (tz: string) => void
     setIsCalendarLoading: (value: boolean) => void
     setSelectedDate: (date: Date) => void
     setViewportDate: (date: Date) => void
@@ -71,28 +73,42 @@ type CalendarStoreState = {
 
 export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
     isCalendarLoading: true,
+    calendarTimezone: "Asia/Seoul",
 
     // 캘린더 레이아웃
-    selectedDate: dayjs().startOf("day").valueOf(),
-    viewport: dayjs().startOf("month").valueOf(),
-    viewportMini: dayjs().startOf("month").valueOf(),
+    selectedDate: 0,
+    viewport: 0,
+    viewportMini: 0,
+
+    setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
 
     setIsCalendarLoading: (value) =>
         set({
             isCalendarLoading: value,
         }),
     setSelectedDate: (date) =>
-        set({
-            selectedDate: dayjs(date).startOf("day").valueOf(),
-        }),
+        set((s) => ({
+            selectedDate: dayjs
+                .tz(date, s.calendarTimezone)
+                .startOf("day")
+                .valueOf(),
+        })),
+
     setViewportDate: (date) =>
-        set({
-            viewport: dayjs(date).startOf("month").valueOf(),
-        }),
+        set((s) => ({
+            viewport: dayjs
+                .tz(date, s.calendarTimezone)
+                .startOf("month")
+                .valueOf(),
+        })),
+
     setViewportMiniDate: (date) =>
-        set({
-            viewportMini: dayjs(date).startOf("month").valueOf(),
-        }),
+        set((s) => ({
+            viewportMini: dayjs
+                .tz(date, s.calendarTimezone)
+                .startOf("month")
+                .valueOf(),
+        })),
 
     // 일정 레이아웃
     events: [],

@@ -1,3 +1,4 @@
+import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -23,7 +24,8 @@ import { WeekRow } from "./week-row"
 
 function createCollision(
     dragOffset: number,
-    events: CalendarEvent[]
+    events: CalendarEvent[],
+    calendarTz: string
 ): CollisionDetection {
     return (args) => {
         const { pointerCoordinates, active } = args
@@ -35,9 +37,9 @@ function createCollision(
         const event = events.find((e) => e.id === active.id)
         if (!event) return []
 
-        const DAY = 1000 * 60 * 60 * 24
+        const { startDay, endDay } = toCalendarRange(event, calendarTz)
 
-        const totalDays = Math.floor((event.end - event.start) / DAY) + 1
+        const totalDays = endDay.diff(startDay, "day") + 1
 
         const dayWidth = activeRect.width / totalDays
 
@@ -66,7 +68,8 @@ export function MonthList({
 }) {
     const events = useCalendarStore((s) => s.events)
     const dragOffset = useCalendarStore((s) => s.dragOffset)
-    const newDate = dayjs().startOf("isoWeek").toDate()
+    const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+    const newDate = dayjs().tz(calendarTz).startOf("isoWeek").toDate()
     const draggingEvent = useCalendarStore((s) => s.draggingEvent)
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const setDraggingEvent = useCalendarStore((s) => s.setDraggingEvent)
@@ -100,8 +103,8 @@ export function MonthList({
     )
 
     const collision = useMemo(
-        () => createCollision(dragOffset, events),
-        [dragOffset, events]
+        () => createCollision(dragOffset, events, calendarTz),
+        [dragOffset, events, calendarTz]
     )
 
     // 초기 위치
@@ -114,10 +117,9 @@ export function MonthList({
         // 👇 그 1일이 포함된 주 시작
         const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
 
-        const diff = Math.floor(
-            (firstWeekStart.toDate().getTime() - base.getTime()) /
-                (1000 * 60 * 60 * 24 * 7)
-        )
+        const diff = dayjs(firstWeekStart)
+            .tz(calendarTz)
+            .diff(dayjs(base).tz(calendarTz), "week")
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
             align: "start",
@@ -148,7 +150,6 @@ export function MonthList({
     }, [targetDate])
 
     // 현재 월 계산
-
     useEffect(() => {
         const items = virtualizer.getVirtualItems()
         if (!items.length) return
@@ -157,7 +158,7 @@ export function MonthList({
         if (!middle) return
 
         const weekOffset = middle.index - CENTER_INDEX
-        const date = getWeekOffset(baseDateRef.current, weekOffset)
+        const date = getWeekOffset(baseDateRef.current, weekOffset, calendarTz)
 
         const monthKey = getMonthKey(date)
         if (prevMonthRef.current === monthKey) return
@@ -165,10 +166,12 @@ export function MonthList({
         prevMonthRef.current = monthKey
 
         setCurrentMonthKey(monthKey)
-        onVisibleMonthChange?.(dayjs(date).startOf("month").toDate())
+        onVisibleMonthChange?.(
+            dayjs.tz(date, calendarTz).startOf("month").toDate()
+        )
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [virtualizer.getVirtualItems()])
+    }, [virtualizer.getVirtualItems(), calendarTz])
 
     // 스크롤 끝나면 스냅
     useEffect(() => {
@@ -265,14 +268,30 @@ export function MonthList({
                 const event = events.find((e) => e.id === id)
                 if (!event) return
 
-                const duration = event.end - event.start
+                const { startDay, endDay } = toCalendarRange(event, calendarTz)
 
-                const newStart = dayjs(newDate).valueOf()
-                const newEnd = newStart + duration
+                const duration = endDay.diff(startDay, "millisecond")
+
+                const newStartCal = dayjs(newDate)
+                    .tz(calendarTz, true)
+                    .startOf("day")
+                const newEndCal = newStartCal.add(duration, "millisecond")
+
+                let finalStart: number
+                let finalEnd: number
+
+                if (event.allDay) {
+                    // 🔥 올데이는 그냥 날짜 그대로 저장
+                    finalStart = newStartCal.startOf("day").valueOf()
+                    finalEnd = newEndCal.startOf("day").valueOf()
+                } else {
+                    finalStart = newStartCal.tz(event.timezone, true).valueOf()
+                    finalEnd = newEndCal.tz(event.timezone, true).valueOf()
+                }
 
                 updateEvent(id, {
-                    start: newStart,
-                    end: newEnd,
+                    start: finalStart,
+                    end: finalEnd,
                 })
             }}
         >
@@ -286,7 +305,8 @@ export function MonthList({
                     const weekOffset = item.index - CENTER_INDEX
                     const weekDate = getWeekOffset(
                         baseDateRef.current,
-                        weekOffset
+                        weekOffset,
+                        calendarTz
                     )
 
                     return (

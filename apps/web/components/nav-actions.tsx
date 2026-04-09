@@ -37,6 +37,7 @@ import {
 } from "@workspace/ui/components/sidebar"
 import Link from "next/link"
 import ThemeSwitch from "./theme-switch"
+import { TimezoneSelect } from "./timezone-select"
 
 const data = [
     [
@@ -110,12 +111,14 @@ export function NavActions() {
                 Edit Oct 08
             </div> */}
 
-            <Button variant="outline" size="sm" className="mr-1" asChild>
+            <Button variant="outline" className="mr-1" asChild>
                 <Link href="/docs">
                     <Info />
                     Support
                 </Link>
             </Button>
+
+            <TimezoneSelect />
 
             <Button variant="ghost" size="icon" className="size-8 sm:hidden">
                 <Search className="size-4.5" />

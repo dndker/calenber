@@ -1,3 +1,4 @@
+import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
@@ -5,39 +6,25 @@ import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
 import { memo } from "react"
 
-const DAY = 1000 * 60 * 60 * 24
+export function getEventPosition(
+    event: CalendarEvent,
+    week: Date[],
+    calendarTz: string
+) {
+    const { startDay, endDay } = toCalendarRange(event, calendarTz)
 
-export function getEventPosition(event: CalendarEvent, week: Date[]) {
-    const tz = event.timezone
+    const weekStart = dayjs(week[0]).tz(calendarTz).startOf("day")
 
-    const start = dayjs(event.start).tz(tz).startOf("day").valueOf()
-    const end = dayjs(event.end).tz(tz).endOf("day").valueOf()
-
-    const weekStart = dayjs(week[0]).startOf("day").valueOf()
-    const weekEnd = dayjs(week[6]).endOf("day").valueOf()
-
-    const effectiveStart = Math.max(start, weekStart)
-    const effectiveEnd = Math.min(end, weekEnd)
-
-    const startIndex = Math.floor((effectiveStart - weekStart) / DAY)
-    const endIndex = Math.floor((effectiveEnd - weekStart) / DAY)
+    const startIndex = startDay.diff(weekStart, "day")
+    const endIndex = endDay.diff(weekStart, "day")
 
     const span = endIndex - startIndex + 1
 
-    const isStartInThisWeek = start >= weekStart
-    const isEndInThisWeek = end <= weekEnd
-
     const GAP = 4
 
-    const baseLeft = (startIndex / 7) * 100
-    const baseWidth = (span / 7) * 100
-
-    const leftGap = isStartInThisWeek ? GAP : 0
-    const rightGap = isEndInThisWeek ? GAP : 0
-
     return {
-        left: `calc(${baseLeft}% + ${leftGap}px)`,
-        width: `calc(${baseWidth}% - ${leftGap + rightGap}px)`,
+        left: `calc(${(startIndex / 7) * 100}% + ${GAP}px)`,
+        width: `calc(${(span / 7) * 100}% - ${GAP * 2}px)`,
     }
 }
 
@@ -52,11 +39,12 @@ export const EventItem = memo(function EventItem({
     top: number
     overlay?: boolean
 }) {
+    const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
         id: event.id,
     })
 
-    const pos = !overlay ? getEventPosition(event, week) : null
+    const pos = !overlay ? getEventPosition(event, week, calendarTz) : null
 
     const mergedListeners = {
         ...listeners,
@@ -66,8 +54,8 @@ export const EventItem = memo(function EventItem({
 
             const offsetX = e.clientX - rect.left
 
-            const totalDays =
-                dayjs(event.end).diff(dayjs(event.start), "day") + 1
+            const { startDay, endDay } = toCalendarRange(event, calendarTz)
+            const totalDays = endDay.diff(startDay, "day") + 1
 
             const dayWidth = rect.width / totalDays
 

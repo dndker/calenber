@@ -1,9 +1,11 @@
 import dayjs from "@/lib/dayjs"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey } from "@/utils/calendar"
 import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
-    const today = dayjs()
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const today = dayjs().tz(calendarTimezone)
     const startOfMonth = today.startOf("month")
 
     // 달력 시작 주 (일요일 or 월요일 기준)

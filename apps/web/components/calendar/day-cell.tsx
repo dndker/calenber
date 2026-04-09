@@ -1,20 +1,25 @@
 import { useNow } from "@/hooks/use-now"
+import { eventToCalendar, toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { memo, useCallback } from "react"
+import { memo, useCallback, useMemo } from "react"
 import { shallow } from "zustand/shallow"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
+        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+
         const { setNodeRef } = useDroppable({
             id: dayjs(day).format("YYYY-MM-DD"),
         })
 
-        const now = useNow()
-        const dayValue = dayjs(day).startOf("day").valueOf()
+        const now = useNow(calendarTz)
+        const dayValue = useMemo(() => {
+            return toCalendarDay(day, calendarTz)
+        }, [day, calendarTz])
 
         const { draggingEvent, draggingOverDate } = useCalendarStore(
             (s) => ({
@@ -38,20 +43,42 @@ export const DayCell = memo(
         /** 🔥 핵심: hover range 정확 계산 */
         let isHoverTarget = false
 
-        const DAY = 1000 * 60 * 60 * 24
-
         if (draggingEvent && draggingOverDate) {
-            const start = dayjs(draggingOverDate).startOf("day").valueOf()
+            const start = toCalendarDay(draggingOverDate, calendarTz)
 
-            const duration = Math.floor(
-                (draggingEvent.end - draggingEvent.start) / DAY
-            )
+            let startDay: number
+            let endDay: number
 
-            const end = start + duration * DAY
+            if (draggingEvent.allDay) {
+                // ✅ 올데이는 tz 변환 금지
+                startDay = dayjs(draggingEvent.start).startOf("day").valueOf()
 
-            const current = dayjs(day).startOf("day").valueOf()
+                endDay = dayjs(draggingEvent.end).startOf("day").valueOf()
+            } else {
+                // ✅ 일반 이벤트만 tz 변환
+                startDay = eventToCalendar(
+                    draggingEvent,
+                    draggingEvent.start,
+                    calendarTz
+                )
+                    .startOf("day")
+                    .valueOf()
 
-            isHoverTarget = current >= start && current <= end
+                endDay = eventToCalendar(
+                    draggingEvent,
+                    draggingEvent.end,
+                    calendarTz
+                )
+                    .startOf("day")
+                    .valueOf()
+            }
+
+            // ✅ duration 계산 (millisecond 나눗셈 금지)
+            const duration = dayjs(endDay).diff(dayjs(startDay), "day")
+
+            const end = dayjs(start).add(duration, "day").valueOf()
+
+            isHoverTarget = dayValue >= start && dayValue <= end
         }
 
         return (

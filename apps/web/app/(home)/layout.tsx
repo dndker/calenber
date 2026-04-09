@@ -11,13 +11,43 @@ import {
     SidebarProvider,
     SidebarTrigger,
 } from "@workspace/ui/components/sidebar"
+import dayjs from "dayjs"
 import { Search } from "lucide-react"
+import { cookies } from "next/headers"
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-    const events = generateMockEvents()
+export default async function Layout({
+    children,
+}: {
+    children: React.ReactNode
+}) {
+    const cookieStore = await cookies()
+    const calendarTimezone =
+        cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
+    console.log(calendarTimezone)
+
+    const events = generateMockEvents(calendarTimezone)
+    const selectedDate = dayjs().tz(calendarTimezone).startOf("day").valueOf()
+    const viewport = dayjs()
+        .tz(calendarTimezone)
+        .startOf("month")
+        .add(12, "hour")
+        .valueOf()
+    const viewportMini = dayjs()
+        .tz(calendarTimezone)
+        .startOf("month")
+        .add(12, "hour")
+        .valueOf()
 
     return (
-        <CalendarStoreProvider initialState={{ events }}>
+        <CalendarStoreProvider
+            initialState={{
+                events,
+                calendarTimezone,
+                selectedDate,
+                viewport,
+                viewportMini,
+            }}
+        >
             <SidebarProvider className="h-screen overflow-hidden">
                 <AppSidebar />
                 <SidebarInset className="h-screen overflow-hidden">

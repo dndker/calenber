@@ -1,3 +1,4 @@
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
 import { memo } from "react"
@@ -18,7 +19,8 @@ export const WeekRow = memo(
         weekDate: Date
         currentMonthKey: string
     }) => {
-        const week = getWeek(weekDate)
+        const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+        const week = getWeek(weekDate, calendarTimezone)
 
         return (
             <div
