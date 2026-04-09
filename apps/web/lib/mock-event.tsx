@@ -8,10 +8,10 @@ export function generateMockEvents(timezone?: string): CalendarEvent[] {
     //     "generateMockEvents"
     // )
 
-    return Array.from({ length: 20 }).map((_, i) => {
+    return Array.from({ length: 10 }).map((_, i) => {
         const base = dayjs()
             .tz(timezone)
-            .add(i - 5, "day")
+            .add(i * 2 - 5, "day")
 
         // 1~3일 랜덤 길이
         const durationDays = Math.floor(Math.random() * 3) + 1

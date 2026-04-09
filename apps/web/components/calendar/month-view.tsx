@@ -62,7 +62,7 @@ export default function Calendar() {
             >
                 {!isCalendarLoading ? (
                     <MonthList
-                        // key={containerHeight}
+                        key={containerHeight}
                         parentRef={parentRef}
                         containerHeight={containerHeight}
                         targetDate={dayjs(selectedDate)
