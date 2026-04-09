@@ -56,7 +56,7 @@ export const EventRow = memo(function EventRow({ week }: { week: Date[] }) {
      * ✅ 정렬
      */
     const sorted = useMemo(() => {
-        return [...filtered].sort((a, b) => {
+        return filtered.sort((a, b) => {
             const aDur = a.endCal - a.startCal
             const bDur = b.endCal - b.startCal
 

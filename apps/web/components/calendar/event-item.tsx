@@ -4,7 +4,7 @@ import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
-import { memo } from "react"
+import { memo, useRef } from "react"
 
 export function getEventPosition(
     event: CalendarEvent,
@@ -40,6 +40,7 @@ export const EventItem = memo(function EventItem({
     overlay?: boolean
 }) {
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+    const rectRef = useRef<DOMRect | null>(null)
     const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
         id: event.id,
     })
@@ -49,7 +50,10 @@ export const EventItem = memo(function EventItem({
     const mergedListeners = {
         ...listeners,
         onPointerDown: (e: React.PointerEvent) => {
-            const rect = e.currentTarget.getBoundingClientRect()
+            if (!rectRef.current) {
+                rectRef.current = e.currentTarget.getBoundingClientRect()
+            }
+            const rect = rectRef.current
             if (!rect) return
 
             const offsetX = e.clientX - rect.left

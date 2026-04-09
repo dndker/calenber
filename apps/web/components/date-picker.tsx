@@ -34,7 +34,6 @@ export function DatePicker() {
                 .toDate(),
         [viewportMini, calendarTimezone]
     )
-    console.log(month)
 
     const selected = useMemo(
         () => dayjs.tz(selectedDate, calendarTimezone).add(12, "hour").toDate(),

@@ -25,7 +25,8 @@ import { WeekRow } from "./week-row"
 function createCollision(
     dragOffset: number,
     events: CalendarEvent[],
-    calendarTz: string
+    calendarTz: string,
+    draggingEvent?: CalendarEvent
 ): CollisionDetection {
     return (args) => {
         const { pointerCoordinates, active } = args
@@ -34,7 +35,7 @@ function createCollision(
         const activeRect = active.rect.current.translated
         if (!activeRect) return []
 
-        const event = events.find((e) => e.id === active.id)
+        const event = draggingEvent
         if (!event) return []
 
         const { startDay, endDay } = toCalendarRange(event, calendarTz)
@@ -84,10 +85,15 @@ export function MonthList({
         ? getWeek(dayjs(draggingOverDate).toDate())
         : []
 
+    const itemSize = useMemo(
+        () => Math.floor(containerHeight / 5),
+        [containerHeight]
+    )
+
     const virtualizer = useVirtualizer({
         count: TOTAL,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => Math.floor(containerHeight / 5),
+        estimateSize: () => itemSize,
         overscan: 10,
         gap: 1,
     })
@@ -103,8 +109,8 @@ export function MonthList({
     )
 
     const collision = useMemo(
-        () => createCollision(dragOffset, events, calendarTz),
-        [dragOffset, events, calendarTz]
+        () => createCollision(dragOffset, events, calendarTz, draggingEvent),
+        [dragOffset, events, calendarTz, draggingEvent]
     )
 
     // 초기 위치
@@ -171,7 +177,7 @@ export function MonthList({
         )
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [virtualizer.getVirtualItems(), calendarTz])
+    }, [virtualizer.getVirtualItems()])
 
     // 스크롤 끝나면 스냅
     useEffect(() => {
@@ -226,6 +232,12 @@ export function MonthList({
     }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
 
+    const eventMap = useMemo(() => {
+        const map = new Map()
+        events.forEach((e) => map.set(e.id, e))
+        return map
+    }, [events])
+
     return (
         <DndContext
             collisionDetection={collision}
@@ -241,7 +253,7 @@ export function MonthList({
                 const id = over.id as string
                 setDragging(id)
 
-                const event = events.find((e) => e.id === id)
+                const event = eventMap.get(id)
                 setDraggingOverDate(over.id as string)
 
                 if (!event) return
@@ -250,7 +262,7 @@ export function MonthList({
             onDragStart={({ active }) => {
                 const id = active.id as string
 
-                const event = events.find((e) => e.id === id)
+                const event = eventMap.get(id)
 
                 if (!event) return
 
@@ -265,7 +277,7 @@ export function MonthList({
                 const id = active.id as string
                 const newDate = over.id as string
 
-                const event = events.find((e) => e.id === id)
+                const event = eventMap.get(id)
                 if (!event) return
 
                 const { startDay, endDay } = toCalendarRange(event, calendarTz)

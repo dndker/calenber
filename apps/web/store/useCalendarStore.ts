@@ -46,6 +46,7 @@ type CalendarStoreState = {
     selectedDate: number
     viewport: number
     viewportMini: number
+    moveRange: { start: number; end: number } | null
     setCalendarTimezone: (tz: string) => void
     setIsCalendarLoading: (value: boolean) => void
     setSelectedDate: (date: Date) => void
@@ -79,6 +80,7 @@ export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
     selectedDate: 0,
     viewport: 0,
     viewportMini: 0,
+    moveRange: null,
 
     setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
 

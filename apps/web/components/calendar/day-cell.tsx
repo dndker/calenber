@@ -6,7 +6,6 @@ import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { memo, useCallback, useMemo } from "react"
-import { shallow } from "zustand/shallow"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
@@ -21,13 +20,8 @@ export const DayCell = memo(
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
 
-        const { draggingEvent, draggingOverDate } = useCalendarStore(
-            (s) => ({
-                draggingEvent: s.draggingEvent,
-                draggingOverDate: s.draggingOverDate,
-            }),
-            shallow
-        )
+        const draggingEvent = useCalendarStore((s) => s.draggingEvent)
+        const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
@@ -41,21 +35,18 @@ export const DayCell = memo(
         }, [day, setSelectedDate, setViewportMiniDate])
 
         /** 🔥 핵심: hover range 정확 계산 */
-        let isHoverTarget = false
+        const isHoverTarget = useMemo(() => {
+            if (!draggingEvent || !draggingOverDate) return false
 
-        if (draggingEvent && draggingOverDate) {
             const start = toCalendarDay(draggingOverDate, calendarTz)
 
             let startDay: number
             let endDay: number
 
             if (draggingEvent.allDay) {
-                // ✅ 올데이는 tz 변환 금지
                 startDay = dayjs(draggingEvent.start).startOf("day").valueOf()
-
                 endDay = dayjs(draggingEvent.end).startOf("day").valueOf()
             } else {
-                // ✅ 일반 이벤트만 tz 변환
                 startDay = eventToCalendar(
                     draggingEvent,
                     draggingEvent.start,
@@ -73,13 +64,11 @@ export const DayCell = memo(
                     .valueOf()
             }
 
-            // ✅ duration 계산 (millisecond 나눗셈 금지)
             const duration = dayjs(endDay).diff(dayjs(startDay), "day")
-
             const end = dayjs(start).add(duration, "day").valueOf()
 
-            isHoverTarget = dayValue >= start && dayValue <= end
-        }
+            return dayValue >= start && dayValue <= end
+        }, [draggingEvent, draggingOverDate, dayValue, calendarTz])
 
         return (
             <div

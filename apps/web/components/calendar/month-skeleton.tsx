@@ -6,7 +6,7 @@ import { WeekRow } from "./week-row"
 export function MonthSkeleton() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const today = dayjs().tz(calendarTimezone)
-    const startOfMonth = today.startOf("month")
+    const startOfMonth = today.startOf("month").add(12, "hour")
 
     // 달력 시작 주 (일요일 or 월요일 기준)
     const calendarStart = startOfMonth.startOf("week")
