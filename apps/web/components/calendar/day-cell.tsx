@@ -1,15 +1,22 @@
 import { useNow } from "@/hooks/use-now"
-import { eventToCalendar, toCalendarDay } from "@/lib/date"
+import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { memo, useCallback, useMemo } from "react"
+import { memo, useCallback, useMemo, useRef } from "react"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+        const startSelection = useCalendarStore((s) => s.startSelection)
+        const updateSelection = useCalendarStore((s) => s.updateSelection)
+        const endSelection = useCalendarStore((s) => s.endSelection)
+        const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
+
+        const isDraggingRef = useRef(false)
+        const clickTimeout = useRef<NodeJS.Timeout | null>(null)
 
         const { setNodeRef } = useDroppable({
             id: dayjs(day).format("YYYY-MM-DD"),
@@ -20,9 +27,6 @@ export const DayCell = memo(
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
 
-        const draggingEvent = useCalendarStore((s) => s.draggingEvent)
-        const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
-
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
         const setViewportMiniDate = useCalendarStore(
@@ -30,56 +34,70 @@ export const DayCell = memo(
         )
 
         const handleClick = useCallback(() => {
-            setSelectedDate(day)
-            setViewportMiniDate(day)
+            if (isDraggingRef.current) return
+
+            if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current)
+            }
+            clickTimeout.current = setTimeout(() => {
+                setSelectedDate(day)
+                setViewportMiniDate(day)
+            }, 150)
         }, [day, setSelectedDate, setViewportMiniDate])
 
-        /** 🔥 핵심: hover range 정확 계산 */
-        const isHoverTarget = useMemo(() => {
-            if (!draggingEvent || !draggingOverDate) return false
-
-            const start = toCalendarDay(draggingOverDate, calendarTz)
-
-            let startDay: number
-            let endDay: number
-
-            if (draggingEvent.allDay) {
-                startDay = dayjs(draggingEvent.start).startOf("day").valueOf()
-                endDay = dayjs(draggingEvent.end).startOf("day").valueOf()
-            } else {
-                startDay = eventToCalendar(
-                    draggingEvent,
-                    draggingEvent.start,
-                    calendarTz
-                )
-                    .startOf("day")
-                    .valueOf()
-
-                endDay = eventToCalendar(
-                    draggingEvent,
-                    draggingEvent.end,
-                    calendarTz
-                )
-                    .startOf("day")
-                    .valueOf()
+        const handleDoubleClick = () => {
+            if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current)
             }
+            console.log("이벤트 생성")
+        }
 
-            const duration = dayjs(endDay).diff(dayjs(startDay), "day")
-            const end = dayjs(start).add(duration, "day").valueOf()
+        const isHover = useCalendarStore((s) => {
+            if (!s.drag.eventId) return false
+            return dayValue >= s.drag.start && dayValue <= s.drag.end
+        })
 
-            return dayValue >= start && dayValue <= end
-        }, [draggingEvent, draggingOverDate, dayValue, calendarTz])
+        const handlePointerDown = (e: React.PointerEvent) => {
+            // 🔥 이벤트 클릭이면 무시
+            if ((e.target as HTMLElement).closest(".event-drag-row")) return
+            isDraggingRef.current = false
+
+            startSelection(dayValue)
+        }
+
+        const handlePointerEnter = () => {
+            if (!isSelecting) return
+            isDraggingRef.current = true
+            updateSelection(dayValue)
+        }
+
+        const handlePointerUp = () => {
+            if (!isSelecting) return
+            endSelection()
+        }
+
+        const isSelectingRange = useCalendarStore((s) => {
+            if (!s.selection.isSelecting) return false
+            if (!s.selection.start || !s.selection.end) return false
+
+            return dayValue >= s.selection.start && dayValue <= s.selection.end
+        })
 
         return (
             <div
+                data-date={dayjs(day).format("YYYY-MM-DD")}
                 ref={setNodeRef}
+                onPointerDown={handlePointerDown}
+                onPointerEnter={handlePointerEnter}
+                onPointerUp={handlePointerUp}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
                 className={cn(
                     "flex flex-col p-3 text-sm font-medium select-none",
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
-                    isHoverTarget &&
+                    (isHover || isSelectingRange) &&
                         "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
                 )}
             >

@@ -1,6 +1,5 @@
-import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     CENTER_INDEX,
     TOTAL,
@@ -9,7 +8,6 @@ import {
     getWeekOffset,
 } from "@/utils/calendar"
 import {
-    CollisionDetection,
     DndContext,
     DragOverlay,
     PointerSensor,
@@ -22,40 +20,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { EventItem } from "./event-item"
 import { WeekRow } from "./week-row"
 
-function createCollision(
-    dragOffset: number,
-    events: CalendarEvent[],
-    calendarTz: string,
-    draggingEvent?: CalendarEvent
-): CollisionDetection {
-    return (args) => {
-        const { pointerCoordinates, active } = args
-        if (!pointerCoordinates) return []
-
-        const activeRect = active.rect.current.translated
-        if (!activeRect) return []
-
-        const event = draggingEvent
-        if (!event) return []
-
-        const { startDay, endDay } = toCalendarRange(event, calendarTz)
-
-        const totalDays = endDay.diff(startDay, "day") + 1
-
-        const dayWidth = activeRect.width / totalDays
-
-        const adjustedPointer = {
-            x: pointerCoordinates.x - dragOffset * dayWidth,
-            y: pointerCoordinates.y,
-        }
-
-        return pointerWithin({
-            ...args,
-            pointerCoordinates: adjustedPointer,
-        })
-    }
-}
-
 export function MonthList({
     parentRef,
     containerHeight,
@@ -67,22 +31,21 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
+    const drag = useCalendarStore((s) => s.drag)
     const events = useCalendarStore((s) => s.events)
-    const dragOffset = useCalendarStore((s) => s.dragOffset)
+    const draggingEvent = useMemo(() => {
+        if (!drag.eventId) return null
+        return events.find((e) => e.id === drag.eventId) || null
+    }, [drag.eventId, events])
+
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const newDate = dayjs().tz(calendarTz).startOf("isoWeek").toDate()
-    const draggingEvent = useCalendarStore((s) => s.draggingEvent)
-    const updateEvent = useCalendarStore((s) => s.updateEvent)
-    const setDraggingEvent = useCalendarStore((s) => s.setDraggingEvent)
-    const draggingOverDate = useCalendarStore((s) => s.draggingOverDate)
-    const setDraggingOverDate = useCalendarStore((s) => s.setDraggingOverDate)
-    const setDragging = useCalendarStore((s) => s.setDraggingEventId)
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
     const [currentMonthKey, setCurrentMonthKey] = useState(getMonthKey(newDate))
 
-    const overlayWeek = draggingOverDate
-        ? getWeek(dayjs(draggingOverDate).toDate())
+    const overlayWeek = drag.start
+        ? getWeek(dayjs.tz(drag.start, calendarTz).toDate())
         : []
 
     const itemSize = useMemo(
@@ -106,11 +69,6 @@ export function MonthList({
                 distance: 5,
             },
         })
-    )
-
-    const collision = useMemo(
-        () => createCollision(dragOffset, events, calendarTz, draggingEvent),
-        [dragOffset, events, calendarTz, draggingEvent]
     )
 
     // 초기 위치
@@ -231,16 +189,11 @@ export function MonthList({
         }
     }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
-
-    const eventMap = useMemo(() => {
-        const map = new Map()
-        events.forEach((e) => map.set(e.id, e))
-        return map
-    }, [events])
+    let frame: number | null = null
 
     return (
         <DndContext
-            collisionDetection={collision}
+            collisionDetection={pointerWithin}
             sensors={sensors}
             autoScroll={{
                 threshold: {
@@ -250,61 +203,20 @@ export function MonthList({
             }}
             onDragOver={({ over }) => {
                 if (!over) return
-                const id = over.id as string
-                setDragging(id)
 
-                const event = eventMap.get(id)
-                setDraggingOverDate(over.id as string)
+                if (frame) cancelAnimationFrame(frame)
 
-                if (!event) return
-                setDraggingEvent(event)
-            }}
-            onDragStart={({ active }) => {
-                const id = active.id as string
+                frame = requestAnimationFrame(() => {
+                    const date = dayjs
+                        .tz(over.id, calendarTz)
+                        .startOf("day")
+                        .valueOf()
 
-                const event = eventMap.get(id)
-
-                if (!event) return
-
-                setDraggingEvent(event)
-            }}
-            onDragEnd={({ active, over }) => {
-                if (!over) return
-                setDragging(undefined)
-                setDraggingEvent(undefined)
-                setDraggingOverDate(undefined)
-
-                const id = active.id as string
-                const newDate = over.id as string
-
-                const event = eventMap.get(id)
-                if (!event) return
-
-                const { startDay, endDay } = toCalendarRange(event, calendarTz)
-
-                const duration = endDay.diff(startDay, "millisecond")
-
-                const newStartCal = dayjs(newDate)
-                    .tz(calendarTz, true)
-                    .startOf("day")
-                const newEndCal = newStartCal.add(duration, "millisecond")
-
-                let finalStart: number
-                let finalEnd: number
-
-                if (event.allDay) {
-                    // 🔥 올데이는 그냥 날짜 그대로 저장
-                    finalStart = newStartCal.startOf("day").valueOf()
-                    finalEnd = newEndCal.startOf("day").valueOf()
-                } else {
-                    finalStart = newStartCal.tz(event.timezone, true).valueOf()
-                    finalEnd = newEndCal.tz(event.timezone, true).valueOf()
-                }
-
-                updateEvent(id, {
-                    start: finalStart,
-                    end: finalEnd,
+                    useCalendarStore.getState().moveDrag(date)
                 })
+            }}
+            onDragEnd={() => {
+                useCalendarStore.getState().endDrag()
             }}
         >
             <div
@@ -332,8 +244,11 @@ export function MonthList({
                     )
                 })}
             </div>
-            <DragOverlay dropAnimation={null} style={{ pointerEvents: "none" }}>
-                {draggingEvent ? (
+            <DragOverlay
+                dropAnimation={null}
+                style={{ pointerEvents: "none", willChange: "transform" }}
+            >
+                {drag.eventId && draggingEvent ? (
                     <EventItem
                         event={draggingEvent}
                         week={overlayWeek}

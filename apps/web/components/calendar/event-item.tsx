@@ -28,68 +28,105 @@ export function getEventPosition(
     }
 }
 
-export const EventItem = memo(function EventItem({
-    event,
-    week,
-    top,
-    overlay = false,
-}: {
-    event: CalendarEvent
-    week: Date[]
-    top: number
-    overlay?: boolean
-}) {
-    const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-    const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
-        id: event.id,
-    })
+export const EventItem = memo(
+    function EventItem({
+        event,
+        week,
+        top,
+        overlay = false,
+    }: {
+        event: CalendarEvent
+        week: Date[]
+        top: number
+        overlay?: boolean
+    }) {
+        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+        const startDrag = useCalendarStore((s) => s.startDrag)
+        const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+            id: event.id,
+        })
 
-    const pos = !overlay ? getEventPosition(event, week, calendarTz) : null
+        const pos = !overlay ? getEventPosition(event, week, calendarTz) : null
 
-    const mergedListeners = {
-        ...listeners,
-        onPointerDown: (e: React.PointerEvent) => {
+        const { startDay, endDay } = toCalendarRange(event, calendarTz)
+
+        const handleMoveStart = (e: React.PointerEvent) => {
             const rect = e.currentTarget.getBoundingClientRect()
-            if (!rect) return
-
             const offsetX = e.clientX - rect.left
 
-            const { startDay, endDay } = toCalendarRange(event, calendarTz)
             const totalDays = endDay.diff(startDay, "day") + 1
-
             const dayWidth = rect.width / totalDays
 
             const index = Math.floor(offsetX / dayWidth)
+            // const clickedDate = startDay.add(index, "day").valueOf()
 
-            useCalendarStore.getState().setDragOffset(index)
+            startDrag(event, "move", index)
 
+            // 🔥 이거 없으면 dnd 작동안함
             listeners?.onPointerDown?.(e)
-        },
-    }
+        }
 
-    return (
-        <Button
-            variant="outline"
-            size="sm"
-            ref={setNodeRef}
-            {...mergedListeners}
-            {...attributes}
-            className={clsx(
-                "pointer-events-all absolute justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c]",
-                {
+        const handleResizeStart = (e: React.PointerEvent) => {
+            startDrag(event, "resize-start", event.start)
+            listeners?.onPointerDown?.(e)
+        }
+
+        const handleResizeEnd = (e: React.PointerEvent) => {
+            startDrag(event, "resize-end", event.end)
+            listeners?.onPointerDown?.(e)
+        }
+
+        const mergedListeners = {
+            ...listeners,
+            onPointerDown: handleMoveStart,
+        }
+
+        return (
+            <div
+                ref={setNodeRef}
+                {...mergedListeners}
+                {...attributes}
+                className={clsx("absolute will-change-transform select-none", {
                     "event-drag-row opacity-50": isDragging,
                     "cursor-grab active:cursor-grabbing": overlay,
-                }
-            )}
-            style={{
-                ...pos,
-                width: overlay ? "100%" : pos?.width,
-                top: `${top * 32}px`, // 🔥 stacking
-                zIndex: isDragging ? 100 : 1,
-                // background: event.color,
-            }}
-        >
-            {event.title}
-        </Button>
-    )
-})
+                })}
+                style={{
+                    ...pos,
+                    width: overlay ? "100%" : pos?.width,
+                    top: `${top * 32}px`, // 🔥 stacking
+                    zIndex: isDragging ? 100 : 1,
+                    // background: event.color,
+                }}
+            >
+                <div
+                    onPointerDown={handleResizeStart}
+                    className="pointer-events-all absolute top-0 left-0 z-1 h-full w-1 cursor-ew-resize bg-transparent"
+                />
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className={clsx(
+                        "pointer-events-all w-full justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c]"
+                    )}
+                >
+                    {event.title}
+                </Button>
+
+                <div
+                    onPointerDown={handleResizeEnd}
+                    className="pointer-events-all absolute top-0 right-0 z-100 h-full w-1 bg-transparent hover:cursor-ew-resize"
+                />
+            </div>
+        )
+    },
+    (prev, next) => {
+        return (
+            prev.event.id === next.event.id &&
+            prev.event.start === next.event.start &&
+            prev.event.end === next.event.end &&
+            prev.top === next.top &&
+            prev.overlay === next.overlay
+        )
+    }
+)

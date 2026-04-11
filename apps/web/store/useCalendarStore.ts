@@ -37,6 +37,24 @@ export type CalendarEvent = {
     createdAt: number
     updatedAt: number
 }
+type DragMode = "move" | "resize-start" | "resize-end"
+type DragState = {
+    eventId: string | null
+    mode: "move" | "resize-start" | "resize-end" | null
+
+    originStart: number
+    originEnd: number
+
+    start: number
+    end: number
+    offset: number
+}
+
+type SelectionState = {
+    isSelecting: boolean
+    start: number | null
+    end: number | null
+}
 
 type CalendarStoreState = {
     calendarTimezone: string
@@ -56,23 +74,31 @@ type CalendarStoreState = {
     // 일정 레이아웃
     events: CalendarEvent[]
 
-    draggingEventId?: string
-    draggingOverDate?: string
-
     setEvents: (events: CalendarEvent[]) => void
     addEvent: (event: CalendarEvent) => void
     updateEvent: (id: string, patch: Partial<CalendarEvent>) => void
     removeEvent: (id: string) => void
-    draggingEvent?: CalendarEvent
-    setDraggingEvent: (event?: CalendarEvent) => void
-    setDraggingEventId: (id?: string) => void
-    setDraggingOverDate: (date?: string) => void
-
-    dragOffset: number
-    setDragOffset: (x: number) => void
 }
 
-export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
+type CalendarDragState = {
+    drag: DragState
+    startDrag: (
+        event: CalendarEvent,
+        mode: DragMode,
+        clickedDate: number
+    ) => void
+    moveDrag: (date: number) => void
+    endDrag: () => void
+
+    selection: SelectionState
+    startSelection: (date: number) => void
+    updateSelection: (date: number) => void
+    endSelection: () => void
+}
+
+export const useCalendarStore = createSSRStore<
+    CalendarStoreState & CalendarDragState
+>((set, get) => ({
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
 
@@ -115,8 +141,23 @@ export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
     // 일정 레이아웃
     events: [],
 
-    draggingEvent: undefined,
-    draggingOverDate: undefined,
+    selection: {
+        isSelecting: false,
+        start: null,
+        end: null,
+    },
+
+    drag: {
+        eventId: null,
+        mode: null,
+        originStart: 0,
+        originEnd: 0,
+        start: 0,
+        end: 0,
+        offset: 0,
+        isStartEdge: false,
+        isEndEdge: false,
+    },
 
     setEvents: (events) => set({ events }),
     addEvent: (event) => set((s) => ({ events: [...s.events, event] })),
@@ -131,19 +172,147 @@ export const useCalendarStore = createSSRStore<CalendarStoreState>((set) => ({
             events: s.events.filter((e) => e.id !== id),
         })),
 
-    setDraggingEvent: (event) => set({ draggingEvent: event }),
-    setDraggingEventId: (id) =>
+    startDrag(event, mode, offset) {
         set({
-            draggingEventId: id,
-        }),
-    setDraggingOverDate: (date) => set({ draggingOverDate: date }),
+            drag: {
+                eventId: event.id,
+                mode,
+                originStart: event.start,
+                originEnd: event.end,
+                start: event.start,
+                end: event.end,
+                offset,
+            },
+        })
+    },
 
-    dragOffset: 0,
+    moveDrag(date) {
+        const { drag } = get()
+        if (!drag.eventId) return
 
-    setDragOffset: (x) =>
+        const normalized = dayjs(date).startOf("day")
+
+        const duration = dayjs(drag.originEnd)
+            .startOf("day")
+            .diff(dayjs(drag.originStart).startOf("day"), "day")
+
+        if (drag.mode === "move") {
+            const newStart = normalized.subtract(drag.offset, "day")
+
+            set({
+                drag: {
+                    ...drag,
+                    start: newStart.valueOf(),
+                    end: newStart.add(duration, "day").valueOf(),
+                },
+            })
+        }
+
+        if (drag.mode === "resize-start") {
+            if (normalized.valueOf() >= drag.end) return
+            set({
+                drag: { ...drag, start: normalized.valueOf() },
+            })
+        }
+
+        if (drag.mode === "resize-end") {
+            if (normalized.valueOf() <= drag.start) return
+            set({
+                drag: { ...drag, end: normalized.valueOf() },
+            })
+        }
+    },
+
+    endDrag() {
+        const { drag, updateEvent } = get()
+        if (!drag.eventId) return
+
+        updateEvent(drag.eventId, {
+            start: drag.start,
+            end: drag.end,
+        })
+
         set({
-            dragOffset: x,
-        }),
+            drag: {
+                eventId: null,
+                mode: null,
+                originStart: 0,
+                originEnd: 0,
+                start: 0,
+                end: 0,
+                offset: 0,
+            },
+        })
+    },
+
+    startSelection(date) {
+        set({
+            selection: {
+                isSelecting: true,
+                start: date,
+                end: date,
+            },
+        })
+    },
+
+    updateSelection(date) {
+        const { selection } = get()
+        if (!selection.isSelecting || !selection.start) return
+
+        const start = selection.start
+        const end = date
+
+        set({
+            selection: {
+                ...selection,
+                start: Math.min(start, end),
+                end: Math.max(start, end),
+            },
+        })
+    },
+
+    endSelection() {
+        const { selection, addEvent, calendarTimezone } = get()
+
+        if (!selection.start || !selection.end) return
+
+        // ❌ 하루짜리는 생성하지 않음
+        if (selection.start === selection.end) {
+            set({
+                selection: {
+                    isSelecting: false,
+                    start: null,
+                    end: null,
+                },
+            })
+            return
+        }
+
+        console.log(
+            dayjs(selection.start).format("YYYY-MM-DD"),
+            dayjs(selection.end).format("YYYY-MM-DD")
+        )
+
+        // 🔥 이벤트 생성
+        // addEvent({
+        //     id: crypto.randomUUID(),
+        //     title: "새 일정",
+        //     start: selection.start,
+        //     end: selection.end,
+        //     timezone: calendarTimezone,
+        //     color: "#3b82f6",
+        //     createdAt: Date.now(),
+        //     updatedAt: Date.now(),
+        // })
+
+        set({
+            selection: {
+                isSelecting: false,
+                start: null,
+                end: null,
+            },
+        })
+    },
 }))
 
 export const CalendarStoreProvider = useCalendarStore.StoreProvider
