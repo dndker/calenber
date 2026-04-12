@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CalendarBreadcrumb } from "@/components/calendar-breadcrumb"
 import { NavActions } from "@/components/nav-actions"
+import dayjs from "@/lib/dayjs"
 import { generateMockEvents } from "@/lib/mock-event"
 import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
@@ -12,12 +13,44 @@ import {
     SidebarTrigger,
 } from "@workspace/ui/components/sidebar"
 import { Search } from "lucide-react"
+import { cookies } from "next/headers"
+import { Suspense } from "react"
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-    const events = generateMockEvents()
+export default async function Layout({
+    children,
+    modal,
+}: {
+    children: React.ReactNode
+    modal?: React.ReactNode
+}) {
+    const cookieStore = await cookies()
+    const calendarTimezone =
+        cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
+    console.log(calendarTimezone)
+
+    const events = generateMockEvents(calendarTimezone)
+    const selectedDate = dayjs().tz(calendarTimezone).startOf("day").valueOf()
+    const viewport = dayjs()
+        .tz(calendarTimezone)
+        .startOf("month")
+        .add(12, "hour")
+        .valueOf()
+    const viewportMini = dayjs()
+        .tz(calendarTimezone)
+        .startOf("month")
+        .add(12, "hour")
+        .valueOf()
 
     return (
-        <CalendarStoreProvider initialState={{ events }}>
+        <CalendarStoreProvider
+            initialState={{
+                events,
+                calendarTimezone,
+                selectedDate,
+                viewport,
+                viewportMini,
+            }}
+        >
             <SidebarProvider className="h-screen overflow-hidden">
                 <AppSidebar />
                 <SidebarInset className="h-screen overflow-hidden">
@@ -55,10 +88,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                             </div>
                         </div>
                     </header>
-
-                    {/* 페이지 콘텐츠가 렌더링되는 곳 */}
                     <main className="box-border flex flex-1 flex-col overflow-hidden">
                         {children}
+
+                        <Suspense fallback={null}>{modal}</Suspense>
                     </main>
                 </SidebarInset>
             </SidebarProvider>

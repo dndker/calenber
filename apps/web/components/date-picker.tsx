@@ -8,10 +8,15 @@ import {
     SidebarGroupContent,
 } from "@workspace/ui/components/sidebar"
 import { CalendarPlus } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useMemo } from "react"
 
 export function DatePicker() {
-    const now = useNow()
+    const router = useRouter()
+
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const now = useNow(calendarTimezone)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const viewportMini = useCalendarStore((s) => s.viewportMini)
     const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
@@ -24,22 +29,34 @@ export function DatePicker() {
             dayjs(now).isSame(viewportMini, "month")
         )
     }, [now, selectedDate, viewportMini])
-    const viewportMiniDate = useMemo(() => {
-        return dayjs(viewportMini).toDate()
-    }, [viewportMini])
-
-    const selected = useMemo(() => dayjs(selectedDate).toDate(), [selectedDate])
     const month = useMemo(
-        () => dayjs(viewportMini).startOf("month").toDate(),
-        [viewportMini]
+        () =>
+            dayjs
+                .tz(viewportMini, calendarTimezone)
+                .startOf("month")
+                .add(12, "hour")
+                .toDate(),
+        [viewportMini, calendarTimezone]
+    )
+
+    const selected = useMemo(
+        () => dayjs.tz(selectedDate, calendarTimezone).add(12, "hour").toDate(),
+        [selectedDate, calendarTimezone]
+    )
+
+    const viewportMiniDate = useMemo(
+        () => dayjs.tz(viewportMini, calendarTimezone).add(12, "hour").toDate(),
+        [viewportMini, calendarTimezone]
     )
 
     const onClickToday = () => {
-        setViewportMiniDate(now.startOf("month").toDate())
-        setViewportDate(now.toDate())
-        setSelectedDate(now.clone().add(1, "day").toDate())
+        const nowTz = dayjs().tz(calendarTimezone)
+
+        setViewportMiniDate(nowTz.startOf("month").toDate())
+        setViewportDate(nowTz.toDate())
+        setSelectedDate(nowTz.clone().add(1, "day").toDate())
         requestAnimationFrame(() => {
-            setSelectedDate(now.toDate())
+            setSelectedDate(nowTz.toDate())
         })
     }
 
@@ -72,7 +89,7 @@ export function DatePicker() {
 
     const handleClickNav = useCallback(
         (currentDate: Date, direction: string, mode: CalendarPickerMode) => {
-            let date = dayjs(currentDate)
+            let date = dayjs.tz(currentDate, calendarTimezone)
             const number = mode === "month" ? 1 : 12
             if (direction === "prev") {
                 date = date.subtract(number, "year")
@@ -81,13 +98,14 @@ export function DatePicker() {
             }
             setViewportMiniDate(date.toDate())
         },
-        [setViewportMiniDate]
+        [setViewportMiniDate, calendarTimezone]
     )
 
     return (
         <SidebarGroup className="px-0">
             <SidebarGroupContent>
                 <Calendar
+                    timeZone={calendarTimezone}
                     mode="single"
                     month={month}
                     onMonthChange={setViewportMiniDate}
@@ -105,9 +123,11 @@ export function DatePicker() {
                 />
 
                 <div className="flex flex-col gap-1 px-2">
-                    <Button variant="outline">
-                        <CalendarPlus />
-                        일정 생성하기
+                    <Button variant="outline" asChild>
+                        <Link href="/calendar/new">
+                            <CalendarPlus />
+                            일정 생성하기
+                        </Link>
                     </Button>
                 </div>
             </SidebarGroupContent>

@@ -14,6 +14,6 @@ dayjs.extend(isSameOrAfter)
 dayjs.extend(isSameOrBefore)
 dayjs.extend(isoWeek)
 
-dayjs.tz.setDefault("Asia/Seoul")
+// dayjs.tz.setDefault("Asia/Seoul")
 
 export default dayjs

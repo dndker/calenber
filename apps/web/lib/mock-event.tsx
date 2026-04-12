@@ -2,14 +2,16 @@ import dayjs from "@/lib/dayjs"
 import { CalendarEvent } from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
 
-export function generateMockEvents(): CalendarEvent[] {
+export function generateMockEvents(timezone?: string): CalendarEvent[] {
     // console.log(
     //     typeof window === "undefined" ? "SSR" : "CSR",
     //     "generateMockEvents"
     // )
 
     return Array.from({ length: 10 }).map((_, i) => {
-        const base = dayjs().add(i - 10, "day")
+        const base = dayjs()
+            .tz(timezone)
+            .add(i * 2 - 5, "day")
 
         // 1~3일 랜덤 길이
         const durationDays = Math.floor(Math.random() * 3) + 1

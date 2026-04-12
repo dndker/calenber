@@ -11,6 +11,7 @@ import {
 
 export const CalendarBreadcrumb = () => {
     const viewport = useCalendarStore((s) => s.viewport)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
 
     return (
         <Breadcrumb>
@@ -24,7 +25,9 @@ export const CalendarBreadcrumb = () => {
                 <BreadcrumbSeparator /> */}
                 <BreadcrumbItem>
                     <BreadcrumbPage className="text-base font-medium">
-                        {dayjs(viewport).format("YYYY년 M월")}
+                        {dayjs
+                            .tz(viewport, calendarTimezone)
+                            .format("YYYY년 M월")}
                     </BreadcrumbPage>
                 </BreadcrumbItem>
             </BreadcrumbList>

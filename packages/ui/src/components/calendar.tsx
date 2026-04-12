@@ -474,7 +474,7 @@ const CalendarDayButton = React.memo(function CalendarDayButton({
     className,
     day,
     modifiers,
-    locale,
+    locale = ko,
     ...props
 }: React.ComponentProps<typeof DayButton> & { locale?: Partial<Locale> }) {
     const defaultClassNames = getDefaultClassNames()

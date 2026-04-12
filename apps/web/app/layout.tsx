@@ -4,6 +4,7 @@ import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Toaster } from "@workspace/ui/components/sonner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
@@ -459,6 +460,7 @@ export default async function RootLayout({
                         <TooltipProvider>{children}</TooltipProvider>
                     </ThemeProvider>
                 </ThemeContextProvider>
+                <Toaster position="bottom-center" />
                 <Analytics />
                 <SpeedInsights />
             </body>

@@ -1,28 +1,35 @@
 import { useNow } from "@/hooks/use-now"
+import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { memo, useCallback } from "react"
-import { shallow } from "zustand/shallow"
+import { useRouter } from "next/navigation"
+import { memo, useCallback, useMemo, useRef } from "react"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
+        const router = useRouter()
+
+        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+        const startSelection = useCalendarStore((s) => s.startSelection)
+        const updateSelection = useCalendarStore((s) => s.updateSelection)
+        const endSelectionStore = useCalendarStore((s) => s.endSelection)
+        const selection = useCalendarStore((s) => s.selection)
+        const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
+
+        const isDraggingRef = useRef(false)
+        const clickTimeout = useRef<NodeJS.Timeout | null>(null)
+
         const { setNodeRef } = useDroppable({
             id: dayjs(day).format("YYYY-MM-DD"),
         })
 
-        const now = useNow()
-        const dayValue = dayjs(day).startOf("day").valueOf()
-
-        const { draggingEvent, draggingOverDate } = useCalendarStore(
-            (s) => ({
-                draggingEvent: s.draggingEvent,
-                draggingOverDate: s.draggingOverDate,
-            }),
-            shallow
-        )
+        const now = useNow(calendarTz)
+        const dayValue = useMemo(() => {
+            return toCalendarDay(day, calendarTz)
+        }, [day, calendarTz])
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
@@ -31,40 +38,96 @@ export const DayCell = memo(
         )
 
         const handleClick = useCallback(() => {
-            setSelectedDate(day)
-            setViewportMiniDate(day)
+            if (isDraggingRef.current) return
+
+            if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current)
+            }
+            clickTimeout.current = setTimeout(() => {
+                setSelectedDate(day)
+                setViewportMiniDate(day)
+            }, 150)
         }, [day, setSelectedDate, setViewportMiniDate])
 
-        /** 🔥 핵심: hover range 정확 계산 */
-        let isHoverTarget = false
+        const handleDoubleClick = () => {
+            if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current)
+            }
+            console.log("이벤트 생성")
 
-        const DAY = 1000 * 60 * 60 * 24
+            const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
 
-        if (draggingEvent && draggingOverDate) {
-            const start = dayjs(draggingOverDate).startOf("day").valueOf()
+            const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
 
-            const duration = Math.floor(
-                (draggingEvent.end - draggingEvent.start) / DAY
-            )
+            useCalendarStore.setState({
+                selection: {
+                    isSelecting: false,
+                    start,
+                    end,
+                },
+            })
 
-            const end = start + duration * DAY
-
-            const current = dayjs(day).startOf("day").valueOf()
-
-            isHoverTarget = current >= start && current <= end
+            router.push("/calendar/new")
         }
+
+        const isHover = useCalendarStore((s) => {
+            if (!s.drag.eventId) return false
+            return dayValue >= s.drag.start && dayValue <= s.drag.end
+        })
+
+        const handlePointerDown = (e: React.PointerEvent) => {
+            // 🔥 이벤트 클릭이면 무시
+            if ((e.target as HTMLElement).closest(".event-drag-row")) return
+            isDraggingRef.current = false
+
+            startSelection(dayValue)
+        }
+
+        const handlePointerEnter = () => {
+            if (!isSelecting) return
+            isDraggingRef.current = true
+            updateSelection(dayValue)
+        }
+
+        const handlePointerUp = () => {
+            if (!isSelecting) return
+            endSelectionStore()
+
+            // 🔥 range일 때만 이동
+            if (
+                selection.start &&
+                selection.end &&
+                selection.start !== selection.end
+            ) {
+                router.push("/calendar/new")
+            }
+        }
+
+        const isSelectingRange = useCalendarStore((s) => {
+            if (!s.selection.isSelecting) return false
+            if (!s.selection.start || !s.selection.end) return false
+            if (s.selection.start === s.selection.end) return false
+
+            return dayValue >= s.selection.start && dayValue <= s.selection.end
+        })
 
         return (
             <div
+                data-date={dayjs(day).format("YYYY-MM-DD")}
                 ref={setNodeRef}
+                onPointerDown={handlePointerDown}
+                onPointerEnter={handlePointerEnter}
+                onPointerUp={handlePointerUp}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
                 className={cn(
                     "flex flex-col p-3 text-sm font-medium select-none",
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
-                    isHoverTarget &&
-                        "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
+                    isHover && "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5",
+                    isSelectingRange &&
+                        "select-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
                 )}
             >
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
