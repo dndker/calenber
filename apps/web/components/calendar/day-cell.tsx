@@ -5,14 +5,18 @@ import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
+import { useRouter } from "next/navigation"
 import { memo, useCallback, useMemo, useRef } from "react"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
+        const router = useRouter()
+
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const startSelection = useCalendarStore((s) => s.startSelection)
         const updateSelection = useCalendarStore((s) => s.updateSelection)
-        const endSelection = useCalendarStore((s) => s.endSelection)
+        const endSelectionStore = useCalendarStore((s) => s.endSelection)
+        const selection = useCalendarStore((s) => s.selection)
         const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
 
         const isDraggingRef = useRef(false)
@@ -50,6 +54,20 @@ export const DayCell = memo(
                 clearTimeout(clickTimeout.current)
             }
             console.log("이벤트 생성")
+
+            const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
+
+            const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
+
+            useCalendarStore.setState({
+                selection: {
+                    isSelecting: false,
+                    start,
+                    end,
+                },
+            })
+
+            router.push("/calendar/new")
         }
 
         const isHover = useCalendarStore((s) => {
@@ -73,12 +91,22 @@ export const DayCell = memo(
 
         const handlePointerUp = () => {
             if (!isSelecting) return
-            endSelection()
+            endSelectionStore()
+
+            // 🔥 range일 때만 이동
+            if (
+                selection.start &&
+                selection.end &&
+                selection.start !== selection.end
+            ) {
+                router.push("/calendar/new")
+            }
         }
 
         const isSelectingRange = useCalendarStore((s) => {
             if (!s.selection.isSelecting) return false
             if (!s.selection.start || !s.selection.end) return false
+            if (s.selection.start === s.selection.end) return false
 
             return dayValue >= s.selection.start && dayValue <= s.selection.end
         })
@@ -97,8 +125,9 @@ export const DayCell = memo(
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
-                    (isHover || isSelectingRange) &&
-                        "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
+                    isHover && "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5",
+                    isSelectingRange &&
+                        "select-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
                 )}
             >
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">

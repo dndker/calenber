@@ -4,7 +4,7 @@ import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
-import { memo } from "react"
+import { memo, useEffect, useRef } from "react"
 
 export function getEventPosition(
     event: CalendarEvent,
@@ -42,6 +42,7 @@ export const EventItem = memo(
     }) {
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const startDrag = useCalendarStore((s) => s.startDrag)
+        const dragIndexRef = useRef(0)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
             id: event.id,
         })
@@ -59,8 +60,9 @@ export const EventItem = memo(
 
             const index = Math.floor(offsetX / dayWidth)
             // const clickedDate = startDay.add(index, "day").valueOf()
+            dragIndexRef.current = index
 
-            startDrag(event, "move", index)
+            // startDrag(event, "move", index)
 
             // 🔥 이거 없으면 dnd 작동안함
             listeners?.onPointerDown?.(e)
@@ -75,6 +77,12 @@ export const EventItem = memo(
             startDrag(event, "resize-end", event.end)
             listeners?.onPointerDown?.(e)
         }
+
+        useEffect(() => {
+            if (!isDragging) return
+
+            startDrag(event, "move", dragIndexRef.current)
+        }, [isDragging])
 
         const mergedListeners = {
             ...listeners,

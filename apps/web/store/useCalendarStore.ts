@@ -305,13 +305,13 @@ export const useCalendarStore = createSSRStore<
         //     updatedAt: Date.now(),
         // })
 
-        set({
-            selection: {
-                isSelecting: false,
-                start: null,
-                end: null,
-            },
-        })
+        // set({
+        //     selection: {
+        //         isSelecting: false,
+        //         start: null,
+        //         end: null,
+        //     },
+        // })
     },
 }))
 
