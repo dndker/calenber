@@ -1,6 +1,7 @@
 "use client"
 
 import dayjs from "@/lib/dayjs"
+import { nanoid } from "nanoid"
 import { createSSRStore } from "./createSSRStore"
 
 export type CalendarEvent = {
@@ -75,9 +76,11 @@ type CalendarStoreState = {
     events: CalendarEvent[]
 
     setEvents: (events: CalendarEvent[]) => void
-    addEvent: (event: CalendarEvent) => void
+    createEvent: (
+        data: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">
+    ) => string
     updateEvent: (id: string, patch: Partial<CalendarEvent>) => void
-    removeEvent: (id: string) => void
+    deleteEvent: (id: string) => void
 }
 
 type CalendarDragState = {
@@ -160,14 +163,31 @@ export const useCalendarStore = createSSRStore<
     },
 
     setEvents: (events) => set({ events }),
-    addEvent: (event) => set((s) => ({ events: [...s.events, event] })),
+    createEvent: (data) => {
+        const now = Date.now()
+
+        const event: CalendarEvent = {
+            id: nanoid(),
+            ...data,
+            createdAt: now,
+            updatedAt: now,
+        }
+
+        set((s) => ({
+            events: [...s.events, event],
+        }))
+
+        return event.id
+    },
 
     updateEvent: (id, patch) =>
         set((s) => ({
-            events: s.events.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+            events: s.events.map((e) =>
+                e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
+            ),
         })),
 
-    removeEvent: (id) =>
+    deleteEvent: (id) =>
         set((s) => ({
             events: s.events.filter((e) => e.id !== id),
         })),
@@ -272,7 +292,7 @@ export const useCalendarStore = createSSRStore<
     },
 
     endSelection() {
-        const { selection, addEvent, calendarTimezone } = get()
+        const { selection, createEvent, calendarTimezone } = get()
 
         if (!selection.start || !selection.end) return
 
@@ -294,7 +314,7 @@ export const useCalendarStore = createSSRStore<
         )
 
         // 🔥 이벤트 생성
-        // addEvent({
+        // createEvent({
         //     id: crypto.randomUUID(),
         //     title: "새 일정",
         //     start: selection.start,

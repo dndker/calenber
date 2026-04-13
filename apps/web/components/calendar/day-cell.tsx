@@ -1,16 +1,16 @@
 import { useNow } from "@/hooks/use-now"
+import { useOpenEvent } from "@/hooks/use-open-event"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { useRouter } from "next/navigation"
 import { memo, useCallback, useMemo, useRef } from "react"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
-        const router = useRouter()
+        const createEvent = useOpenEvent()
 
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const startSelection = useCalendarStore((s) => s.startSelection)
@@ -56,18 +56,9 @@ export const DayCell = memo(
             console.log("이벤트 생성")
 
             const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
-
             const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
 
-            useCalendarStore.setState({
-                selection: {
-                    isSelecting: false,
-                    start,
-                    end,
-                },
-            })
-
-            router.push("/calendar/new")
+            createEvent({ start, end })
         }
 
         const isHover = useCalendarStore((s) => {
@@ -99,7 +90,10 @@ export const DayCell = memo(
                 selection.end &&
                 selection.start !== selection.end
             ) {
-                router.push("/calendar/new")
+                createEvent({
+                    start: selection.start,
+                    end: selection.end,
+                })
             }
         }
 

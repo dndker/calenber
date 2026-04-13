@@ -21,14 +21,16 @@ import {
 
 import { InputGroupAddon } from "@workspace/ui/components/input-group"
 
+import { cn } from "@workspace/ui/lib/utils"
 import { TIMEZONES, type TimezoneOption } from "./timezone"
 
 type Props = {
     value?: string
     onChange?: (value: string, option: TimezoneOption) => void
+    className?: string
 }
 
-export function TimezoneSelect({ value, onChange }: Props) {
+export function TimezoneSelect({ value, className, onChange }: Props) {
     const selected = useMemo(
         () => TIMEZONES.find((tz) => tz.value === value),
         [value]
@@ -44,7 +46,10 @@ export function TimezoneSelect({ value, onChange }: Props) {
                 onChange?.(item.value, item)
             }}
         >
-            <ComboboxInput placeholder="지역 선택" className="w-35">
+            <ComboboxInput
+                placeholder="지역 선택"
+                className={cn("w-35", className)}
+            >
                 <InputGroupAddon>
                     <GlobeIcon />
                 </InputGroupAddon>

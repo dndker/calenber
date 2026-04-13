@@ -1,4 +1,5 @@
 import { useNow } from "@/hooks/use-now"
+import { useOpenEvent } from "@/hooks/use-open-event"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
@@ -8,12 +9,10 @@ import {
     SidebarGroupContent,
 } from "@workspace/ui/components/sidebar"
 import { CalendarPlus } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useCallback, useMemo } from "react"
 
 export function DatePicker() {
-    const router = useRouter()
+    const createEvent = useOpenEvent()
 
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const now = useNow(calendarTimezone)
@@ -123,11 +122,9 @@ export function DatePicker() {
                 />
 
                 <div className="flex flex-col gap-1 px-2">
-                    <Button variant="outline" asChild>
-                        <Link href="/calendar/new">
-                            <CalendarPlus />
-                            일정 생성하기
-                        </Link>
+                    <Button variant="outline" onClick={() => createEvent()}>
+                        <CalendarPlus />
+                        일정 생성하기
                     </Button>
                 </div>
             </SidebarGroupContent>

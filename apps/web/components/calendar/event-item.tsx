@@ -4,6 +4,7 @@ import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
+import { useRouter } from "next/navigation"
 import { memo, useEffect, useRef } from "react"
 
 export function getEventPosition(
@@ -40,6 +41,8 @@ export const EventItem = memo(
         top: number
         overlay?: boolean
     }) {
+        const router = useRouter()
+
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const startDrag = useCalendarStore((s) => s.startDrag)
         const dragIndexRef = useRef(0)
@@ -82,6 +85,8 @@ export const EventItem = memo(
             if (!isDragging) return
 
             startDrag(event, "move", dragIndexRef.current)
+
+            // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
 
         const mergedListeners = {
@@ -117,8 +122,11 @@ export const EventItem = memo(
                     className={clsx(
                         "pointer-events-all w-full justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c]"
                     )}
+                    onClick={() => {
+                        router.push(`/calendar?e=${event.id}`)
+                    }}
                 >
-                    {event.title}
+                    {event.title === "" ? "새 일정" : event.title}
                 </Button>
 
                 <div
@@ -133,6 +141,8 @@ export const EventItem = memo(
             prev.event.id === next.event.id &&
             prev.event.start === next.event.start &&
             prev.event.end === next.event.end &&
+            prev.event.title === next.event.title &&
+            prev.event.color === next.event.color &&
             prev.top === next.top &&
             prev.overlay === next.overlay
         )
