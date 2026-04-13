@@ -4,6 +4,7 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@source "../../../../node_modules/@blocknote/shadcn/src/**/*.{ts,tsx}";
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
@@ -141,6 +142,10 @@
 
     body {
         @apply bg-background text-foreground;
+    }
+
+    .bn-shadcn * {
+        @apply border-border outline-ring/50;
     }
 }
 

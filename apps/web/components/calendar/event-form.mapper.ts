@@ -9,7 +9,7 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
         id: nanoid(),
 
         title: values.title,
-        description: values.description,
+        content: values.content,
 
         start: values.start.getTime(),
         end: values.end.getTime(),
@@ -33,7 +33,7 @@ export function mapToEvent(
 ): Omit<CalendarEvent, "id" | "createdAt" | "updatedAt"> {
     return {
         title: values.title,
-        description: values.description,
+        content: values.content,
 
         start: values.start.getTime(),
         end: values.end.getTime(),

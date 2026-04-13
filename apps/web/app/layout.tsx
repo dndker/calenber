@@ -10,6 +10,7 @@ import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
 import type { Metadata, Viewport } from "next"
 import { cookies } from "next/headers"
+import "./editor.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -446,7 +447,8 @@ export default async function RootLayout({
                 "antialiased",
                 fontMono.variable,
                 "font-sans",
-                inter.variable
+                inter.variable,
+                "bn-container"
             )}
         >
             <body>

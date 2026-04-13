@@ -38,6 +38,7 @@ export function TimezoneSelect({ value, className, onChange }: Props) {
 
     return (
         <Combobox
+            modal={false}
             items={TIMEZONES}
             value={selected}
             itemToStringValue={(item) => item.label}

@@ -24,7 +24,7 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
-import { CalendarEvent } from "@/store/useCalendarStore"
+import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
 import {
     Combobox,
     ComboboxContent,
@@ -34,6 +34,7 @@ import {
 } from "@workspace/ui/components/combobox"
 import { Separator } from "@workspace/ui/components/separator"
 import { useRef, useState } from "react"
+import ContentEditor from "../editor/content-editor"
 import { TimezoneSelect } from "./timezone-select"
 
 export function EventForm({
@@ -48,7 +49,7 @@ export function EventForm({
         defaultValues: event
             ? {
                   title: event.title,
-                  description: event.description,
+                  content: event.content,
                   start: new Date(event.start),
                   end: new Date(event.end),
                   timezone: event.timezone,
@@ -59,7 +60,7 @@ export function EventForm({
               }
             : {
                   title: "",
-                  description: "",
+                  content: defaultContent,
                   start: new Date(),
                   end: new Date(),
                   timezone: "Asia/Seoul",
@@ -136,7 +137,10 @@ export function EventForm({
     }
 
     return (
-        <form className="flex flex-col gap-6">
+        <form
+            className="flex flex-col gap-6"
+            onSubmit={(e) => e.preventDefault()}
+        >
             <FieldGroup>
                 {/* 제목 */}
                 <Controller
@@ -316,8 +320,8 @@ export function EventForm({
                 <Separator />
 
                 {/* 내용 */}
-                <Controller
-                    name="description"
+                {/* <Controller
+                    name="content"
                     control={form.control}
                     render={({ field }) => (
                         <Field>
@@ -327,6 +331,22 @@ export function EventForm({
                                 onChange={(e) => {
                                     field.onChange(e)
                                     autoSave()
+                                }}
+                            />
+                        </Field>
+                    )}
+                /> */}
+
+                <Controller
+                    name="content"
+                    control={form.control}
+                    render={({ field }) => (
+                        <Field>
+                            <ContentEditor
+                                value={field.value}
+                                onChange={(val) => {
+                                    field.onChange(val)
+                                    autoSave() // 🔥 기존 debounce 그대로 사용
                                 }}
                             />
                         </Field>

@@ -96,7 +96,7 @@ export const EventModal = React.memo(function EventModal({
             <Dialog
                 open={open}
                 onOpenChange={(v) => !v && handleClose()}
-                modal={false}
+                // modal={false}
             >
                 {open && (
                     <div
@@ -233,7 +233,7 @@ export const EventModal = React.memo(function EventModal({
                             </div>
                         </div>
                     </DialogHeader>
-                    <div className="mx-auto mt-18 mb-20 w-full px-3 sm:max-w-180.75">
+                    <div className="mx-auto no-scrollbar max-h-[80vh] w-full overflow-y-auto px-3 pt-18 pb-20 sm:max-w-180.75">
                         {content}
                     </div>
                 </DialogContent>

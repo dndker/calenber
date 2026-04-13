@@ -1,0 +1,32 @@
+@import "@blocknote/shadcn/style.css";
+
+.bn-shadcn .bn-toolbar {
+    width: auto;
+}
+.bn-side-menu {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    position: absolute;
+    top: 2px;
+    right: calc(100% + 5px);
+    flex-wrap: nowrap;
+    width: auto;
+    max-width: none;
+    white-space: nowrap;
+}
+.bn-shadcn .bn-toolbar > button:not([data-slot="select-trigger"]) {
+    min-width: 32px;
+    height: 32px;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+}
+
+[data-slot="dropdown-menu-sub-content"] .bn-color-icon,
+.bn-root .bn-color-icon {
+    border: var(--bn-border);
+    border-radius: var(--bn-border-radius-small);
+    justify-content: center;
+    align-items: center;
+    display: flex;
+}

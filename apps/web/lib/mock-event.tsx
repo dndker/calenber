@@ -1,5 +1,5 @@
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent } from "@/store/useCalendarStore"
+import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
 
 export function generateMockEvents(timezone?: string): CalendarEvent[] {
@@ -33,6 +33,7 @@ export function generateMockEvents(timezone?: string): CalendarEvent[] {
         return {
             id: nanoid(),
             title: `${durationDays}일 일정 ${i + 1}`,
+            content: defaultContent,
 
             start: start.valueOf(),
             end: end.valueOf(),

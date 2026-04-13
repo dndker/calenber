@@ -1,7 +1,11 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import {
+    CalendarEvent,
+    defaultContent,
+    useCalendarStore,
+} from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
 import { useEffect, useRef, useState } from "react"
 import { EventForm } from "./event-form"
@@ -23,7 +27,7 @@ export function EventPage({ eventId }: { eventId?: string }) {
             const tempEvent: CalendarEvent = {
                 id: nanoid(), // 임시 id
                 title: "",
-                description: "",
+                content: defaultContent,
                 start: Date.now(),
                 end: Date.now(),
                 timezone: "Asia/Seoul",

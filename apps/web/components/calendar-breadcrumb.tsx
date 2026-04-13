@@ -39,7 +39,9 @@ export const CalendarBreadcrumb = () => {
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
-                            <BreadcrumbPage>{event.title}</BreadcrumbPage>
+                            <BreadcrumbPage>
+                                {event.title === "" ? "새 일정" : event.title}
+                            </BreadcrumbPage>
                         </BreadcrumbItem>
                     </>
                 ) : (

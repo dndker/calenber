@@ -113,14 +113,14 @@ export const EventItem = memo(
             >
                 <div
                     onPointerDown={handleResizeStart}
-                    className="pointer-events-all absolute top-0 left-0 z-1 h-full w-1 cursor-ew-resize bg-transparent"
+                    className="absolute top-0 left-0 z-1 h-full w-1 cursor-ew-resize bg-transparent"
                 />
 
                 <Button
                     variant="outline"
                     size="sm"
                     className={clsx(
-                        "pointer-events-all w-full justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c]"
+                        "pointer-events-auto w-full justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none"
                     )}
                     onClick={() => {
                         router.push(`/calendar?e=${event.id}`)
@@ -131,7 +131,7 @@ export const EventItem = memo(
 
                 <div
                     onPointerDown={handleResizeEnd}
-                    className="pointer-events-all absolute top-0 right-0 z-100 h-full w-1 bg-transparent hover:cursor-ew-resize"
+                    className="absolute top-0 right-0 z-100 h-full w-1 bg-transparent hover:cursor-ew-resize"
                 />
             </div>
         )

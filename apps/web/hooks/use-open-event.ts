@@ -1,7 +1,7 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
-import { CalendarEvent } from "@/store/useCalendarStore"
+import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
 import { useRouter } from "next/navigation"
 
@@ -16,7 +16,7 @@ export function useOpenEvent() {
         const event: CalendarEvent = {
             id,
             title: "",
-            description: "",
+            content: defaultContent,
             start: payload?.start ?? now,
             end: payload?.end ?? now,
             timezone: "Asia/Seoul",

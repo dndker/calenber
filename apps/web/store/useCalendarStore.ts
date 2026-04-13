@@ -1,14 +1,24 @@
 "use client"
 
 import dayjs from "@/lib/dayjs"
+import type { PartialBlock } from "@blocknote/core"
 import { nanoid } from "nanoid"
 import { createSSRStore } from "./createSSRStore"
+
+export type EditorContent = PartialBlock[]
+
+export const defaultContent: EditorContent = [
+    {
+        type: "paragraph",
+        content: [],
+    },
+]
 
 export type CalendarEvent = {
     id: string
 
     title: string
-    description?: string
+    content: EditorContent
 
     // 시간
     start: number // ISO (UTC)
