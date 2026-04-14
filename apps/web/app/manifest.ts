@@ -39,7 +39,7 @@ export default function manifest(): MetadataRoute.Manifest {
 
         categories: ["productivity", "utilities"],
 
-        theme_color: "#000000",
+        theme_color: "#ffffff",
         background_color: "#ffffff",
 
         icons: [

@@ -1,24 +1,11 @@
-import { toCalendarRange } from "@/lib/date"
-import dayjs from "@/lib/dayjs"
 import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import clsx from "clsx"
 import { useRouter } from "next/navigation"
-import { memo, useEffect, useRef } from "react"
+import { memo, startTransition, useEffect, useRef } from "react"
 
-export function getEventPosition(
-    event: CalendarEvent,
-    week: Date[],
-    calendarTz: string
-) {
-    const { startDay, endDay } = toCalendarRange(event, calendarTz)
-
-    const weekStart = dayjs(week[0]).tz(calendarTz).startOf("day")
-
-    const startIndex = startDay.diff(weekStart, "day")
-    const endIndex = endDay.diff(weekStart, "day")
-
+export function getEventPosition(startIndex: number, endIndex: number) {
     const span = endIndex - startIndex + 1
 
     const GAP = 4
@@ -32,42 +19,46 @@ export function getEventPosition(
 export const EventItem = memo(
     function EventItem({
         event,
-        week,
         top,
+        startIndex,
+        endIndex,
+        dragOffsetStart = 0,
+        laneCount = 1,
         overlay = false,
     }: {
         event: CalendarEvent
-        week: Date[]
         top: number
+        startIndex: number
+        endIndex: number
+        dragOffsetStart?: number
+        laneCount?: number
         overlay?: boolean
     }) {
         const router = useRouter()
 
-        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+        const eventLayout = useCalendarStore((s) => s.eventLayout)
+        const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
         const startDrag = useCalendarStore((s) => s.startDrag)
         const dragIndexRef = useRef(0)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
             id: event.id,
         })
 
-        const pos = !overlay ? getEventPosition(event, week, calendarTz) : null
-
-        const { startDay, endDay } = toCalendarRange(event, calendarTz)
+        const pos = getEventPosition(startIndex, endIndex)
 
         const handleMoveStart = (e: React.PointerEvent) => {
             const rect = e.currentTarget.getBoundingClientRect()
             const offsetX = e.clientX - rect.left
 
-            const totalDays = endDay.diff(startDay, "day") + 1
-            const dayWidth = rect.width / totalDays
+            const visibleDays = endIndex - startIndex + 1
+            const dayWidth = rect.width / visibleDays
 
-            const index = Math.floor(offsetX / dayWidth)
-            // const clickedDate = startDay.add(index, "day").valueOf()
-            dragIndexRef.current = index
+            const localIndex = Math.min(
+                visibleDays - 1,
+                Math.max(0, Math.floor(offsetX / dayWidth))
+            )
+            dragIndexRef.current = dragOffsetStart + localIndex
 
-            // startDrag(event, "move", index)
-
-            // 🔥 이거 없으면 dnd 작동안함
             listeners?.onPointerDown?.(e)
         }
 
@@ -94,6 +85,15 @@ export const EventItem = memo(
             onPointerDown: handleMoveStart,
         }
 
+        const useSplitLayout =
+            !overlay && eventLayout === "split" && laneCount > 0
+        const itemTop = useSplitLayout
+            ? `calc(${(top / laneCount) * 100}% + 2px)`
+            : `${top * 32}px`
+        const itemHeight = useSplitLayout
+            ? `calc(${100 / laneCount}% - 4px)`
+            : "28px"
+
         return (
             <div
                 ref={setNodeRef}
@@ -106,7 +106,9 @@ export const EventItem = memo(
                 style={{
                     ...pos,
                     width: overlay ? "100%" : pos?.width,
-                    top: `${top * 32}px`, // 🔥 stacking
+                    top: itemTop,
+                    left: overlay ? "0" : pos?.left,
+                    height: overlay ? "100%" : itemHeight,
                     zIndex: isDragging ? 100 : 1,
                     // background: event.color,
                 }}
@@ -118,12 +120,15 @@ export const EventItem = memo(
 
                 <Button
                     variant="outline"
-                    size="sm"
                     className={clsx(
-                        "pointer-events-auto w-full justify-start rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none"
+                        "pointer-events-auto h-full w-full justify-start overflow-hidden rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                        useSplitLayout ? "items-start py-1.5 text-left" : "py-1"
                     )}
                     onClick={() => {
-                        router.push(`/calendar?e=${event.id}`)
+                        setActiveEventId(event.id)
+                        startTransition(() => {
+                            router.push(`/calendar?e=${event.id}`)
+                        })
                     }}
                 >
                     {event.title === "" ? "새 일정" : event.title}
@@ -144,6 +149,10 @@ export const EventItem = memo(
             prev.event.title === next.event.title &&
             prev.event.color === next.event.color &&
             prev.top === next.top &&
+            prev.startIndex === next.startIndex &&
+            prev.endIndex === next.endIndex &&
+            prev.dragOffsetStart === next.dragOffsetStart &&
+            prev.laneCount === next.laneCount &&
             prev.overlay === next.overlay
         )
     }

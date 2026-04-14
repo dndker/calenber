@@ -3,6 +3,7 @@
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { useRouter } from "next/navigation"
 import * as React from "react"
+import { startTransition } from "react"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
@@ -50,46 +51,77 @@ export const EventModal = React.memo(function EventModal({
     const router = useRouter()
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const deleteEvent = useDeleteEvent()
-
-    const [open, setOpen] = React.useState(false)
+    const activeEventId = useCalendarStore((s) => s.activeEventId)
+    const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+    const [isClosing, setIsClosing] = React.useState(false)
+    const closeTimerRef = React.useRef<number | null>(null)
+    const eventId = activeEventId ?? e
+    const open = Boolean(eventId) && !isClosing
 
     const event = useCalendarStore((s) =>
-        e ? s.events.find((ev) => ev.id === e) : undefined
+        eventId ? s.events.find((ev) => ev.id === eventId) : undefined
     )
 
     React.useEffect(() => {
-        if (e) setOpen(true)
-    }, [e])
+        return () => {
+            if (closeTimerRef.current) {
+                window.clearTimeout(closeTimerRef.current)
+            }
+        }
+    }, [])
 
     React.useEffect(() => {
-        if (e && !event) {
+        if (e) {
+            setIsClosing(false)
+            setActiveEventId(e)
+            return
+        }
+
+        setIsClosing(false)
+        setActiveEventId(undefined)
+    }, [e, setActiveEventId])
+
+    React.useEffect(() => {
+        if (eventId && !event) {
             router.replace("/calendar")
         }
-    }, [e, event, router])
+    }, [eventId, event, router])
 
-    if (!e || !event) return null
+    if (!eventId || !event) return null
 
     const handleClose = () => {
-        setOpen(false)
+        if (closeTimerRef.current) {
+            window.clearTimeout(closeTimerRef.current)
+        }
+
+        setIsClosing(true)
 
         useCalendarStore.setState({
             selection: { isSelecting: false, start: null, end: null },
         })
 
-        setTimeout(() => {
-            router.push("/calendar")
-        }, 200)
+        closeTimerRef.current = window.setTimeout(() => {
+            setActiveEventId(undefined)
+            startTransition(() => {
+                router.replace("/calendar")
+            })
+        }, 150)
     }
 
     const handleDeleteEvenet = async () => {
-        const ok = await deleteEvent(e)
+        const ok = await deleteEvent(eventId)
 
         if (ok) {
+            if (closeTimerRef.current) {
+                window.clearTimeout(closeTimerRef.current)
+            }
+            setIsClosing(false)
+            setActiveEventId(undefined)
             router.replace("/calendar")
         }
     }
 
-    const content = <EventPage eventId={e} />
+    const content = <EventPage eventId={eventId} />
 
     if (isDesktop) {
         return (
@@ -123,7 +155,7 @@ export const EventModal = React.memo(function EventModal({
                                             size="icon"
                                             className="size-6"
                                             onClick={() => {
-                                                router.push(`/event/${e}`)
+                                                router.push(`/event/${eventId}`)
                                             }}
                                         >
                                             <Maximize2 className="size-3.75 rotate-90 text-muted-foreground" />

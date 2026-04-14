@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import * as React from "react"
 
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -36,8 +37,11 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
+import {
+    ToggleGroup,
+    ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group"
 import Link from "next/link"
-import { TimezoneSelect } from "./calendar/timezone-select"
 import ThemeSwitch from "./theme-switch"
 
 const data = [
@@ -106,23 +110,62 @@ const data = [
 export function NavActions() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setCalendarTimezone = useCalendarStore((s) => s.setCalendarTimezone)
+    const eventLayout = useCalendarStore((s) => s.eventLayout)
+    const setEventLayout = useCalendarStore((s) => s.setEventLayout)
+    const isLoggedIn = useAuthStore((s) => s.user != null)
 
     const [isOpen, setIsOpen] = React.useState(false)
+
+    React.useEffect(() => {
+        console.log(eventLayout)
+    }, [eventLayout])
 
     return (
         <div className="flex items-center gap-1 text-sm">
             {/* <div className="hidden font-medium text-muted-foreground md:inline-block">
                 Edit Oct 08
             </div> */}
+            <ToggleGroup
+                variant="outline"
+                type="single"
+                defaultValue="compact"
+                size="sm"
+                className="leading-normal"
+                value={eventLayout}
+                onValueChange={setEventLayout}
+            >
+                <ToggleGroupItem value="compact" aria-label="Toggle all">
+                    Compact
+                </ToggleGroupItem>
+                <ToggleGroupItem value="split" aria-label="Toggle missed">
+                    Split
+                </ToggleGroupItem>
+            </ToggleGroup>
 
-            <Button variant="outline" className="mr-1" asChild>
+            <Button
+                variant="outline"
+                className="mr-1 leading-normal"
+                asChild
+                size="sm"
+            >
                 <Link href="/docs">
                     <Info />
                     Support
                 </Link>
             </Button>
 
-            <TimezoneSelect
+            {!isLoggedIn && (
+                <Button
+                    variant="default"
+                    className="mr-1 leading-normal font-bold"
+                    asChild
+                    size="sm"
+                >
+                    <Link href="/signin">로그인</Link>
+                </Button>
+            )}
+
+            {/* <TimezoneSelect
                 value={calendarTimezone}
                 onChange={(value) => {
                     if (!value) return
@@ -132,7 +175,7 @@ export function NavActions() {
                         value
                     )}; path=/; max-age=31536000`
                 }}
-            />
+            /> */}
 
             <Button variant="ghost" size="icon" className="size-8 sm:hidden">
                 <Search className="size-4.5" />

@@ -1,5 +1,7 @@
 "use client"
 
+import { useSignOut } from "@/hooks/use-sign-out"
+import { AppUser } from "@workspace/lib/supabase/map-user"
 import {
     Avatar,
     AvatarFallback,
@@ -36,15 +38,13 @@ import {
     SparklesIcon,
     UserPlus,
 } from "lucide-react"
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { memo, useState } from "react"
 
-export function NavUser({
+export const NavUser = memo(function NavUser({
     user,
 }: {
-    user: {
-        name: string
-        email: string
-        avatar: string
+    user: AppUser & {
         calendars: {
             name: string
             plan: string
@@ -53,9 +53,18 @@ export function NavUser({
 }) {
     const { isMobile } = useSidebar()
     const [activeTeam, setActiveTeam] = useState(user.calendars[0])
+    const { signOut } = useSignOut()
+    const router = useRouter()
 
     if (!activeTeam) {
         return null
+    }
+
+    const handleSignOut = async () => {
+        const result = await signOut()
+        if (result.ok) {
+            router.push("/signin")
+        }
     }
 
     return (
@@ -69,7 +78,7 @@ export function NavUser({
                         >
                             <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                 <AvatarImage
-                                    src={user.avatar}
+                                    src={user.avatarUrl || ""}
                                     alt={activeTeam.name}
                                 />
                                 <AvatarFallback className="rounded-lg">
@@ -98,7 +107,7 @@ export function NavUser({
                                 <div className="flex items-center gap-2 text-left text-sm">
                                     <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                         <AvatarImage
-                                            src={user.avatar}
+                                            src={user.avatarUrl || ""}
                                             alt={activeTeam.name}
                                         />
                                         <AvatarFallback className="rounded-lg">
@@ -106,8 +115,11 @@ export function NavUser({
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="grid flex-1 text-left text-sm leading-tight">
-                                        <span className="truncate font-medium">
+                                        <span className="truncate font-medium text-primary">
                                             {activeTeam.name}
+                                        </span>
+                                        <span className="truncate text-xs">
+                                            {user.name}
                                         </span>
                                     </div>
                                 </div>
@@ -146,7 +158,9 @@ export function NavUser({
                                         </DropdownMenuGroup>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuGroup>
-                                            <DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={handleSignOut}
+                                            >
                                                 <LogOut />
                                                 로그아웃
                                             </DropdownMenuItem>
@@ -163,7 +177,7 @@ export function NavUser({
                                 >
                                     <Avatar className="size-6 rounded-md after:rounded-md">
                                         <AvatarImage
-                                            src={user.avatar}
+                                            src={user.avatarUrl || ""}
                                             alt={team.name[0]}
                                         />
                                         <AvatarFallback className="rounded-md text-xs">
@@ -203,7 +217,10 @@ export function NavUser({
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="p-2">
+                        <DropdownMenuItem
+                            className="p-2"
+                            onClick={handleSignOut}
+                        >
                             <LogOutIcon />
                             로그아웃
                         </DropdownMenuItem>
@@ -212,4 +229,4 @@ export function NavUser({
             </SidebarMenuItem>
         </SidebarMenu>
     )
-}
+})

@@ -5,13 +5,14 @@ import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
-    const today = dayjs().tz(calendarTimezone).add(12, "hour")
+    const selectedDate = useCalendarStore((s) => s.selectedDate)
+    const today = dayjs(selectedDate).tz(calendarTimezone).add(12, "hour")
     const startOfMonth = today.startOf("month")
 
     // 달력 시작 주 (일요일 or 월요일 기준)
     const calendarStart = startOfMonth.startOf("week")
 
-    const monthKey = getMonthKey(startOfMonth.toDate())
+    const monthKey = getMonthKey(startOfMonth.toDate(), calendarTimezone)
 
     return (
         <div className="relative flex h-full flex-col gap-px">

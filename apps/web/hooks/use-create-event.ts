@@ -11,7 +11,7 @@ export function useCreateEvent() {
             createEvent(event)
 
             console.log("일정이 생성되었습니다")
-            toast.success("일정이 생성되었습니다.")
+            // toast.success("일정이 생성되었습니다.")
 
             return true
         } catch {

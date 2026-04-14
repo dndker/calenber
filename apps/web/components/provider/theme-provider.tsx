@@ -91,15 +91,19 @@ function ThemeHotkey() {
                 return
             }
 
+            if (isTypingTarget(event.target)) {
+                return
+            }
+
             if (event.metaKey || event.ctrlKey || event.altKey) {
                 return
             }
 
-            if (event.key.toLowerCase() !== "d") {
+            if (typeof event.key !== "string") {
                 return
             }
 
-            if (isTypingTarget(event.target)) {
+            if (event.key.toLowerCase() !== "d") {
                 return
             }
 

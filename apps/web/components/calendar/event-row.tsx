@@ -1,30 +1,39 @@
 import { toCalendarDay, toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import {
+    CalendarEvent,
+    CalendarEventLayout,
+    useCalendarStore,
+} from "@/store/useCalendarStore"
 import { memo, useMemo } from "react"
 import { EventItem } from "./event-item"
 
 type PositionedEvent = CalendarEvent & {
     startCal: number
-    endCal: number
+    endCalExclusive: number
 }
 
-type PositionedRow = {
+type PositionedSegment = {
     event: PositionedEvent
-    top: number
+    lane: number
+    laneCount: number
+    startIndex: number
+    endIndex: number
+    dragOffsetStart: number
 }
 
 export const EventRow = memo(function EventRow({ week }: { week: Date[] }) {
     const events = useCalendarStore((s) => s.events)
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+    const eventLayout = useCalendarStore((s) => s.eventLayout)
 
     const weekStart = useMemo(
         () => toCalendarDay(week[0]!, calendarTz),
         [week, calendarTz]
     )
 
-    const weekEnd = useMemo(
-        () => dayjs(week[6]!).tz(calendarTz).endOf("day").valueOf(),
+    const weekEndExclusive = useMemo(
+        () => dayjs(week[6]!).tz(calendarTz).startOf("day").add(1, "day").valueOf(),
         [week, calendarTz]
     )
 
@@ -38,77 +47,145 @@ export const EventRow = memo(function EventRow({ week }: { week: Date[] }) {
             return {
                 ...e,
                 startCal: startDay.valueOf(),
-                endCal: endDay.add(1, "day").valueOf(), // 🔥 inclusive 처리
+                endCalExclusive: endDay.add(1, "day").valueOf(),
             }
         })
     }, [events, calendarTz])
 
-    /**
-     * ✅ 필터링 (calendar 기준)
-     */
-    const filtered = useMemo(() => {
-        return positionedEvents.filter((e) => {
-            return e.endCal > weekStart && e.startCal < weekEnd
-        })
-    }, [positionedEvents, weekStart, weekEnd])
+    const segments: PositionedSegment[] = useMemo(() => {
+        const visible = positionedEvents
+            .filter((event) => {
+                return (
+                    event.endCalExclusive > weekStart &&
+                    event.startCal < weekEndExclusive
+                )
+            })
+            .map((event) => {
+                const segmentStart = Math.max(event.startCal, weekStart)
+                const segmentEndExclusive = Math.min(
+                    event.endCalExclusive,
+                    weekEndExclusive
+                )
 
-    /**
-     * ✅ 정렬
-     */
-    const sorted = useMemo(() => {
-        return filtered.sort((a, b) => {
-            const aDur = a.endCal - a.startCal
-            const bDur = b.endCal - b.startCal
+                const startIndex = dayjs(segmentStart)
+                    .diff(dayjs(weekStart), "day")
+                const endIndex =
+                    dayjs(segmentEndExclusive).diff(dayjs(weekStart), "day") - 1
 
-            if (bDur !== aDur) return bDur - aDur
-            if (a.startCal !== b.startCal) return a.startCal - b.startCal
+                return {
+                    event,
+                    startIndex,
+                    endIndex,
+                    dragOffsetStart: dayjs(segmentStart).diff(
+                        dayjs(event.startCal),
+                        "day"
+                    ),
+                    endExclusiveIndex: endIndex + 1,
+                    span: endIndex - startIndex + 1,
+                }
+            })
+            .sort((a, b) => {
+                if (a.startIndex !== b.startIndex) {
+                    return a.startIndex - b.startIndex
+                }
 
-            return a.id.localeCompare(b.id)
-        })
-    }, [filtered])
+                if (b.span !== a.span) {
+                    return b.span - a.span
+                }
 
-    /**
-     * ✅ lane 계산
-     */
-    const rows: PositionedRow[] = useMemo(() => {
-        const lanes: PositionedEvent[][] = []
-        const result: PositionedRow[] = []
+                return a.event.id.localeCompare(b.event.id)
+            })
 
-        sorted.forEach((event) => {
-            let placed = false
+        const result: PositionedSegment[] = []
+        let groupStart = 0
 
-            for (let i = 0; i < lanes.length; i++) {
-                if (!lanes[i]!.some((e) => isOverlap(e, event))) {
-                    lanes[i]!.push(event)
-                    result.push({ event, top: i })
-                    placed = true
+        while (groupStart < visible.length) {
+            let groupEnd = groupStart + 1
+            let groupMaxEndExclusive = visible[groupStart]!.endExclusiveIndex
+
+            while (groupEnd < visible.length) {
+                const next = visible[groupEnd]!
+
+                if (next.startIndex >= groupMaxEndExclusive) {
                     break
                 }
+
+                groupMaxEndExclusive = Math.max(
+                    groupMaxEndExclusive,
+                    next.endExclusiveIndex
+                )
+                groupEnd += 1
             }
 
-            if (!placed) {
-                lanes.push([event])
-                result.push({ event, top: lanes.length - 1 })
-            }
-        })
+            const group = visible.slice(groupStart, groupEnd)
+            const laneEndsExclusive: number[] = []
+            const groupRows: PositionedSegment[] = []
+
+            group.forEach((segment) => {
+                let lane = laneEndsExclusive.findIndex(
+                    (laneEndExclusive) => segment.startIndex >= laneEndExclusive
+                )
+
+                if (lane === -1) {
+                    lane = laneEndsExclusive.length
+                    laneEndsExclusive.push(segment.endExclusiveIndex)
+                } else {
+                    laneEndsExclusive[lane] = segment.endExclusiveIndex
+                }
+
+                groupRows.push({
+                    event: segment.event,
+                    lane,
+                    laneCount: 1,
+                    startIndex: segment.startIndex,
+                    endIndex: segment.endIndex,
+                    dragOffsetStart: segment.dragOffsetStart,
+                })
+            })
+
+            const laneCount = laneEndsExclusive.length || 1
+
+            groupRows.forEach((row) => {
+                result.push({
+                    ...row,
+                    laneCount,
+                })
+            })
+
+            groupStart = groupEnd
+        }
 
         return result
-    }, [sorted])
+    }, [positionedEvents, weekStart, weekEndExclusive])
 
     return (
-        <div className="pointer-events-none absolute top-14 right-0 left-0">
-            {rows.map(({ event, top }) => (
+        <div className={memoEventRowClass(eventLayout)}>
+            {segments.map(
+                ({
+                    event,
+                    lane,
+                    laneCount,
+                    startIndex,
+                    endIndex,
+                    dragOffsetStart,
+                }) => (
                 <EventItem
-                    key={event.id}
-                    event={event} // 🔥 기존 event 그대로 전달
-                    week={week}
-                    top={top}
+                    key={`${event.id}-${startIndex}-${endIndex}`}
+                    event={event}
+                    top={lane}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                    dragOffsetStart={dragOffsetStart}
+                    laneCount={laneCount}
                 />
-            ))}
+                )
+            )}
         </div>
     )
 })
 
-function isOverlap(a: PositionedEvent, b: PositionedEvent) {
-    return a.startCal < b.endCal && b.startCal < a.endCal
+function memoEventRowClass(layout: CalendarEventLayout) {
+    return layout === "split"
+        ? "pointer-events-none absolute inset-x-0 top-14 bottom-1"
+        : "pointer-events-none absolute top-14 right-0 left-0"
 }

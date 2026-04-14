@@ -1,3 +1,4 @@
+import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -16,7 +17,7 @@ import {
     useSensors,
 } from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EventItem } from "./event-item"
 import { WeekRow } from "./week-row"
 
@@ -31,22 +32,15 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
-    const drag = useCalendarStore((s) => s.drag)
-    const events = useCalendarStore((s) => s.events)
-    const draggingEvent = useMemo(() => {
-        if (!drag.eventId) return null
-        return events.find((e) => e.id === drag.eventId) || null
-    }, [drag.eventId, events])
-
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const newDate = dayjs().tz(calendarTz).startOf("isoWeek").toDate()
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
-    const [currentMonthKey, setCurrentMonthKey] = useState(getMonthKey(newDate))
-
-    const overlayWeek = drag.start
-        ? getWeek(dayjs.tz(drag.start, calendarTz).toDate())
-        : []
+    const dragFrameRef = useRef<number | null>(null)
+    const lastOverIdRef = useRef<string | null>(null)
+    const [currentMonthKey, setCurrentMonthKey] = useState(
+        getMonthKey(newDate, calendarTz)
+    )
 
     const itemSize = useMemo(
         () => Math.floor(containerHeight / 5),
@@ -124,7 +118,7 @@ export function MonthList({
         const weekOffset = middle.index - CENTER_INDEX
         const date = getWeekOffset(baseDateRef.current, weekOffset, calendarTz)
 
-        const monthKey = getMonthKey(date)
+        const monthKey = getMonthKey(date, calendarTz)
         if (prevMonthRef.current === monthKey) return
 
         prevMonthRef.current = monthKey
@@ -189,7 +183,53 @@ export function MonthList({
         }
     }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
-    let frame: number | null = null
+
+    const handleDragOver = useCallback(
+        ({ over }: { over: { id: string | number } | null }) => {
+            if (!over) return
+
+            const overId = String(over.id)
+
+            if (lastOverIdRef.current === overId) {
+                return
+            }
+
+            lastOverIdRef.current = overId
+
+            if (dragFrameRef.current) {
+                cancelAnimationFrame(dragFrameRef.current)
+            }
+
+            dragFrameRef.current = requestAnimationFrame(() => {
+                const date = dayjs
+                    .tz(overId, calendarTz)
+                    .startOf("day")
+                    .valueOf()
+
+                useCalendarStore.getState().moveDrag(date)
+            })
+        },
+        [calendarTz]
+    )
+
+    const handleDragEnd = useCallback(() => {
+        lastOverIdRef.current = null
+
+        if (dragFrameRef.current) {
+            cancelAnimationFrame(dragFrameRef.current)
+            dragFrameRef.current = null
+        }
+
+        useCalendarStore.getState().endDrag()
+    }, [])
+
+    useEffect(() => {
+        return () => {
+            if (dragFrameRef.current) {
+                cancelAnimationFrame(dragFrameRef.current)
+            }
+        }
+    }, [])
 
     return (
         <DndContext
@@ -201,23 +241,8 @@ export function MonthList({
                     y: 0.2, // y축만 활성화
                 },
             }}
-            onDragOver={({ over }) => {
-                if (!over) return
-
-                if (frame) cancelAnimationFrame(frame)
-
-                frame = requestAnimationFrame(() => {
-                    const date = dayjs
-                        .tz(over.id, calendarTz)
-                        .startOf("day")
-                        .valueOf()
-
-                    useCalendarStore.getState().moveDrag(date)
-                })
-            }}
-            onDragEnd={() => {
-                useCalendarStore.getState().endDrag()
-            }}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
         >
             <div
                 style={{
@@ -248,15 +273,40 @@ export function MonthList({
                 dropAnimation={null}
                 style={{ pointerEvents: "none", willChange: "transform" }}
             >
-                {drag.eventId && draggingEvent ? (
-                    <EventItem
-                        event={draggingEvent}
-                        week={overlayWeek}
-                        top={0}
-                        overlay
-                    />
-                ) : null}
+                <CalendarDragOverlay calendarTz={calendarTz} />
             </DragOverlay>
         </DndContext>
     )
 }
+
+const CalendarDragOverlay = memo(function CalendarDragOverlay({
+    calendarTz,
+}: {
+    calendarTz: string
+}) {
+    const dragEventId = useCalendarStore((s) => s.drag.eventId)
+    const dragStart = useCalendarStore((s) => s.drag.start)
+    const draggingEvent = useCalendarStore((s) =>
+        s.drag.eventId ? s.events.find((e) => e.id === s.drag.eventId) : null
+    )
+
+    if (!dragEventId || !draggingEvent || !dragStart) {
+        return null
+    }
+
+    const overlayWeek = getWeek(dayjs.tz(dragStart, calendarTz).toDate(), calendarTz)
+    const overlayWeekStart = dayjs(overlayWeek[0]!).tz(calendarTz).startOf("day")
+    const { startDay, endDay } = toCalendarRange(draggingEvent, calendarTz)
+    const startIndex = Math.max(0, startDay.diff(overlayWeekStart, "day"))
+    const endIndex = Math.min(6, endDay.diff(overlayWeekStart, "day"))
+
+    return (
+        <EventItem
+            event={draggingEvent}
+            top={0}
+            startIndex={startIndex}
+            endIndex={endIndex}
+            overlay
+        />
+    )
+})

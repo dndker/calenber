@@ -5,6 +5,7 @@ import * as React from "react"
 import { Calendars } from "@/components/calendars"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
+import { useAuthStore } from "@/store/useAuthStore"
 import {
     Sidebar,
     SidebarContent,
@@ -21,9 +22,10 @@ import { Settings, Trash2 } from "lucide-react"
 // This is sample data.
 const data = {
     user: {
+        id: "1",
         name: "woong",
         email: "example@gmail.com",
-        avatar: "/icons/square/ios/144.png",
+        avatarUrl: "/icons/square/ios/144.png",
         calendars: [
             {
                 name: "플랫폼디자인팀",
@@ -56,10 +58,12 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const user = useAuthStore((s) => s.user)
+
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser user={data.user} />
+                <NavUser user={user ? { ...data.user, ...user } : data.user} />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />

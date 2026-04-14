@@ -2,8 +2,12 @@ import { Geist_Mono, Inter } from "next/font/google"
 
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
+import { AuthSync } from "@/components/provider/auth-sync"
+import { createServerSupabase } from "@/lib/supabase/server"
+import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { mapUser } from "@workspace/lib/supabase/map-user"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
@@ -429,7 +433,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
     userScalable: false,
-    themeColor: "var(--background)",
+    themeColor: [
+        { color: "#ffffff" },
+        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+        { media: "(prefers-color-scheme: dark)", color: "#0c0d0e" },
+    ],
 }
 
 export default async function RootLayout({
@@ -439,6 +447,14 @@ export default async function RootLayout({
 }>) {
     const cookieStore = await cookies()
     const theme = cookieStore.get("theme")?.value ?? "system"
+
+    const supabase = await createServerSupabase()
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    const appUser = mapUser(user)
+
     return (
         <html
             lang="ko"
@@ -459,7 +475,12 @@ export default async function RootLayout({
                         disableTransitionOnChange
                         enableSystem
                     >
-                        <TooltipProvider>{children}</TooltipProvider>
+                        <TooltipProvider>
+                            <AuthStoreProvider initialState={{ user: appUser }}>
+                                <AuthSync />
+                                {children}
+                            </AuthStoreProvider>
+                        </TooltipProvider>
                     </ThemeProvider>
                 </ThemeContextProvider>
                 <Toaster position="bottom-center" />

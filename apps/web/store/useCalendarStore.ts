@@ -48,6 +48,9 @@ export type CalendarEvent = {
     createdAt: number
     updatedAt: number
 }
+
+export type CalendarEventLayout = "compact" | "split"
+
 type DragMode = "move" | "resize-start" | "resize-end"
 type DragState = {
     eventId: string | null
@@ -70,6 +73,8 @@ type SelectionState = {
 type CalendarStoreState = {
     calendarTimezone: string
     isCalendarLoading: boolean
+    activeEventId?: string
+    eventLayout: CalendarEventLayout
 
     // 캘린더 레이아웃
     selectedDate: number
@@ -78,6 +83,8 @@ type CalendarStoreState = {
     moveRange: { start: number; end: number } | null
     setCalendarTimezone: (tz: string) => void
     setIsCalendarLoading: (value: boolean) => void
+    setActiveEventId: (eventId?: string) => void
+    setEventLayout: (layout: CalendarEventLayout) => void
     setSelectedDate: (date: Date) => void
     setViewportDate: (date: Date) => void
     setViewportMiniDate: (date: Date) => void
@@ -114,6 +121,8 @@ export const useCalendarStore = createSSRStore<
 >((set, get) => ({
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
+    activeEventId: undefined,
+    eventLayout: "compact",
 
     // 캘린더 레이아웃
     selectedDate: 0,
@@ -126,6 +135,14 @@ export const useCalendarStore = createSSRStore<
     setIsCalendarLoading: (value) =>
         set({
             isCalendarLoading: value,
+        }),
+    setActiveEventId: (eventId) =>
+        set({
+            activeEventId: eventId,
+        }),
+    setEventLayout: (layout) =>
+        set({
+            eventLayout: layout,
         }),
     setSelectedDate: (date) =>
         set((s) => ({
@@ -185,6 +202,11 @@ export const useCalendarStore = createSSRStore<
 
         set((s) => ({
             events: [...s.events, event],
+            selection: {
+                isSelecting: false,
+                start: null,
+                end: null,
+            },
         }))
 
         return event.id
@@ -228,27 +250,35 @@ export const useCalendarStore = createSSRStore<
 
         if (drag.mode === "move") {
             const newStart = normalized.subtract(drag.offset, "day")
+            const nextStart = newStart.valueOf()
+            const nextEnd = newStart.add(duration, "day").valueOf()
+
+            if (drag.start === nextStart && drag.end === nextEnd) {
+                return
+            }
 
             set({
                 drag: {
                     ...drag,
-                    start: newStart.valueOf(),
-                    end: newStart.add(duration, "day").valueOf(),
+                    start: nextStart,
+                    end: nextEnd,
                 },
             })
         }
 
         if (drag.mode === "resize-start") {
-            if (normalized.valueOf() >= drag.end) return
+            const nextStart = normalized.valueOf()
+            if (nextStart >= drag.end || nextStart === drag.start) return
             set({
-                drag: { ...drag, start: normalized.valueOf() },
+                drag: { ...drag, start: nextStart },
             })
         }
 
         if (drag.mode === "resize-end") {
-            if (normalized.valueOf() <= drag.start) return
+            const nextEnd = normalized.valueOf()
+            if (nextEnd <= drag.start || nextEnd === drag.end) return
             set({
-                drag: { ...drag, end: normalized.valueOf() },
+                drag: { ...drag, end: nextEnd },
             })
         }
     },
