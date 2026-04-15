@@ -272,7 +272,6 @@ export function ProfileSettingsPanel() {
                     {/* <FieldDescription>
                         All transactions are secure and encrypted
                     </FieldDescription> */}
-                    <input type="file" name="" id="" />
                     <FieldGroup>
                         <Field
                             orientation="horizontal"

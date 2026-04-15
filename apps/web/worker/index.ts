@@ -51,11 +51,6 @@ self.addEventListener("activate", (event) => {
 //
 // self.__WB_DISABLE_DEV_LOGS = true
 
-// listen to message event from window
-self.addEventListener("fetch", () => {
-    console.log("FECTH")
-})
-
 self.addEventListener("message", (event) => {
     // HOW TO TEST THIS?
     // Run this in your browser console:
@@ -65,7 +60,6 @@ self.addEventListener("message", (event) => {
 })
 
 self.addEventListener("push", (event) => {
-    console.log(event.data)
     const data = event.data?.json() || {}
 
     event?.waitUntil(

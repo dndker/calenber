@@ -116,10 +116,6 @@ export function NavActions() {
 
     const [isOpen, setIsOpen] = React.useState(false)
 
-    React.useEffect(() => {
-        console.log(eventLayout)
-    }, [eventLayout])
-
     return (
         <div className="flex items-center gap-1 text-sm">
             {/* <div className="hidden font-medium text-muted-foreground md:inline-block">

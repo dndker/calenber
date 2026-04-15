@@ -33,7 +33,6 @@ export default async function Layout({
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
     const calendars = user ? await getMyCalendars(supabase, user.id) : []
-    console.log(calendars)
 
     const events = generateMockEvents(calendarTimezone)
     const selectedDate = dayjs().tz(calendarTimezone).startOf("day").valueOf()

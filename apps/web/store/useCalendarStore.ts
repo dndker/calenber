@@ -348,11 +348,6 @@ export const useCalendarStore = createSSRStore<
             return
         }
 
-        console.log(
-            dayjs(selection.start).format("YYYY-MM-DD"),
-            dayjs(selection.end).format("YYYY-MM-DD")
-        )
-
         // 🔥 이벤트 생성
         // createEvent({
         //     id: crypto.randomUUID(),

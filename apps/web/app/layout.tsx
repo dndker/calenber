@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google"
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
 import { AuthSync } from "@/components/provider/auth-sync"
+import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
@@ -477,6 +478,7 @@ export default async function RootLayout({
                     >
                         <TooltipProvider>
                             <AuthStoreProvider initialState={{ user: appUser }}>
+                                <DevServiceWorkerCleanup />
                                 <AuthSync />
                                 {children}
                             </AuthStoreProvider>

@@ -113,7 +113,6 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
 
     return (
         <div className="flex h-full overflow-hidden">
-            <input type="file" name="" id="" />
             <Sidebar className="relative h-full w-60 shrink-0 border-r-0!">
                 <SidebarContent className="h-full p-1">
                     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
