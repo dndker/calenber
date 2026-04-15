@@ -42,7 +42,7 @@ create table events (
     id uuid primary key default gen_random_uuid(),
     calendar_id uuid references calendars (id) on delete cascade,
     title text not null,
-    description text,
+    content text,
     start_at timestamptz,
     end_at timestamptz,
     created_by uuid references auth.users (id),

@@ -21,8 +21,8 @@ export const CalendarBreadcrumb = () => {
     const pathname = usePathname()
     const calendarBasePath = getCalendarBasePath(pathname)
 
-    const eventId = pathname.startsWith("/event/")
-        ? pathname.split("/event/")[1]
+    const eventId = pathname.startsWith("/calendar/")
+        ? (pathname.split("/")[3] ?? null)
         : null
 
     const event = useCalendarStore((s) =>

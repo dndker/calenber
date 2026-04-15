@@ -1,8 +1,8 @@
 import { toCalendarDay, toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
+import type { CalendarEventLayout } from "@/lib/calendar/types"
 import {
     CalendarEvent,
-    CalendarEventLayout,
     useCalendarStore,
 } from "@/store/useCalendarStore"
 import { memo, useMemo } from "react"

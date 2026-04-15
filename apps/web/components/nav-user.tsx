@@ -1,13 +1,10 @@
 "use client"
 
-import {
-    SettingsModal,
-    type SettingsTabId,
-} from "@/components/settings/settings-modal"
+import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { useSignOut } from "@/hooks/use-sign-out"
-import type { MyCalendarItem } from "@/lib/calendar/queries"
 import { getCalendarPath } from "@/lib/calendar/routes"
 import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { AppUser } from "@workspace/lib/supabase/map-user"
 import {
     Avatar,
@@ -48,55 +45,33 @@ import {
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useMemo, useState } from "react"
 
-const DEMO_CALENDAR: MyCalendarItem = {
-    id: "demo",
-    name: "데모 캘린더",
-    role: null,
-    avatarUrl: null,
-    updatedAt: "",
-    createdAt: "",
-}
-
-export const NavUser = memo(function NavUser({
-    user,
-    calendars,
-}: {
-    user: AppUser
-    calendars: MyCalendarItem[]
-}) {
+export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
     const { isMobile } = useSidebar()
     const pathname = usePathname()
     const isLoggedIn = useAuthStore((s) => s.user != null)
     const { signOut } = useSignOut()
+    const { openSettings } = useSettingsModal()
+    const myCalendars = useCalendarStore((s) => s.myCalendars)
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
     const router = useRouter()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-    const [settingsInitialTab, setSettingsInitialTab] =
-        useState<SettingsTabId>("profile")
 
-    const activeCalendar = useMemo(() => {
-        if (pathname === "/calendar") {
-            return DEMO_CALENDAR
-        }
-
-        const pathnameCalendarId = pathname.startsWith("/calendar/")
-            ? (pathname.split("/")[2] ?? null)
-            : null
-
-        if (!pathnameCalendarId) {
-            return calendars[0] ?? DEMO_CALENDAR
-        }
-
-        return (
-            calendars.find((calendar) => calendar.id === pathnameCalendarId) ??
-            calendars[0] ??
-            DEMO_CALENDAR
-        )
-    }, [calendars, pathname])
-
-    if (!activeCalendar) {
-        return null
-    }
+    const displayCalendar = useMemo(
+        () =>
+            activeCalendar ?? {
+                id: "calendar-home",
+                name: pathname === "/calendar" ? "캘린더" : "알 수 없는 캘린더",
+                role: null,
+                avatarUrl: null,
+                eventLayout: "compact" as const,
+                updatedAt: "",
+                createdAt: "",
+            },
+        [activeCalendar, pathname]
+    )
 
     const handleSignOut = async () => {
         const result = await signOut()
@@ -105,20 +80,14 @@ export const NavUser = memo(function NavUser({
         }
     }
 
-    const openSettings = (initialTab: SettingsTabId) => {
+    const handleOpenSettings = () => {
         setIsMenuOpen(false)
-        setSettingsInitialTab(initialTab)
-        setIsSettingsOpen(true)
+        openSettings("profile")
     }
 
     return (
         <SidebarMenu>
             <SidebarMenuItem>
-                <SettingsModal
-                    open={isSettingsOpen}
-                    onOpenChange={setIsSettingsOpen}
-                    initialTab={settingsInitialTab}
-                />
                 <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                     <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
@@ -127,16 +96,16 @@ export const NavUser = memo(function NavUser({
                         >
                             <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                 <AvatarImage
-                                    src={activeCalendar.avatarUrl || ""}
-                                    alt={activeCalendar.name}
+                                    src={displayCalendar.avatarUrl ?? undefined}
+                                    alt={displayCalendar.name}
                                 />
                                 <AvatarFallback className="rounded-lg">
-                                    {activeCalendar.name[0]}
+                                    {displayCalendar.name[0]}
                                 </AvatarFallback>
                             </Avatar>
                             <div className="grid flex-1 text-left text-sm leading-tight">
                                 <span className="truncate font-medium">
-                                    {activeCalendar.name}
+                                    {displayCalendar.name}
                                 </span>
                                 {/* <span className="truncate text-xs">
                                     {user.email}
@@ -159,19 +128,24 @@ export const NavUser = memo(function NavUser({
                                     <div className="flex items-center gap-2 text-left text-sm">
                                         <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                             <AvatarImage
-                                                src={user.avatarUrl || ""}
-                                                alt={activeCalendar.name}
+                                                className="rounded-lg"
+                                                src={
+                                                    displayCalendar.avatarUrl ??
+                                                    undefined
+                                                }
+                                                alt={displayCalendar.name}
                                             />
                                             <AvatarFallback className="rounded-lg">
-                                                {activeCalendar.name[0]}
+                                                {displayCalendar.name[0]}
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="grid flex-1 text-left text-sm leading-tight">
                                             <span className="truncate font-medium text-primary">
-                                                {activeCalendar.name}
+                                                {displayCalendar.name}
                                             </span>
                                             <span className="truncate text-xs">
-                                                {user.name}
+                                                {activeCalendarMembership.role ??
+                                                    user.name}
                                             </span>
                                         </div>
                                     </div>
@@ -179,7 +153,7 @@ export const NavUser = memo(function NavUser({
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => openSettings("profile")}
+                                            onClick={handleOpenSettings}
                                         >
                                             <Settings />
                                             설정
@@ -228,10 +202,10 @@ export const NavUser = memo(function NavUser({
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </DropdownMenuLabel>
-                                {calendars.map((calendar, index) => (
+                                {myCalendars.map((calendar, index) => (
                                     <DropdownMenuCheckboxItem
                                         checked={
-                                            activeCalendar.id === calendar.id
+                                            activeCalendar?.id === calendar.id
                                         }
                                         key={calendar.id}
                                         onSelect={() => {
@@ -244,7 +218,10 @@ export const NavUser = memo(function NavUser({
                                     >
                                         <Avatar className="size-6 rounded-md after:rounded-md">
                                             <AvatarImage
-                                                src={calendar.avatarUrl || ""}
+                                                src={
+                                                    calendar.avatarUrl ??
+                                                    undefined
+                                                }
                                                 alt={calendar.name[0]}
                                             />
                                             <AvatarFallback className="rounded-md text-xs">
@@ -253,7 +230,7 @@ export const NavUser = memo(function NavUser({
                                         </Avatar>
 
                                         {calendar.name}
-                                        {activeCalendar.id !== calendar.id && (
+                                        {activeCalendar?.id !== calendar.id && (
                                             <DropdownMenuShortcut>
                                                 ⌘{index + 1}
                                             </DropdownMenuShortcut>

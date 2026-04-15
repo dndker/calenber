@@ -3,7 +3,6 @@
 import { useCreateEvent } from "@/hooks/use-create-event"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
 import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
-import { nanoid } from "nanoid"
 import { usePathname, useRouter } from "next/navigation"
 import { startTransition } from "react"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -15,7 +14,7 @@ export function useOpenEvent() {
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
 
     return async (payload?: { start?: number; end?: number }) => {
-        const id = nanoid()
+        const id = crypto.randomUUID()
         const now = Date.now()
 
         const event: CalendarEvent = {

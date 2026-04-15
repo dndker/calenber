@@ -1,7 +1,10 @@
 "use client"
 
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { getCalendarBasePath } from "@/lib/calendar/routes"
+import {
+    getCalendarBasePath,
+    getCalendarEventPagePath,
+} from "@/lib/calendar/routes"
 import { usePathname, useRouter } from "next/navigation"
 import * as React from "react"
 import { startTransition } from "react"
@@ -158,7 +161,19 @@ export const EventModal = React.memo(function EventModal({
                                             size="icon"
                                             className="size-6"
                                             onClick={() => {
-                                                router.push(`/event/${eventId}`)
+                                                const calendarId =
+                                                    basePath.split("/")[2]
+
+                                                if (!calendarId) {
+                                                    return
+                                                }
+
+                                                router.push(
+                                                    getCalendarEventPagePath(
+                                                        calendarId,
+                                                        eventId
+                                                    )
+                                                )
                                             }}
                                         >
                                             <Maximize2 className="size-3.75 rotate-90 text-muted-foreground" />

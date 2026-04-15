@@ -25,6 +25,7 @@ import {
 import { BellIcon, Calendar1Icon, Settings2Icon, UsersIcon } from "lucide-react"
 import type { ComponentType } from "react"
 import { useState } from "react"
+import { useCalendarStore } from "@/store/useCalendarStore"
 
 export type SettingsTabId =
     | "profile"
@@ -106,20 +107,24 @@ export function SettingsModal({
 }
 
 function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const fallbackTab = SETTINGS_TABS[0]?.id ?? initialTab
+    const availableTabs = SETTINGS_TABS.filter(
+        (tab) => tab.group === "account" || activeCalendar
+    )
     const [activeTab, setActiveTab] = useState<SettingsTabId>(
-        SETTINGS_TABS.find((tab) => tab.id === initialTab)?.id ?? fallbackTab
+        availableTabs.find((tab) => tab.id === initialTab)?.id ?? fallbackTab
     )
 
     return (
-        <div className="flex h-full overflow-hidden">
+        <div className="flex h-full overflow-hidden bg-background">
             <Sidebar className="relative h-full w-60 shrink-0 border-r-0!">
                 <SidebarContent className="h-full p-1">
                     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                         <SidebarGroupLabel>계정 설정</SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
-                                {SETTINGS_TABS.filter(
+                                {availableTabs.filter(
                                     (tab) => tab.group === "account"
                                 ).map((tab) => (
                                     <SidebarMenuItem key={tab.id}>
@@ -140,7 +145,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                         <SidebarGroupLabel>캘린더</SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
-                                {SETTINGS_TABS.filter(
+                                {availableTabs.filter(
                                     (tab) => tab.group === "calendar"
                                 ).map((tab) => (
                                     <SidebarMenuItem key={tab.id}>
@@ -161,7 +166,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
 
             <section className="flex-1 overflow-auto p-8">
                 <div className="mx-auto max-w-200">
-                    {SETTINGS_TABS.map((tab) => (
+                    {availableTabs.map((tab) => (
                         <SettingsPanelSlot
                             key={tab.id}
                             tabId={tab.id}

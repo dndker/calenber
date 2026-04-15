@@ -1,8 +1,20 @@
 "use client"
 
+import {
+    createCalendarEvent,
+    deleteCalendarEvent,
+    updateCalendarEvent as updateCalendarEventQuery,
+} from "@/lib/calendar/mutations"
+import type {
+    CalendarMembership,
+    CalendarSummary,
+    MyCalendarItem,
+} from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
+import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
-import { nanoid } from "nanoid"
+import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import { toast } from "sonner"
 import { createSSRStore } from "./createSSRStore"
 
 export type EditorContent = PartialBlock[]
@@ -49,8 +61,6 @@ export type CalendarEvent = {
     updatedAt: number
 }
 
-export type CalendarEventLayout = "compact" | "split"
-
 type DragMode = "move" | "resize-start" | "resize-end"
 type DragState = {
     eventId: string | null
@@ -71,6 +81,9 @@ type SelectionState = {
 }
 
 type CalendarStoreState = {
+    myCalendars: MyCalendarItem[]
+    activeCalendar: CalendarSummary | null
+    activeCalendarMembership: CalendarMembership
     calendarTimezone: string
     isCalendarLoading: boolean
     activeEventId?: string
@@ -81,6 +94,14 @@ type CalendarStoreState = {
     viewport: number
     viewportMini: number
     moveRange: { start: number; end: number } | null
+    setMyCalendars: (calendars: MyCalendarItem[]) => void
+    setActiveCalendar: (calendar: CalendarSummary | null) => void
+    setActiveCalendarMembership: (membership: CalendarMembership) => void
+    clearActiveCalendarContext: () => void
+    updateCalendarSnapshot: (
+        calendarId: string,
+        patch: Partial<CalendarSummary>
+    ) => void
     setCalendarTimezone: (tz: string) => void
     setIsCalendarLoading: (value: boolean) => void
     setActiveEventId: (eventId?: string) => void
@@ -116,9 +137,69 @@ type CalendarDragState = {
     endSelection: () => void
 }
 
+function getPersistableCalendarId() {
+    const calendarId = useCalendarStore.getState().activeCalendar?.id
+
+    if (!calendarId || calendarId === "demo") {
+        return null
+    }
+
+    return calendarId
+}
+
+async function persistCreatedEvent(event: CalendarEvent) {
+    const calendarId = getPersistableCalendarId()
+
+    if (!calendarId) {
+        return
+    }
+
+    const supabase = createBrowserSupabase()
+    const created = await createCalendarEvent(supabase, calendarId, event)
+
+    if (!created) {
+        toast.error("일정 생성 실패")
+    }
+}
+
+async function persistUpdatedEvent(
+    eventId: string,
+    patch: Partial<CalendarEvent>
+) {
+    const calendarId = getPersistableCalendarId()
+
+    if (!calendarId) {
+        return
+    }
+
+    const supabase = createBrowserSupabase()
+    await updateCalendarEventQuery(supabase, eventId, patch)
+}
+
+async function persistDeletedEvent(eventId: string) {
+    const calendarId = getPersistableCalendarId()
+
+    if (!calendarId) {
+        return
+    }
+
+    const supabase = createBrowserSupabase()
+    const ok = await deleteCalendarEvent(supabase, eventId)
+
+    if (!ok) {
+        toast.error("일정 삭제 실패")
+    }
+}
+
 export const useCalendarStore = createSSRStore<
     CalendarStoreState & CalendarDragState
 >((set, get) => ({
+    myCalendars: [],
+    activeCalendar: null,
+    activeCalendarMembership: {
+        isMember: false,
+        role: null,
+    },
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
     activeEventId: undefined,
@@ -129,6 +210,30 @@ export const useCalendarStore = createSSRStore<
     viewport: 0,
     viewportMini: 0,
     moveRange: null,
+
+    setMyCalendars: (myCalendars) => set({ myCalendars }),
+    setActiveCalendar: (activeCalendar) => set({ activeCalendar }),
+    setActiveCalendarMembership: (activeCalendarMembership) =>
+        set({ activeCalendarMembership }),
+    clearActiveCalendarContext: () =>
+        set({
+            activeCalendar: null,
+            activeCalendarMembership: {
+                isMember: false,
+                role: null,
+            },
+            eventLayout: "compact",
+        }),
+    updateCalendarSnapshot: (calendarId, patch) =>
+        set((s) => ({
+            myCalendars: s.myCalendars.map((calendar) =>
+                calendar.id === calendarId ? { ...calendar, ...patch } : calendar
+            ),
+            activeCalendar:
+                s.activeCalendar?.id === calendarId
+                    ? { ...s.activeCalendar, ...patch }
+                    : s.activeCalendar,
+        })),
 
     setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
 
@@ -194,7 +299,7 @@ export const useCalendarStore = createSSRStore<
         const now = Date.now()
 
         const event: CalendarEvent = {
-            id: nanoid(),
+            id: crypto.randomUUID(),
             ...data,
             createdAt: now,
             updatedAt: now,
@@ -209,20 +314,28 @@ export const useCalendarStore = createSSRStore<
             },
         }))
 
+        void persistCreatedEvent(event)
+
         return event.id
     },
 
-    updateEvent: (id, patch) =>
+    updateEvent: (id, patch) => {
         set((s) => ({
             events: s.events.map((e) =>
                 e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
             ),
-        })),
+        }))
 
-    deleteEvent: (id) =>
+        void persistUpdatedEvent(id, patch)
+    },
+
+    deleteEvent: (id) => {
         set((s) => ({
             events: s.events.filter((e) => e.id !== id),
-        })),
+        }))
+
+        void persistDeletedEvent(id)
+    },
 
     startDrag(event, mode, offset) {
         set({

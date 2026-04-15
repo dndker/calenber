@@ -1,12 +1,11 @@
 import { CalendarEvent } from "@/store/useCalendarStore"
-import { nanoid } from "nanoid"
 import { EventFormValues } from "./event-form.schema"
 
 export function toCalendarEvent(values: EventFormValues): CalendarEvent {
     const now = Date.now()
 
     return {
-        id: nanoid(),
+        id: crypto.randomUUID(),
 
         title: values.title,
         content: values.content,

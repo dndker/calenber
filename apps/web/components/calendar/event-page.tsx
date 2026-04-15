@@ -6,7 +6,6 @@ import {
     defaultContent,
     useCalendarStore,
 } from "@/store/useCalendarStore"
-import { nanoid } from "nanoid"
 import { useEffect, useRef, useState } from "react"
 import { EventForm } from "./event-form"
 
@@ -25,7 +24,7 @@ export function EventPage({ eventId }: { eventId?: string }) {
             hasCreatedRef.current = true
 
             const tempEvent: CalendarEvent = {
-                id: nanoid(), // 임시 id
+                id: crypto.randomUUID(),
                 title: "",
                 content: defaultContent,
                 start: Date.now(),

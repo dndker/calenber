@@ -5,8 +5,9 @@ import * as React from "react"
 import { Calendars } from "@/components/calendars"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
-import type { MyCalendarItem } from "@/lib/calendar/queries"
+import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Sidebar,
     SidebarContent,
@@ -58,21 +59,17 @@ const data = {
     ],
 }
 
-export function AppSidebar({
-    calendars,
-    ...props
-}: React.ComponentProps<typeof Sidebar> & {
-    calendars: MyCalendarItem[]
-}) {
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const user = useAuthStore((s) => s.user)
+    const { openSettings } = useSettingsModal()
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
 
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser
-                    user={user ? { ...data.user, ...user } : data.user}
-                    calendars={calendars}
-                />
+                <NavUser user={user ? { ...data.user, ...user } : data.user} />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />
@@ -82,14 +79,22 @@ export function AppSidebar({
             <SidebarFooter>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton>
-                            <Trash2 />
-                            <span>휴지통</span>
-                        </SidebarMenuButton>
-                        <SidebarMenuButton>
-                            <Settings />
-                            <span>설정</span>
-                        </SidebarMenuButton>
+                        {activeCalendarMembership.role === "owner" ? (
+                            <>
+                                <SidebarMenuButton>
+                                    <Trash2 />
+                                    <span>휴지통</span>
+                                </SidebarMenuButton>
+                                <SidebarMenuButton
+                                    onClick={() =>
+                                        openSettings("calendar_general")
+                                    }
+                                >
+                                    <Settings />
+                                    <span>설정</span>
+                                </SidebarMenuButton>
+                            </>
+                        ) : null}
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>

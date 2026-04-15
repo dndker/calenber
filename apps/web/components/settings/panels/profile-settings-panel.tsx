@@ -155,6 +155,27 @@ export function ProfileSettingsPanel() {
 
     if (!user) return null
 
+    const getAuthenticatedUserId = async () => {
+        const supabase = createBrowserSupabase()
+        const {
+            data: { user: authUser },
+            error,
+        } = await supabase.auth.getUser()
+
+        if (error) {
+            throw error
+        }
+
+        if (!authUser) {
+            throw new Error("로그인 정보를 확인하지 못했습니다.")
+        }
+
+        return {
+            supabase,
+            authUserId: authUser.id,
+        }
+    }
+
     const handleAvatarUpload = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
 
@@ -171,18 +192,28 @@ export function ProfileSettingsPanel() {
         setIsUploadingAvatar(true)
 
         try {
-            const supabase = createBrowserSupabase()
+            const { supabase, authUserId } = await getAuthenticatedUserId()
             const compressedFile = await compressAvatarImage(file)
-            const path = `${user.id}/avatar.webp`
-
-            const { error: uploadError } = await supabase.storage
-                .from("avatars")
-                .upload(path, compressedFile, {
-                    cacheControl: "3600",
-                    upsert: true,
-                })
+            const path = `${authUserId}/avatar.webp`
+            const uploadOptions = {
+                cacheControl: "3600",
+                contentType: compressedFile.type,
+            }
+            const { error: uploadError } = user.avatarUrl
+                ? await supabase.storage
+                      .from("avatars")
+                      .update(path, compressedFile, uploadOptions)
+                : await supabase.storage
+                      .from("avatars")
+                      .upload(path, compressedFile, uploadOptions)
 
             if (uploadError) {
+                console.error("Avatar upload storage error:", {
+                    uploadError,
+                    path,
+                    storeUserId: user.id,
+                    authUserId,
+                })
                 throw uploadError
             }
 
@@ -223,10 +254,10 @@ export function ProfileSettingsPanel() {
         setIsRemovingAvatar(true)
 
         try {
-            const supabase = createBrowserSupabase()
+            const { supabase, authUserId } = await getAuthenticatedUserId()
             const { error: removeError } = await supabase.storage
                 .from("avatars")
-                .remove([`${user.id}/avatar.webp`])
+                .remove([`${authUserId}/avatar.webp`])
 
             if (removeError) {
                 throw removeError
@@ -282,7 +313,7 @@ export function ProfileSettingsPanel() {
                                     <TooltipTrigger asChild>
                                         <Avatar
                                             size="lg"
-                                            className="size-15!"
+                                            className="size-15! cursor-pointer"
                                             onClick={() => {
                                                 if (
                                                     isUploadingAvatar ||
@@ -296,11 +327,14 @@ export function ProfileSettingsPanel() {
                                         >
                                             <AvatarImage
                                                 className="cursor-pointer"
-                                                src={user.avatarUrl || ""}
+                                                src={
+                                                    user.avatarUrl ?? undefined
+                                                }
                                                 alt={user.name || ""}
                                             />
-                                            <AvatarFallback>
-                                                {user.name || ""}
+                                            <AvatarFallback className="text-2xl leading-normal font-medium">
+                                                {user.name?.[0]?.toUpperCase() ||
+                                                    ""}
                                             </AvatarFallback>
                                         </Avatar>
                                     </TooltipTrigger>

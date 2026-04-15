@@ -2,15 +2,15 @@ export function getCalendarPath(calendarId: string) {
     return `/calendar/${calendarId}`
 }
 
-export function getCalendarEventPath(calendarId: string, eventId: string) {
+export function getCalendarEventModalPath(calendarId: string, eventId: string) {
     return `${getCalendarPath(calendarId)}?e=${encodeURIComponent(eventId)}`
 }
 
-export function getCalendarBasePath(pathname: string) {
-    if (pathname === "/calendar") {
-        return pathname
-    }
+export function getCalendarEventPagePath(calendarId: string, eventId: string) {
+    return `${getCalendarPath(calendarId)}/${encodeURIComponent(eventId)}`
+}
 
+export function getCalendarBasePath(pathname: string) {
     if (pathname.startsWith("/calendar/")) {
         const [, , calendarId] = pathname.split("/")
 
@@ -19,5 +19,5 @@ export function getCalendarBasePath(pathname: string) {
         }
     }
 
-    return "/calendar"
+    return getCalendarPath("demo")
 }
