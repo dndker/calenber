@@ -1,7 +1,8 @@
 "use client"
 
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { useRouter } from "next/navigation"
+import { getCalendarBasePath } from "@/lib/calendar/routes"
+import { usePathname, useRouter } from "next/navigation"
 import * as React from "react"
 import { startTransition } from "react"
 
@@ -49,6 +50,7 @@ export const EventModal = React.memo(function EventModal({
     e?: string
 }) {
     const router = useRouter()
+    const pathname = usePathname()
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const deleteEvent = useDeleteEvent()
     const activeEventId = useCalendarStore((s) => s.activeEventId)
@@ -57,6 +59,7 @@ export const EventModal = React.memo(function EventModal({
     const closeTimerRef = React.useRef<number | null>(null)
     const eventId = activeEventId ?? e
     const open = Boolean(eventId) && !isClosing
+    const basePath = getCalendarBasePath(pathname)
 
     const event = useCalendarStore((s) =>
         eventId ? s.events.find((ev) => ev.id === eventId) : undefined
@@ -83,9 +86,9 @@ export const EventModal = React.memo(function EventModal({
 
     React.useEffect(() => {
         if (eventId && !event) {
-            router.replace("/calendar")
+            router.replace(basePath)
         }
-    }, [eventId, event, router])
+    }, [basePath, eventId, event, router])
 
     if (!eventId || !event) return null
 
@@ -103,7 +106,7 @@ export const EventModal = React.memo(function EventModal({
         closeTimerRef.current = window.setTimeout(() => {
             setActiveEventId(undefined)
             startTransition(() => {
-                router.replace("/calendar")
+                router.replace(basePath)
             })
         }, 150)
     }
@@ -117,7 +120,7 @@ export const EventModal = React.memo(function EventModal({
             }
             setIsClosing(false)
             setActiveEventId(undefined)
-            router.replace("/calendar")
+            router.replace(basePath)
         }
     }
 

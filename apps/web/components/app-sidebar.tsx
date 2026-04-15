@@ -5,6 +5,7 @@ import * as React from "react"
 import { Calendars } from "@/components/calendars"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
+import type { MyCalendarItem } from "@/lib/calendar/queries"
 import { useAuthStore } from "@/store/useAuthStore"
 import {
     Sidebar,
@@ -57,13 +58,21 @@ const data = {
     ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+    calendars,
+    ...props
+}: React.ComponentProps<typeof Sidebar> & {
+    calendars: MyCalendarItem[]
+}) {
     const user = useAuthStore((s) => s.user)
 
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser user={user ? { ...data.user, ...user } : data.user} />
+                <NavUser
+                    user={user ? { ...data.user, ...user } : data.user}
+                    calendars={calendars}
+                />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />

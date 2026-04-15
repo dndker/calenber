@@ -44,5 +44,8 @@
     },
     "editor.fontFamily": "D2Coding, Menlo, Monaco, 'Courier New', monospace, MesloLGS NF",
     "terminal.integrated.fontFamily": "D2Coding, Menlo, Monaco, monospace, MesloLGS NF",
-    "files.eol": "\n"
+    "files.eol": "\n",
+    "files.associations": {
+        "*.sql": "postgresql"
+    }
 }

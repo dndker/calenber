@@ -1,14 +1,16 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
+import { getCalendarBasePath } from "@/lib/calendar/routes"
 import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
 import { nanoid } from "nanoid"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { startTransition } from "react"
 import { useCalendarStore } from "@/store/useCalendarStore"
 
 export function useOpenEvent() {
     const router = useRouter()
+    const pathname = usePathname()
     const createEvent = useCreateEvent()
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
 
@@ -31,7 +33,9 @@ export function useOpenEvent() {
         setActiveEventId(id)
         await createEvent(event)
         startTransition(() => {
-            router.push(`/calendar?e=${id}`)
+            router.push(
+                `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(id)}`
+            )
         })
     }
 }

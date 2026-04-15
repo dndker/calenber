@@ -7,7 +7,9 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 type GoogleButtonProps = {
-    onComplete?: (result: "success" | "cancel" | "error") => void
+    onComplete?: (
+        result: "success" | "cancel" | "error"
+    ) => void | Promise<void>
 }
 
 type GoogleAuthMessage = {

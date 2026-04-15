@@ -1,8 +1,10 @@
 import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import { getCalendarBasePath } from "@/lib/calendar/routes"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { memo, startTransition, useEffect, useRef } from "react"
 
 export function getEventPosition(startIndex: number, endIndex: number) {
@@ -35,6 +37,7 @@ export const EventItem = memo(
         overlay?: boolean
     }) {
         const router = useRouter()
+        const pathname = usePathname()
 
         const eventLayout = useCalendarStore((s) => s.eventLayout)
         const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
@@ -120,14 +123,19 @@ export const EventItem = memo(
 
                 <Button
                     variant="outline"
-                    className={clsx(
+                    className={cn(
                         "pointer-events-auto h-full w-full justify-start overflow-hidden rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
-                        useSplitLayout ? "items-start py-1.5 text-left" : "py-1"
+                        useSplitLayout
+                            ? "items-start py-1.5 text-left"
+                            : "py-1",
+                        eventLayout === "split" && "items-center justify-center"
                     )}
                     onClick={() => {
                         setActiveEventId(event.id)
                         startTransition(() => {
-                            router.push(`/calendar?e=${event.id}`)
+                            router.push(
+                                `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(event.id)}`
+                            )
                         })
                     }}
                 >

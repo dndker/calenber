@@ -1,8 +1,10 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CalendarBreadcrumb } from "@/components/calendar-breadcrumb"
 import { NavActions } from "@/components/nav-actions"
+import { getMyCalendars } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
 import { generateMockEvents } from "@/lib/mock-event"
+import { createServerSupabase } from "@/lib/supabase/server"
 import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
@@ -24,9 +26,14 @@ export default async function Layout({
     modal?: React.ReactNode
 }) {
     const cookieStore = await cookies()
+    const supabase = await createServerSupabase()
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
-    console.log(calendarTimezone)
+    const calendars = user ? await getMyCalendars(supabase, user.id) : []
+    console.log(calendars)
 
     const events = generateMockEvents(calendarTimezone)
     const selectedDate = dayjs().tz(calendarTimezone).startOf("day").valueOf()
@@ -52,7 +59,7 @@ export default async function Layout({
             }}
         >
             <SidebarProvider className="h-screen overflow-hidden">
-                <AppSidebar />
+                <AppSidebar calendars={calendars} />
                 <SidebarInset className="h-screen overflow-hidden">
                     <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2.5 border-b bg-background px-4">
                         <div className="flex shrink-0 items-center gap-1">

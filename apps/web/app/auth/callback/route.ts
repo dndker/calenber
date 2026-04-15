@@ -49,14 +49,28 @@ export async function GET(req: Request) {
     const requestUrl = new URL(req.url)
     const code = requestUrl.searchParams.get("code")
     const next = requestUrl.searchParams.get("next") ?? "/"
+    const oauthError =
+        requestUrl.searchParams.get("error_description") ??
+        requestUrl.searchParams.get("error_code") ??
+        requestUrl.searchParams.get("error")
     const cookieStore = await cookies()
 
     if (!code) {
+        if (oauthError) {
+            console.error("Supabase auth callback missing code:", {
+                error: requestUrl.searchParams.get("error"),
+                errorCode: requestUrl.searchParams.get("error_code"),
+                errorDescription:
+                    requestUrl.searchParams.get("error_description"),
+                url: req.url,
+            })
+        }
+
         return buildPopupResponse({
             origin: requestUrl.origin,
             next,
             ok: false,
-            error: "인증 코드가 없습니다.",
+            error: oauthError ?? "인증 코드가 없습니다.",
         })
     }
 

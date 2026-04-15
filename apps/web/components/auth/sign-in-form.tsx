@@ -1,6 +1,7 @@
 "use client"
 
 import { useEmailAuth } from "@/hooks/use-email-auth"
+import { useRouteToPostAuthCalendar } from "@/hooks/use-route-to-post-auth-calendar"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
     Alert,
@@ -52,6 +53,7 @@ export function SignInForm({
     initialNotice?: string | null
 }) {
     const router = useRouter()
+    const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signInWithEmail } = useEmailAuth()
     const form = useForm<SignInValues>({
         resolver: zodResolver(signInSchema),
@@ -78,8 +80,7 @@ export function SignInForm({
         }
 
         if (result.ok) {
-            router.replace("/calendar")
-            router.refresh()
+            await routeToPostAuthCalendar()
         }
     }
 
@@ -175,10 +176,9 @@ export function SignInForm({
 
             <GoogleButton
                 onComplete={(result) => {
-                    if (result === "success") {
-                        router.replace("/calendar")
-                        router.refresh()
-                    }
+                    if (result !== "success") return
+
+                    void routeToPostAuthCalendar()
                 }}
             />
         </AuthFormShell>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEmailAuth } from "@/hooks/use-email-auth"
+import { useRouteToPostAuthCalendar } from "@/hooks/use-route-to-post-auth-calendar"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -37,6 +38,7 @@ type SignUpValues = z.infer<typeof signUpSchema>
 
 export function SignUpForm() {
     const router = useRouter()
+    const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signUpWithEmail } = useEmailAuth()
     const form = useForm<SignUpValues>({
         resolver: zodResolver(signUpSchema),
@@ -67,8 +69,7 @@ export function SignUpForm() {
         }
 
         if (result.ok && !result.requiresEmailVerification) {
-            router.replace("/calendar")
-            router.refresh()
+            await routeToPostAuthCalendar()
         }
     }
 
@@ -192,10 +193,9 @@ export function SignUpForm() {
 
             <GoogleButton
                 onComplete={(result) => {
-                    if (result === "success") {
-                        router.replace("/calendar")
-                        router.refresh()
-                    }
+                    if (result !== "success") return
+
+                    void routeToPostAuthCalendar()
                 }}
             />
         </AuthFormShell>

@@ -1,9 +1,9 @@
 "use client"
 
 import dayjs from "@/lib/dayjs"
-import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCalendarStore } from "@/store/useCalendarStore"
+import { useCallback, useLayoutEffect, useRef, useState } from "react"
 import { MonthHeader } from "./month-header"
 import { MonthList } from "./month-list"
 import { MonthSkeleton } from "./month-skeleton"
@@ -11,11 +11,10 @@ import { MonthSkeleton } from "./month-skeleton"
 export default function Calendar() {
     const parentRef = useRef<HTMLDivElement>(null)
     const [containerHeight, setContainerHeight] = useState(0)
-    const isCalendarLoading = useCalendarStore((s) => s.isCalendarLoading)
-    const setIsCalendarLoading = useCalendarStore((s) => s.setIsCalendarLoading)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const setViewportDate = useCalendarStore((s) => s.setViewportDate)
     const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
+    const isCalendarLoading = containerHeight <= 0
 
     const onVisibleMonthChange = useCallback(
         (date: Date) => {
@@ -25,15 +24,13 @@ export default function Calendar() {
         [setViewportDate, setViewportMiniDate]
     )
 
-    useEffect(() => {
-        setIsCalendarLoading(true)
+    useLayoutEffect(() => {
         if (!parentRef.current) return
 
         const update = () => {
             const h = parentRef.current!.clientHeight
             if (h > 0) {
                 setContainerHeight(h)
-                setIsCalendarLoading(false)
             }
         }
 
@@ -43,7 +40,7 @@ export default function Calendar() {
         ro.observe(parentRef.current)
 
         return () => ro.disconnect()
-    }, [setIsCalendarLoading])
+    }, [])
 
     return (
         <div className="relative flex h-full flex-col overflow-hidden bg-border/70">
