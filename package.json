@@ -15,6 +15,7 @@
         "@workspace/eslint-config": "workspace:*",
         "@workspace/typescript-config": "workspace:*",
         "prettier": "^3.8.1",
+        "prettier-plugin-sql": "^0.20.0",
         "prettier-plugin-tailwindcss": "^0.7.2",
         "turbo": "^2.8.17",
         "typescript": "5.9.3"
@@ -28,6 +29,9 @@
         "packages/*"
     ],
     "dependencies": {
+        "@blocknote/shadcn": "^0.47.3",
+        "@supabase/ssr": "^0.10.2",
+        "@supabase/supabase-js": "^2.103.0",
         "@tanstack/react-virtual": "^3.13.23",
         "dayjs": "^1.11.20",
         "react-day-picker": "^9.14.0",

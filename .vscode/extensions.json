@@ -7,6 +7,8 @@
         "formulahendry.auto-rename-tag",
         "pkief.material-icon-theme",
         "unifiedjs.vscode-mdx",
-        "usernamehw.errorlens"
+        "usernamehw.errorlens",
+        "ms-ossdata.vscode-pgsql",
+        "vaaaaanessaaaa.pg-syntax"
     ]
 }

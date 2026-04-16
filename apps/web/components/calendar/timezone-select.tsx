@@ -1,7 +1,7 @@
 "use client"
 
-import { GlobeIcon } from "lucide-react"
-import { useMemo } from "react"
+import { ClockIcon } from "lucide-react"
+import { useMemo, type RefObject } from "react"
 
 import {
     Combobox,
@@ -21,14 +21,24 @@ import {
 
 import { InputGroupAddon } from "@workspace/ui/components/input-group"
 
+import { cn } from "@workspace/ui/lib/utils"
 import { TIMEZONES, type TimezoneOption } from "./timezone"
 
 type Props = {
     value?: string
     onChange?: (value: string, option: TimezoneOption) => void
+    className?: string
+    portalContainer?: RefObject<HTMLElement | null>
+    disabled?: boolean
 }
 
-export function TimezoneSelect({ value, onChange }: Props) {
+export function TimezoneSelect({
+    value,
+    className,
+    onChange,
+    portalContainer,
+    disabled = false,
+}: Props) {
     const selected = useMemo(
         () => TIMEZONES.find((tz) => tz.value === value),
         [value]
@@ -36,21 +46,30 @@ export function TimezoneSelect({ value, onChange }: Props) {
 
     return (
         <Combobox
+            modal={false}
             items={TIMEZONES}
             value={selected}
-            itemToStringValue={(item) => item.label}
+            itemToStringValue={(item) => item.time}
             onValueChange={(item) => {
                 if (!item) return
                 onChange?.(item.value, item)
             }}
         >
-            <ComboboxInput placeholder="지역 선택" className="w-35">
+            <ComboboxInput
+                placeholder="지역 선택"
+                className={cn("w-44", className)}
+                disabled={disabled}
+            >
                 <InputGroupAddon>
-                    <GlobeIcon />
+                    <ClockIcon />
                 </InputGroupAddon>
             </ComboboxInput>
 
-            <ComboboxContent alignOffset={-28} className="w-60">
+            <ComboboxContent
+                container={portalContainer}
+                alignOffset={-28}
+                className="w-60"
+            >
                 <ComboboxEmpty>No timezones found.</ComboboxEmpty>
 
                 <ComboboxList>
@@ -62,7 +81,7 @@ export function TimezoneSelect({ value, onChange }: Props) {
                                         {item.label}
                                     </ItemTitle>
                                     <ItemDescription className="mt-0.75 text-sm opacity-85">
-                                        {item.description}
+                                        {item.time} {item.description}
                                     </ItemDescription>
                                 </ItemContent>
                             </Item>

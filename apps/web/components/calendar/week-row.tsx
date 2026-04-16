@@ -44,7 +44,9 @@ export const WeekRow = memo(
                     <DayCell
                         key={day.toISOString()}
                         day={day}
-                        isCurrentMonth={getMonthKey(day) === currentMonthKey}
+                        isCurrentMonth={
+                            getMonthKey(day, calendarTimezone) === currentMonthKey
+                        }
                     />
                 ))}
 

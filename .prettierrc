@@ -5,7 +5,15 @@
     "tabWidth": 4,
     "trailingComma": "es5",
     "printWidth": 80,
-    "plugins": ["prettier-plugin-tailwindcss"],
+    "plugins": ["prettier-plugin-tailwindcss", "prettier-plugin-sql"],
     "tailwindStylesheet": "packages/ui/src/styles/globals.css",
-    "tailwindFunctions": ["cn", "cva"]
+    "tailwindFunctions": ["cn", "cva"],
+    "overrides": [
+        {
+            "files": "*.sql",
+            "options": {
+                "language": "postgresql"
+            }
+        }
+    ]
 }

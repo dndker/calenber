@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import * as React from "react"
 
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -37,7 +38,7 @@ import {
     SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
 import Link from "next/link"
-import { TimezoneSelect } from "./calendar/timezone-select"
+import { CalendarWorkspacePresenceGroup } from "./calendar-workspace-presence-group"
 import ThemeSwitch from "./theme-switch"
 
 const data = [
@@ -107,6 +108,8 @@ export function NavActions() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setCalendarTimezone = useCalendarStore((s) => s.setCalendarTimezone)
 
+    const isLoggedIn = useAuthStore((s) => s.user != null)
+
     const [isOpen, setIsOpen] = React.useState(false)
 
     return (
@@ -115,14 +118,32 @@ export function NavActions() {
                 Edit Oct 08
             </div> */}
 
-            <Button variant="outline" className="mr-1" asChild>
+            <CalendarWorkspacePresenceGroup />
+
+            <Button
+                variant="outline"
+                className="mr-1 leading-normal"
+                asChild
+                size="sm"
+            >
                 <Link href="/docs">
                     <Info />
                     Support
                 </Link>
             </Button>
 
-            <TimezoneSelect
+            {!isLoggedIn && (
+                <Button
+                    variant="default"
+                    className="mr-1 leading-normal font-bold"
+                    asChild
+                    size="sm"
+                >
+                    <Link href="/signin">로그인</Link>
+                </Button>
+            )}
+
+            {/* <TimezoneSelect
                 value={calendarTimezone}
                 onChange={(value) => {
                     if (!value) return
@@ -132,7 +153,7 @@ export function NavActions() {
                         value
                     )}; path=/; max-age=31536000`
                 }}
-            />
+            /> */}
 
             <Button variant="ghost" size="icon" className="size-8 sm:hidden">
                 <Search className="size-4.5" />

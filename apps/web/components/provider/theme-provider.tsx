@@ -71,13 +71,13 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 function ThemeSyncToCookie() {
-    const { resolvedTheme } = useTheme()
+    const { theme } = useTheme()
 
     React.useEffect(() => {
-        if (!resolvedTheme) return
+        if (!theme) return
 
-        document.cookie = `theme=${resolvedTheme}; path=/; max-age=31536000`
-    }, [resolvedTheme])
+        document.cookie = `theme=${theme}; path=/; max-age=31536000`
+    }, [theme])
 
     return null
 }
@@ -91,15 +91,19 @@ function ThemeHotkey() {
                 return
             }
 
+            if (isTypingTarget(event.target)) {
+                return
+            }
+
             if (event.metaKey || event.ctrlKey || event.altKey) {
                 return
             }
 
-            if (event.key.toLowerCase() !== "d") {
+            if (typeof event.key !== "string") {
                 return
             }
 
-            if (isTypingTarget(event.target)) {
+            if (event.key.toLowerCase() !== "d") {
                 return
             }
 

@@ -4,7 +4,7 @@ import { createContext, useContext } from "react"
 
 export type Theme = "light" | "dark" | "system"
 
-const ThemeContext = createContext<{ theme: string }>({
+const ThemeContext = createContext<{ theme: Theme }>({
     theme: "system",
 })
 
@@ -12,7 +12,7 @@ export function ThemeContextProvider({
     theme,
     children,
 }: {
-    theme: string
+    theme: Theme
     children: React.ReactNode
 }) {
     return (

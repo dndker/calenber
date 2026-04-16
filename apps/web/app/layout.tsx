@@ -1,15 +1,21 @@
 import { Geist_Mono, Inter } from "next/font/google"
-
+import { AuthSync } from "@/components/provider/auth-sync"
+import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
+import type { Theme } from "@/components/provider/theme-context"
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
+import { createServerSupabase } from "@/lib/supabase/server"
+import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { mapUser } from "@workspace/lib/supabase/map-user"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
 import type { Metadata, Viewport } from "next"
 import { cookies } from "next/headers"
+import "./editor.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -21,9 +27,15 @@ const fontMono = Geist_Mono({
 const APP_DEFAULT_TITLE = "캘린버"
 const APP_TITLE_TEMPLATE = "%s - 캘린버"
 const APP_DESCRIPTION = "일정, 그 이상을 기억하다."
+const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000")
 
 export const metadata: Metadata = {
     applicationName: "캘린버",
+    metadataBase: new URL(APP_URL),
     title: {
         default: APP_DEFAULT_TITLE,
         template: APP_TITLE_TEMPLATE,
@@ -428,7 +440,19 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
     userScalable: false,
-    themeColor: "var(--background)",
+    themeColor: [
+        { color: "#ffffff" },
+        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+        { media: "(prefers-color-scheme: dark)", color: "#0c0d0e" },
+    ],
+}
+
+function normalizeTheme(theme: string | undefined): Theme {
+    if (theme === "light" || theme === "dark" || theme === "system") {
+        return theme
+    }
+
+    return "system"
 }
 
 export default async function RootLayout({
@@ -437,7 +461,15 @@ export default async function RootLayout({
     children: React.ReactNode
 }>) {
     const cookieStore = await cookies()
-    const theme = cookieStore.get("theme")?.value ?? "system"
+    const theme = normalizeTheme(cookieStore.get("theme")?.value)
+
+    const supabase = await createServerSupabase()
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    const appUser = mapUser(user)
+
     return (
         <html
             lang="ko"
@@ -446,7 +478,8 @@ export default async function RootLayout({
                 "antialiased",
                 fontMono.variable,
                 "font-sans",
-                inter.variable
+                inter.variable,
+                "bn-container"
             )}
         >
             <body>
@@ -457,7 +490,13 @@ export default async function RootLayout({
                         disableTransitionOnChange
                         enableSystem
                     >
-                        <TooltipProvider>{children}</TooltipProvider>
+                        <TooltipProvider>
+                            <AuthStoreProvider initialState={{ user: appUser }}>
+                                <DevServiceWorkerCleanup />
+                                <AuthSync />
+                                {children}
+                            </AuthStoreProvider>
+                        </TooltipProvider>
                     </ThemeProvider>
                 </ThemeContextProvider>
                 <Toaster position="bottom-center" />

@@ -1,27 +1,41 @@
 import { useNow } from "@/hooks/use-now"
+import { useOpenEvent } from "@/hooks/use-open-event"
+import { createCalendarMembership } from "@/lib/calendar/mutations"
+import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
 import dayjs from "@/lib/dayjs"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar, CalendarPickerMode } from "@workspace/ui/components/calendar"
 import {
     SidebarGroup,
     SidebarGroupContent,
 } from "@workspace/ui/components/sidebar"
-import { CalendarPlus } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useCallback, useMemo } from "react"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { CalendarCheck2Icon, CalendarPlusIcon } from "lucide-react"
+import { memo, useCallback, useMemo, useState } from "react"
+import { toast } from "sonner"
 
-export function DatePicker() {
-    const router = useRouter()
+export const DatePicker = memo(function DatePicker() {
+    const createEvent = useOpenEvent()
 
+    const user = useAuthStore((s) => s.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
+    const applyActiveCalendarMembership = useCalendarStore(
+        (s) => s.applyActiveCalendarMembership
+    )
     const now = useNow(calendarTimezone)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const viewportMini = useCalendarStore((s) => s.viewportMini)
     const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
     const setViewportDate = useCalendarStore((s) => s.setViewportDate)
     const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
+    const [isJoiningCalendar, setIsJoiningCalendar] = useState(false)
 
     const isToday = useMemo(() => {
         return (
@@ -101,6 +115,83 @@ export function DatePicker() {
         [setViewportMiniDate, calendarTimezone]
     )
 
+    const canCreateEvent =
+        activeCalendar?.id === "demo" ||
+        canCreateCalendarEvents(activeCalendarMembership)
+
+    const joinAction = useMemo(() => {
+        if (!user || !activeCalendar || activeCalendar.id === "demo") {
+            return null
+        }
+
+        if (activeCalendarMembership.isMember) {
+            return null
+        }
+
+        if (activeCalendarMembership.status === "pending") {
+            return {
+                label: "가입 요청 중",
+                disabled: true,
+            }
+        }
+
+        if (activeCalendar.accessMode === "public_open") {
+            return {
+                label: "캘린더 참여하기",
+                disabled: false,
+            }
+        }
+
+        if (activeCalendar.accessMode === "public_approval") {
+            return {
+                label: "가입 요청하기",
+                disabled: false,
+            }
+        }
+
+        return null
+    }, [user, activeCalendar, activeCalendarMembership])
+
+    const handleJoinCalendar = useCallback(async () => {
+        if (
+            !user ||
+            !activeCalendar ||
+            activeCalendar.id === "demo" ||
+            !joinAction ||
+            joinAction.disabled
+        ) {
+            return
+        }
+
+        setIsJoiningCalendar(true)
+
+        try {
+            const supabase = createBrowserSupabase()
+            const membership = await createCalendarMembership(
+                supabase,
+                activeCalendar.id
+            )
+
+            if (!membership) {
+                toast.error("캘린더 가입을 처리하지 못했습니다.")
+                return
+            }
+
+            applyActiveCalendarMembership(membership)
+
+            toast.success(
+                membership.isMember
+                    ? "캘린더에 참여했습니다."
+                    : "가입 요청을 보냈습니다."
+            )
+        } catch (error) {
+            console.error("Failed to join calendar:", error)
+            toast.error("캘린더 가입을 처리하지 못했습니다.")
+        } finally {
+            setIsJoiningCalendar(false)
+        }
+    }, [user, activeCalendar, joinAction, applyActiveCalendarMembership])
+
     return (
         <SidebarGroup className="px-0">
             <SidebarGroupContent>
@@ -123,14 +214,28 @@ export function DatePicker() {
                 />
 
                 <div className="flex flex-col gap-1 px-2">
-                    <Button variant="outline" asChild>
-                        <Link href="/calendar/new">
-                            <CalendarPlus />
+                    {canCreateEvent && (
+                        <Button variant="outline" onClick={() => createEvent()}>
+                            <CalendarPlusIcon />
                             일정 생성하기
-                        </Link>
-                    </Button>
+                        </Button>
+                    )}
+                    {joinAction && (
+                        <Button
+                            variant="default"
+                            onClick={handleJoinCalendar}
+                            disabled={joinAction.disabled || isJoiningCalendar}
+                        >
+                            {isJoiningCalendar ? (
+                                <Spinner />
+                            ) : (
+                                <CalendarCheck2Icon />
+                            )}
+                            {joinAction.label}
+                        </Button>
+                    )}
                 </div>
             </SidebarGroupContent>
         </SidebarGroup>
     )
-}
+})

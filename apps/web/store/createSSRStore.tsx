@@ -33,8 +33,12 @@ export function createSSRStore<T extends object>(
                 ...(initialState ?? {}),
             });
 
+            const shouldUseDevtools =
+                process.env.NODE_ENV === "development" &&
+                process.env.NEXT_PUBLIC_ENABLE_ZUSTAND_DEVTOOLS === "true";
+
             storeRef.current =
-                process.env.NODE_ENV === "development"
+                shouldUseDevtools
                     ? createStore<T>()(
                           devtools(withInitialState, {
                               name: options?.devtoolsName ?? "SSRStore",

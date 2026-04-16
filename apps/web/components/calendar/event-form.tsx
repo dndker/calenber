@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { CalendarIcon } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 
-import { toCalendarEvent } from "./event-form.mapper"
+import { mapToEvent } from "./event-form.mapper"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
 
 import { Button } from "@workspace/ui/components/button"
@@ -24,52 +24,130 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
-import { Label } from "@workspace/ui/components/label"
-import { Switch } from "@workspace/ui/components/switch"
-import { useEffect } from "react"
+import {
+    type CalendarEvent,
+    defaultContent,
+} from "@/store/calendar-store.types"
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+} from "@workspace/ui/components/combobox"
+import { Separator } from "@workspace/ui/components/separator"
+import { useRef, useState } from "react"
+import ContentEditor from "../editor/content-editor"
 import { TimezoneSelect } from "./timezone-select"
 
 export function EventForm({
-    onSubmit,
+    event,
+    onChange,
+    disabled = false,
 }: {
-    onSubmit?: (event: CalendarEvent) => void
+    event?: CalendarEvent
+    onChange?: (patch: Partial<CalendarEvent>) => void
+    disabled?: boolean
 }) {
-    const selection = useCalendarStore((s) => s.selection)
-
     const form = useForm<EventFormValues>({
         resolver: zodResolver(eventFormSchema),
-        defaultValues: {
-            title: "",
-            description: "",
-            start: new Date(),
-            end: new Date(),
-            timezone: "Asia/Seoul",
-            color: "blue",
-            allDay: false,
-        },
+        defaultValues: event
+            ? {
+                  title: event.title,
+                  content: event.content,
+                  start: new Date(event.start),
+                  end: new Date(event.end),
+                  timezone: event.timezone,
+                  color: event.color,
+                  allDay: event.allDay,
+                  recurrence: event.recurrence,
+                  exceptions: event.exceptions,
+              }
+            : {
+                  title: "",
+                  content: defaultContent,
+                  start: new Date(),
+                  end: new Date(),
+                  timezone: "Asia/Seoul",
+                  color: "blue",
+                  allDay: false,
+              },
     })
 
-    const handleSubmit = (values: EventFormValues) => {
-        const event = toCalendarEvent(values)
-        onSubmit?.(event)
+    const timer = useRef<NodeJS.Timeout | null>(null)
+
+    const saveNow = () => {
+        const values = form.getValues()
+
+        const title =
+            values.title && values.title.trim() !== ""
+                ? values.title
+                : "새 일정"
+
+        const patch = mapToEvent({
+            ...values,
+            title,
+        })
+
+        onChange?.(patch)
     }
 
-    useEffect(() => {
-        if (!selection.start || !selection.end) return
+    const autoSave = () => {
+        if (timer.current) clearTimeout(timer.current)
 
-        form.reset({
-            ...form.getValues(),
-            start: new Date(selection.start),
-            end: new Date(selection.end),
-        })
-    }, [selection.start, selection.end, form])
+        if (disabled) {
+            return
+        }
+
+        timer.current = setTimeout(() => {
+            saveNow()
+        }, 350)
+    }
+
+    const [items, setItems] = useState<string[]>([])
+    const [open, setOpen] = useState(false)
+
+    const searchTimer = useRef<NodeJS.Timeout | null>(null)
+
+    const events = [
+        "새로운 일정 업무",
+        "업무하기",
+        "낮잠자기",
+        "쇼핑",
+        "콜라보",
+    ] as const
+
+    const fakeSearch = async (query: string): Promise<string[]> => {
+        // 약간 비동기 느낌 주기 (선택)
+        await new Promise((r) => setTimeout(r, 100))
+
+        return events.filter((item) =>
+            item.toLowerCase().includes(query.toLowerCase())
+        )
+    }
+
+    const handleSearch = (value: string) => {
+        if (searchTimer.current) clearTimeout(searchTimer.current)
+
+        searchTimer.current = setTimeout(async () => {
+            if (value.trim().length === 0) {
+                setItems([])
+                setOpen(false)
+                return
+            }
+
+            // 🔥 여기서 실제 검색 (API or store)
+            const result = await fakeSearch(value)
+
+            setItems(result)
+            setOpen(result.length > 0)
+        }, 150)
+    }
 
     return (
         <form
-            id="event-form"
-            onSubmit={form.handleSubmit(handleSubmit)}
             className="flex flex-col gap-6"
+            onSubmit={(e) => e.preventDefault()}
         >
             <FieldGroup>
                 {/* 제목 */}
@@ -78,12 +156,70 @@ export function EventForm({
                     control={form.control}
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel>제목</FieldLabel>
-                            <Input
+                            {/* <FieldLabel>제목</FieldLabel> */}
+                            <Combobox
+                                items={items}
+                                open={open}
+                                onOpenChange={(next) => {
+                                    if (items.length > 0) {
+                                        setOpen(next)
+                                    }
+                                }}
+                                onValueChange={(item: string | null) => {
+                                    if (!item) return false
+
+                                    form.setValue("title", item)
+                                    setOpen(false)
+                                    autoSave()
+                                }}
+                            >
+                                <ComboboxInput
+                                    {...field}
+                                    placeholder="새 일정"
+                                    autoFocus={true}
+                                    onChange={(e) => {
+                                        const value = e.target.value
+
+                                        if (disabled) {
+                                            return
+                                        }
+
+                                        field.onChange(value)
+                                        autoSave()
+                                        handleSearch(value)
+
+                                        if (!value.trim()) {
+                                            setItems([])
+                                            setOpen(false)
+                                            return
+                                        }
+                                    }}
+                                    className="*ring-0! h-auto border-0! bg-background! font-bold opacity-100! shadow-none! ring-0! outline-0! *:h-auto *:rounded-md *:p-0 *:text-primary! *:opacity-100! *:not-focus:hover:bg-muted/60 *:data-[slot=input-group-addon]:hidden *:md:text-4xl"
+                                    disabled={disabled}
+                                />
+                                <ComboboxContent className="min-w-full">
+                                    <ComboboxList>
+                                        {(item) => (
+                                            <ComboboxItem
+                                                key={item}
+                                                value={item}
+                                            >
+                                                {item}
+                                            </ComboboxItem>
+                                        )}
+                                    </ComboboxList>
+                                </ComboboxContent>
+                            </Combobox>
+                            {/* <Input
                                 {...field}
-                                placeholder="제목.."
-                                aria-invalid={fieldState.invalid}
-                            />
+                                autoFocus={true}
+                                placeholder="새 일정"
+                                className="h-auto border-0 p-0 font-bold not-focus:hover:bg-muted/60 md:text-4xl"
+                                onChange={(e) => {
+                                    field.onChange(e)
+                                    autoSave()
+                                }}
+                            /> */}
                             {fieldState.invalid && (
                                 <FieldError errors={[fieldState.error]} />
                             )}
@@ -91,138 +227,60 @@ export function EventForm({
                     )}
                 />
 
-                {/* 내용 */}
+                {/* 기간 */}
                 <Controller
-                    name="description"
+                    name="start"
                     control={form.control}
-                    render={({ field }) => (
-                        <Field>
-                            <FieldLabel>내용</FieldLabel>
-                            <Input {...field} placeholder="내용.." />
-                        </Field>
-                    )}
-                />
-
-                <Controller
-                    name="start" // 아무거나 하나만 대표로 씀
-                    control={form.control}
-                    render={({ field }) => {
+                    render={() => {
                         const start = form.getValues("start")
                         const end = form.getValues("end")
 
-                        const range = {
-                            from: start,
-                            to: end,
-                        }
-
                         return (
-                            <Field>
-                                <FieldLabel className="flex items-center justify-between bg-background!">
+                            <Field className="md:flex-row md:gap-3">
+                                <FieldLabel className="flex justify-between bg-background! md:w-30">
                                     기간
-                                    <div className="flex items-center space-x-2">
-                                        <Switch id="airplane-mode" />
-                                        <Label htmlFor="airplane-mode">
+                                    {/* <div className="flex items-center space-x-1">
+                                        <Label className="text-sm text-muted-foreground">
                                             종일
                                         </Label>
-                                    </div>
+                                        <Switch size="sm" />
+                                    </div> */}
                                 </FieldLabel>
 
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
                                             variant="outline"
-                                            className="w-full justify-start"
+                                            className="w-full justify-start md:flex-1"
+                                            disabled={disabled}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {start && end
-                                                ? `${dayjs(start).format("YYYY년 MM월 DD일 HH:mm")} ~ ${dayjs(end).format("YYYY년 MM월 DD일 HH:mm")}`
-                                                : "날짜 선택"}
+                                            {`${dayjs(start).format(
+                                                "YYYY-MM-DD HH:mm"
+                                            )} ~ ${dayjs(end).format(
+                                                "YYYY-MM-DD HH:mm"
+                                            )}`}
                                         </Button>
                                     </PopoverTrigger>
 
-                                    <PopoverContent className="w-auto gap-0 p-0">
+                                    <PopoverContent className="w-auto p-0">
                                         <CalendarPicker
                                             mode="range"
-                                            defaultMonth={range?.from}
-                                            numberOfMonths={1}
-                                            selected={range}
+                                            selected={{
+                                                from: start,
+                                                to: end,
+                                            }}
                                             onSelect={(r) => {
+                                                if (disabled) return
                                                 if (!r?.from) return
 
-                                                // 시작일
-                                                const nextStart = dayjs(start)
-                                                    .year(r.from.getFullYear())
-                                                    .month(r.from.getMonth())
-                                                    .date(r.from.getDate())
-                                                    .toDate()
+                                                form.setValue("start", r.from)
+                                                if (r.to)
+                                                    form.setValue("end", r.to)
 
-                                                form.setValue(
-                                                    "start",
-                                                    nextStart
-                                                )
-
-                                                // 종료일
-                                                if (r.to) {
-                                                    const nextEnd = dayjs(end)
-                                                        .year(
-                                                            r.to.getFullYear()
-                                                        )
-                                                        .month(r.to.getMonth())
-                                                        .date(r.to.getDate())
-                                                        .toDate()
-
-                                                    form.setValue(
-                                                        "end",
-                                                        nextEnd
-                                                    )
-                                                }
+                                                autoSave()
                                             }}
                                         />
-
-                                        {/* ⬇️ 시간은 따로 유지 */}
-                                        <div className="hidden gap-2 p-2">
-                                            {/* start time */}
-                                            <Input
-                                                type="time"
-                                                value={dayjs(start).format(
-                                                    "HH:mm"
-                                                )}
-                                                onChange={(e) => {
-                                                    const [h, m] =
-                                                        e.target.value.split(
-                                                            ":"
-                                                        )
-                                                    form.setValue(
-                                                        "start",
-                                                        dayjs(start)
-                                                            .hour(Number(h))
-                                                            .minute(Number(m))
-                                                            .toDate()
-                                                    )
-                                                }}
-                                            />
-
-                                            {/* end time */}
-                                            <Input
-                                                type="time"
-                                                value={dayjs(end).format(
-                                                    "HH:mm"
-                                                )}
-                                                onChange={(e) => {
-                                                    const [h, m] =
-                                                        e.target.value.split(
-                                                            ":"
-                                                        )
-                                                    form.setValue(
-                                                        "end",
-                                                        dayjs(end)
-                                                            .hour(Number(h))
-                                                            .minute(Number(m))
-                                                            .toDate()
-                                                    )
-                                                }}
-                                            />
-                                        </div>
                                     </PopoverContent>
                                 </Popover>
                             </Field>
@@ -235,40 +293,86 @@ export function EventForm({
                     name="color"
                     control={form.control}
                     render={({ field }) => (
-                        <Field>
-                            <FieldLabel>색상</FieldLabel>
-                            <Input {...field} />
+                        <Field className="md:flex-row md:gap-3">
+                            <FieldLabel className="flex justify-between bg-background! md:w-30">
+                                색상
+                            </FieldLabel>
+                            <Input
+                                {...field}
+                                className="md:flex-1"
+                                disabled={disabled}
+                                onChange={(e) => {
+                                    if (disabled) return
+                                    field.onChange(e)
+                                    autoSave()
+                                }}
+                            />
                         </Field>
                     )}
                 />
 
+                {/* 타임존 */}
                 <Controller
                     name="timezone"
                     control={form.control}
                     render={({ field }) => (
-                        <Field>
-                            <FieldLabel>타임존</FieldLabel>
+                        <Field className="md:flex-row md:gap-3">
+                            <FieldLabel className="flex justify-between bg-background! md:w-30">
+                                타임존
+                            </FieldLabel>
 
                             <TimezoneSelect
                                 value={field.value}
-                                onChange={(tz) => field.onChange(tz)}
+                                className="flex-1"
+                                disabled={disabled}
+                                onChange={(tz) => {
+                                    if (disabled) return
+                                    field.onChange(tz)
+                                    autoSave()
+                                }}
+                            />
+                        </Field>
+                    )}
+                />
+
+                <Separator />
+
+                {/* 내용 */}
+                {/* <Controller
+                    name="content"
+                    control={form.control}
+                    render={({ field }) => (
+                        <Field>
+                            <FieldLabel>내용</FieldLabel>
+                            <Input
+                                {...field}
+                                onChange={(e) => {
+                                    field.onChange(e)
+                                    autoSave()
+                                }}
+                            />
+                        </Field>
+                    )}
+                /> */}
+
+                <Controller
+                    name="content"
+                    control={form.control}
+                    render={({ field }) => (
+                        <Field>
+                            <ContentEditor
+                                value={field.value}
+                                editable={!disabled}
+                                onChange={(val) => {
+                                    if (disabled) return
+                                    field.onChange(val)
+                                    autoSave() // 🔥 기존 debounce 그대로 사용
+                                }}
                             />
                         </Field>
                     )}
                 />
             </FieldGroup>
-
-            {/* 액션 */}
-            <div className="flex justify-end gap-2">
-                <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => form.reset()}
-                >
-                    초기화
-                </Button>
-                <Button type="submit">저장</Button>
-            </div>
         </form>
     )
 }
