@@ -1,5 +1,8 @@
 import { getCalendarBasePath } from "@/lib/calendar/routes"
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import { canEditCalendarEvent } from "@/lib/calendar/permissions"
+import { useAuthStore } from "@/store/useAuthStore"
+import type { CalendarEvent } from "@/store/calendar-store.types"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -39,6 +42,11 @@ export const EventItem = memo(
         const router = useRouter()
         const pathname = usePathname()
 
+        const user = useAuthStore((s) => s.user)
+        const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+        const activeCalendarMembership = useCalendarStore(
+            (s) => s.activeCalendarMembership
+        )
         const eventLayout = useCalendarStore((s) => s.eventLayout)
         const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
         const startDrag = useCalendarStore((s) => s.startDrag)
@@ -48,8 +56,15 @@ export const EventItem = memo(
         })
 
         const pos = getEventPosition(startIndex, endIndex)
+        const canEdit =
+            activeCalendar?.id === "demo" ||
+            canEditCalendarEvent(event, activeCalendarMembership, user?.id)
 
         const handleMoveStart = (e: React.PointerEvent) => {
+            if (!canEdit) {
+                return
+            }
+
             const rect = e.currentTarget.getBoundingClientRect()
             const offsetX = e.clientX - rect.left
 
@@ -66,11 +81,17 @@ export const EventItem = memo(
         }
 
         const handleResizeStart = (e: React.PointerEvent) => {
+            if (!canEdit) {
+                return
+            }
             startDrag(event, "resize-start", event.start)
             listeners?.onPointerDown?.(e)
         }
 
         const handleResizeEnd = (e: React.PointerEvent) => {
+            if (!canEdit) {
+                return
+            }
             startDrag(event, "resize-end", event.end)
             listeners?.onPointerDown?.(e)
         }
@@ -83,10 +104,12 @@ export const EventItem = memo(
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
 
-        const mergedListeners = {
-            ...listeners,
-            onPointerDown: handleMoveStart,
-        }
+        const mergedListeners = canEdit
+            ? {
+                  ...listeners,
+                  onPointerDown: handleMoveStart,
+              }
+            : undefined
 
         const useSplitLayout =
             !overlay && eventLayout === "split" && laneCount > 0
@@ -104,7 +127,7 @@ export const EventItem = memo(
                 {...attributes}
                 className={clsx("absolute will-change-transform select-none", {
                     "event-drag-row opacity-50": isDragging,
-                    "cursor-grab active:cursor-grabbing": overlay,
+                    "cursor-grab active:cursor-grabbing": overlay && canEdit,
                 })}
                 style={{
                     ...pos,
@@ -118,7 +141,10 @@ export const EventItem = memo(
             >
                 <div
                     onPointerDown={handleResizeStart}
-                    className="absolute top-0 left-0 z-1 h-full w-1 cursor-ew-resize bg-transparent"
+                    className={cn(
+                        "absolute top-0 left-0 z-1 h-full w-1 bg-transparent",
+                        canEdit && "cursor-ew-resize"
+                    )}
                 />
 
                 <Button
@@ -144,7 +170,10 @@ export const EventItem = memo(
 
                 <div
                     onPointerDown={handleResizeEnd}
-                    className="absolute top-0 right-0 z-100 h-full w-1 bg-transparent hover:cursor-ew-resize"
+                    className={cn(
+                        "absolute top-0 right-0 z-100 h-full w-1 bg-transparent",
+                        canEdit && "hover:cursor-ew-resize"
+                    )}
                 />
             </div>
         )

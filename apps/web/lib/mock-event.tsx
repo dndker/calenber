@@ -1,5 +1,8 @@
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
+import {
+    type CalendarEvent,
+    defaultContent,
+} from "@/store/calendar-store.types"
 import { nanoid } from "nanoid"
 
 export function generateMockEvents(timezone?: string): CalendarEvent[] {
@@ -46,6 +49,10 @@ export function generateMockEvents(timezone?: string): CalendarEvent[] {
                 i % 5
             ]!,
 
+            status: "scheduled",
+            authorId: null,
+            author: null,
+            isLocked: false,
             createdAt: dayjs().valueOf(),
             updatedAt: dayjs().valueOf(),
         }

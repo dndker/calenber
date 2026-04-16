@@ -1,5 +1,6 @@
 import { useNow } from "@/hooks/use-now"
 import { useOpenEvent } from "@/hooks/use-open-event"
+import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -12,6 +13,10 @@ export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
         const createEvent = useOpenEvent()
 
+        const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+        const activeCalendarMembership = useCalendarStore(
+            (s) => s.activeCalendarMembership
+        )
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const startSelection = useCalendarStore((s) => s.startSelection)
         const updateSelection = useCalendarStore((s) => s.updateSelection)
@@ -50,10 +55,16 @@ export const DayCell = memo(
         }, [day, setSelectedDate, setViewportMiniDate])
 
         const handleDoubleClick = () => {
+            if (
+                activeCalendar?.id !== "demo" &&
+                !canCreateCalendarEvents(activeCalendarMembership)
+            ) {
+                return
+            }
+
             if (clickTimeout.current) {
                 clearTimeout(clickTimeout.current)
             }
-            console.log("이벤트 생성")
 
             const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
             const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
@@ -69,6 +80,12 @@ export const DayCell = memo(
         const handlePointerDown = (e: React.PointerEvent) => {
             // 🔥 이벤트 클릭이면 무시
             if ((e.target as HTMLElement).closest(".event-drag-row")) return
+            if (
+                activeCalendar?.id !== "demo" &&
+                !canCreateCalendarEvents(activeCalendarMembership)
+            ) {
+                return
+            }
             isDraggingRef.current = false
 
             startSelection(dayValue)
@@ -88,7 +105,9 @@ export const DayCell = memo(
             if (
                 selection.start &&
                 selection.end &&
-                selection.start !== selection.end
+                selection.start !== selection.end &&
+                (activeCalendar?.id === "demo" ||
+                    canCreateCalendarEvents(activeCalendarMembership))
             ) {
                 createEvent({
                     start: selection.start,

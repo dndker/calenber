@@ -1,28 +1,29 @@
 import { Button } from "@workspace/ui/components/button"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useServerTheme } from "./provider/theme-context"
 
 export default function ThemeSwitch() {
-    const { theme: ssrTheme } = useServerTheme()
     const { resolvedTheme, setTheme } = useTheme()
 
-    const currentTheme = resolvedTheme ?? ssrTheme
+    function toggleTheme() {
+        const isDark =
+            resolvedTheme === "dark" ||
+            (resolvedTheme == null &&
+                document.documentElement.classList.contains("dark"))
+
+        setTheme(isDark ? "light" : "dark")
+    }
 
     return (
         <Button
-            onClick={() =>
-                setTheme(resolvedTheme === "light" ? "dark" : "light")
-            }
+            onClick={toggleTheme}
             variant="ghost"
             size="icon"
             className="size-8"
+            aria-label="테마 전환"
         >
-            {currentTheme === "dark" ? (
-                <Sun className="size-5" />
-            ) : (
-                <Moon className="size-5" />
-            )}
+            <Sun className="hidden size-5 dark:block" />
+            <Moon className="size-5 dark:hidden" />
         </Button>
     )
 }

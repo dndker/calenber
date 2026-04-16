@@ -1,4 +1,4 @@
-import { CalendarEvent } from "@/store/useCalendarStore"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 import { EventFormValues } from "./event-form.schema"
 
 export function toCalendarEvent(values: EventFormValues): CalendarEvent {
@@ -22,14 +22,16 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
 
         exceptions: values.exceptions,
 
+        status: "scheduled",
+        authorId: null,
+        author: null,
+        isLocked: false,
         createdAt: now,
         updatedAt: now,
     }
 }
 
-export function mapToEvent(
-    values: EventFormValues
-): Omit<CalendarEvent, "id" | "createdAt" | "updatedAt"> {
+export function mapToEvent(values: EventFormValues): Partial<CalendarEvent> {
     return {
         title: values.title,
         content: values.content,

@@ -2,9 +2,13 @@
 
 import { useCreateEvent } from "@/hooks/use-create-event"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
-import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
+import {
+    type CalendarEvent,
+    defaultContent,
+} from "@/store/calendar-store.types"
 import { usePathname, useRouter } from "next/navigation"
 import { startTransition } from "react"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 
 export function useOpenEvent() {
@@ -12,6 +16,7 @@ export function useOpenEvent() {
     const pathname = usePathname()
     const createEvent = useCreateEvent()
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+    const user = useAuthStore((s) => s.user)
 
     return async (payload?: { start?: number; end?: number }) => {
         const id = crypto.randomUUID()
@@ -25,12 +30,28 @@ export function useOpenEvent() {
             end: payload?.end ?? now,
             timezone: "Asia/Seoul",
             color: "blue",
+            status: "scheduled",
+            authorId: user?.id ?? null,
+            author: user
+                ? {
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      avatarUrl: user.avatarUrl,
+                  }
+                : null,
+            isLocked: false,
             createdAt: now,
             updatedAt: now,
         }
 
+        const ok = await createEvent(event)
+
+        if (!ok) {
+            return
+        }
+
         setActiveEventId(id)
-        await createEvent(event)
         startTransition(() => {
             router.push(
                 `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(id)}`

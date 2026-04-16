@@ -24,7 +24,10 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
-import { CalendarEvent, defaultContent } from "@/store/useCalendarStore"
+import {
+    type CalendarEvent,
+    defaultContent,
+} from "@/store/calendar-store.types"
 import {
     Combobox,
     ComboboxContent,
@@ -40,9 +43,11 @@ import { TimezoneSelect } from "./timezone-select"
 export function EventForm({
     event,
     onChange,
+    disabled = false,
 }: {
     event?: CalendarEvent
     onChange?: (patch: Partial<CalendarEvent>) => void
+    disabled?: boolean
 }) {
     const form = useForm<EventFormValues>({
         resolver: zodResolver(eventFormSchema),
@@ -90,6 +95,10 @@ export function EventForm({
     const autoSave = () => {
         if (timer.current) clearTimeout(timer.current)
 
+        if (disabled) {
+            return
+        }
+
         timer.current = setTimeout(() => {
             saveNow()
         }, 350)
@@ -132,7 +141,6 @@ export function EventForm({
 
             setItems(result)
             setOpen(result.length > 0)
-            console.log(result)
         }, 150)
     }
 
@@ -161,7 +169,6 @@ export function EventForm({
                                     if (!item) return false
 
                                     form.setValue("title", item)
-                                    console.log("onselect")
                                     setOpen(false)
                                     autoSave()
                                 }}
@@ -173,6 +180,10 @@ export function EventForm({
                                     onChange={(e) => {
                                         const value = e.target.value
 
+                                        if (disabled) {
+                                            return
+                                        }
+
                                         field.onChange(value)
                                         autoSave()
                                         handleSearch(value)
@@ -183,7 +194,8 @@ export function EventForm({
                                             return
                                         }
                                     }}
-                                    className="*ring-0! h-auto border-0! font-bold shadow-none! ring-0! outline-0! *:h-auto *:rounded-md *:p-0 *:not-focus:hover:bg-muted/60 *:data-[slot=input-group-addon]:hidden *:md:text-4xl"
+                                    className="*ring-0! h-auto border-0! bg-background! font-bold opacity-100! shadow-none! ring-0! outline-0! *:h-auto *:rounded-md *:p-0 *:text-primary! *:opacity-100! *:not-focus:hover:bg-muted/60 *:data-[slot=input-group-addon]:hidden *:md:text-4xl"
+                                    disabled={disabled}
                                 />
                                 <ComboboxContent className="min-w-full">
                                     <ComboboxList>
@@ -240,6 +252,7 @@ export function EventForm({
                                         <Button
                                             variant="outline"
                                             className="w-full justify-start md:flex-1"
+                                            disabled={disabled}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {`${dayjs(start).format(
@@ -258,6 +271,7 @@ export function EventForm({
                                                 to: end,
                                             }}
                                             onSelect={(r) => {
+                                                if (disabled) return
                                                 if (!r?.from) return
 
                                                 form.setValue("start", r.from)
@@ -286,7 +300,9 @@ export function EventForm({
                             <Input
                                 {...field}
                                 className="md:flex-1"
+                                disabled={disabled}
                                 onChange={(e) => {
+                                    if (disabled) return
                                     field.onChange(e)
                                     autoSave()
                                 }}
@@ -308,7 +324,9 @@ export function EventForm({
                             <TimezoneSelect
                                 value={field.value}
                                 className="flex-1"
+                                disabled={disabled}
                                 onChange={(tz) => {
+                                    if (disabled) return
                                     field.onChange(tz)
                                     autoSave()
                                 }}
@@ -344,7 +362,9 @@ export function EventForm({
                         <Field>
                             <ContentEditor
                                 value={field.value}
+                                editable={!disabled}
                                 onChange={(val) => {
+                                    if (disabled) return
                                     field.onChange(val)
                                     autoSave() // 🔥 기존 debounce 그대로 사용
                                 }}

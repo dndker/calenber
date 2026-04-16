@@ -1,6 +1,6 @@
 "use client"
 
-import { EditorContent } from "@/store/useCalendarStore"
+import type { EditorContent } from "@/store/calendar-store.types"
 import {
     BlockNoteSchema,
     defaultInlineContentSpecs,
@@ -26,11 +26,13 @@ import * as Select from "@workspace/ui/components/select"
 import * as Tooltip from "@workspace/ui/components/tooltip"
 import { useTheme } from "next-themes"
 import { useEffect, useRef } from "react"
+import { useServerTheme } from "../provider/theme-context"
 import { Mention } from "./mention"
 
 type Props = {
     value?: EditorContent
     onChange?: (value: EditorContent) => void
+    editable?: boolean
 }
 
 // Our schema with inline content specs, which contain the configs and
@@ -64,8 +66,15 @@ const getMentionMenuItems = (
     }))
 }
 
-export default function ContentEditor({ value, onChange }: Props) {
+export default function ContentEditor({
+    value,
+    onChange,
+    editable = true,
+}: Props) {
+    const { theme: ssrTheme } = useServerTheme()
     const { resolvedTheme } = useTheme()
+    const currentTheme =
+        resolvedTheme ?? (ssrTheme === "system" ? "light" : ssrTheme)
 
     const editor = useCreateBlockNote({
         schema,
@@ -93,8 +102,9 @@ export default function ContentEditor({ value, onChange }: Props) {
         <BlockNoteView
             key="bn-root"
             editor={editor}
-            theme="light"
-            data-theme={resolvedTheme}
+            editable={editable}
+            theme={currentTheme as "light" | "dark"}
+            data-theme={currentTheme}
             className="bn-root min-h-[40dvh] bg-transparent text-foreground *:px-0!"
             shadCNComponents={{
                 Input,

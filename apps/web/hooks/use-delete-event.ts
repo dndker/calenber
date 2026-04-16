@@ -6,9 +6,11 @@ export function useDeleteEvent() {
 
     return async (id: string) => {
         try {
-            // const res = await api.createEvent(event)
+            const ok = deleteEvent(id)
 
-            deleteEvent(id)
+            if (!ok) {
+                return false
+            }
 
             toast.success("일정이 삭제되었습니다.")
 

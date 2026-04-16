@@ -1,5 +1,5 @@
 import dayjs from "@/lib/dayjs"
-import { CalendarEvent } from "@/store/useCalendarStore"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 
 // 👉 캘린더 기준 변환 (핵심)
 export function toCalendarDay(date: number | Date | string, tz: string) {

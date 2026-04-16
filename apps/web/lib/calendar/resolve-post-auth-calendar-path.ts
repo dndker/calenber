@@ -1,6 +1,7 @@
 "use client"
 
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import { getLatestCalendarIdForUser } from "./queries"
 import { getCalendarPath } from "./routes"
 
 function sleep(ms: number) {
@@ -11,37 +12,9 @@ function sleep(ms: number) {
 
 async function getLatestCalendarPath(userId: string) {
     const supabase = createBrowserSupabase()
+    const calendarId = await getLatestCalendarIdForUser(supabase, userId)
 
-    const { data: memberships, error: membershipError } = await supabase
-        .from("calendar_members")
-        .select("calendar_id")
-        .eq("user_id", userId)
-
-    if (membershipError || !memberships?.length) {
-        return null
-    }
-
-    const calendarIds = memberships.flatMap((membership: { calendar_id: string | null }) =>
-        membership.calendar_id ? [membership.calendar_id] : []
-    )
-
-    if (!calendarIds.length) {
-        return null
-    }
-
-    const { data: calendars, error: calendarError } = await supabase
-        .from("calendars")
-        .select("id, updated_at, created_at")
-        .in("id", calendarIds)
-        .order("updated_at", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(1)
-
-    if (calendarError || !calendars?.length) {
-        return null
-    }
-
-    return getCalendarPath(calendars[0]!.id)
+    return calendarId ? getCalendarPath(calendarId) : null
 }
 
 export async function resolvePostAuthCalendarPath() {

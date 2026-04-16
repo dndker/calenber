@@ -1,4 +1,4 @@
-import type { CalendarEvent } from "@/store/useCalendarStore"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 
 type StoredEventContent = CalendarEvent["content"] | string | null
 

@@ -66,6 +66,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                 name: pathname === "/calendar" ? "캘린더" : "알 수 없는 캘린더",
                 role: null,
                 avatarUrl: null,
+                accessMode: "public_open" as const,
                 eventLayout: "compact" as const,
                 updatedAt: "",
                 createdAt: "",
@@ -96,6 +97,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                         >
                             <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                 <AvatarImage
+                                    className="rounded-lg"
                                     src={displayCalendar.avatarUrl ?? undefined}
                                     alt={displayCalendar.name}
                                 />
@@ -149,24 +151,28 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={handleOpenSettings}
-                                        >
-                                            <Settings />
-                                            설정
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setIsMenuOpen(false)}
-                                        >
-                                            <UserPlus />
-                                            맴버 초대
-                                        </Button>
-                                    </div>
+                                    {activeCalendarMembership.isMember && (
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleOpenSettings}
+                                            >
+                                                <Settings />
+                                                설정
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    setIsMenuOpen(false)
+                                                }
+                                            >
+                                                <UserPlus />
+                                                멤버 초대
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator />
@@ -218,6 +224,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                                     >
                                         <Avatar className="size-6 rounded-md after:rounded-md">
                                             <AvatarImage
+                                                className="rounded-lg"
                                                 src={
                                                     calendar.avatarUrl ??
                                                     undefined

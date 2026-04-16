@@ -5,7 +5,14 @@ import { CalendarMembersSettingsPanel } from "@/components/settings/panels/calen
 import { EmptySettingsPanel } from "@/components/settings/panels/empty-settings-panel"
 import { ProfileNotificationSettingsPanel } from "@/components/settings/panels/profile-notification-settings-panel"
 import { ProfileSettingsPanel } from "@/components/settings/panels/profile-settings-panel"
+import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+} from "@workspace/ui/components/avatar"
 import {
     Dialog,
     DialogContent,
@@ -22,16 +29,25 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
-import { BellIcon, Calendar1Icon, Settings2Icon, UsersIcon } from "lucide-react"
+import {
+    BellIcon,
+    CalendarsIcon,
+    Settings2Icon,
+    SettingsIcon,
+    UsersIcon,
+} from "lucide-react"
 import type { ComponentType } from "react"
 import { useState } from "react"
-import { useCalendarStore } from "@/store/useCalendarStore"
+import { CalendarDataSettingsPanel } from "./panels/calendar-data-settings-panel"
+import { ProfileGeneralSettingsPanel } from "./panels/profile-general-settings-panel"
 
 export type SettingsTabId =
     | "profile"
+    | "profile_general"
     | "profile_notification"
     | "calendar_general"
     | "calendar_members"
+    | "calendar_data"
 
 const SETTINGS_TABS: Array<{
     id: SettingsTabId
@@ -41,6 +57,12 @@ const SETTINGS_TABS: Array<{
 }> = [
     {
         id: "profile",
+        label: "프로필",
+        group: "account",
+        icon: Settings2Icon,
+    },
+    {
+        id: "profile_general",
         label: "기본 설정",
         group: "account",
         icon: Settings2Icon,
@@ -55,21 +77,29 @@ const SETTINGS_TABS: Array<{
         id: "calendar_general",
         label: "일반",
         group: "calendar",
-        icon: Calendar1Icon,
+        icon: SettingsIcon,
     },
     {
         id: "calendar_members",
-        label: "맴버",
+        label: "멤버",
         group: "calendar",
         icon: UsersIcon,
+    },
+    {
+        id: "calendar_data",
+        label: "데이터",
+        group: "calendar",
+        icon: CalendarsIcon,
     },
 ]
 
 const SETTINGS_TAB_PANELS: Partial<Record<SettingsTabId, ComponentType>> = {
     profile: ProfileSettingsPanel,
+    profile_general: ProfileGeneralSettingsPanel,
     profile_notification: ProfileNotificationSettingsPanel,
     calendar_general: CalendarGeneralSettingsPanel,
     calendar_members: CalendarMembersSettingsPanel,
+    calendar_data: CalendarDataSettingsPanel,
 }
 
 export function SettingsModal({
@@ -107,6 +137,7 @@ export function SettingsModal({
 }
 
 function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
+    const user = useAuthStore((s) => s.user)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const fallbackTab = SETTINGS_TABS[0]?.id ?? initialTab
     const availableTabs = SETTINGS_TABS.filter(
@@ -120,44 +151,85 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
         <div className="flex h-full overflow-hidden bg-background">
             <Sidebar className="relative h-full w-60 shrink-0 border-r-0!">
                 <SidebarContent className="h-full p-1">
-                    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-                        <SidebarGroupLabel>계정 설정</SidebarGroupLabel>
-                        <SidebarGroupContent>
-                            <SidebarMenu>
-                                {availableTabs.filter(
-                                    (tab) => tab.group === "account"
-                                ).map((tab) => (
-                                    <SidebarMenuItem key={tab.id}>
-                                        <SidebarMenuButton
-                                            isActive={activeTab === tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                        >
-                                            <tab.icon />
-                                            <span>{tab.label}</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
-                            </SidebarMenu>
-                        </SidebarGroupContent>
-                    </SidebarGroup>
+                    {user && (
+                        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+                            <SidebarGroupLabel className="px-2.5">
+                                계정 설정
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu className="gap-1">
+                                    {availableTabs
+                                        .filter(
+                                            (tab) => tab.group === "account"
+                                        )
+                                        .map((tab) => (
+                                            <SidebarMenuItem key={tab.id}>
+                                                <SidebarMenuButton
+                                                    isActive={
+                                                        activeTab === tab.id
+                                                    }
+                                                    onClick={() =>
+                                                        setActiveTab(tab.id)
+                                                    }
+                                                >
+                                                    {tab.id === "profile" ? (
+                                                        <Avatar
+                                                            size="sm"
+                                                            className="size-5.5! ring-1 ring-border"
+                                                        >
+                                                            <AvatarImage
+                                                                className="cursor-pointer"
+                                                                src={
+                                                                    user.avatarUrl ??
+                                                                    undefined
+                                                                }
+                                                                alt={
+                                                                    user.name ||
+                                                                    ""
+                                                                }
+                                                            />
+                                                            <AvatarFallback className="text-2xl leading-normal font-medium">
+                                                                {user.name?.[0]?.toUpperCase() ||
+                                                                    ""}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                    ) : (
+                                                        <div className="flex size-5.5 items-center justify-center">
+                                                            <tab.icon className="size-4.25!" />
+                                                        </div>
+                                                    )}
+                                                    <span>{tab.label}</span>
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        ))}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    )}
 
                     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-                        <SidebarGroupLabel>캘린더</SidebarGroupLabel>
+                        <SidebarGroupLabel className="px-2.5">
+                            캘린더
+                        </SidebarGroupLabel>
                         <SidebarGroupContent>
-                            <SidebarMenu>
-                                {availableTabs.filter(
-                                    (tab) => tab.group === "calendar"
-                                ).map((tab) => (
-                                    <SidebarMenuItem key={tab.id}>
-                                        <SidebarMenuButton
-                                            isActive={activeTab === tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                        >
-                                            <tab.icon />
-                                            <span>{tab.label}</span>
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
+                            <SidebarMenu className="gap-1">
+                                {availableTabs
+                                    .filter((tab) => tab.group === "calendar")
+                                    .map((tab) => (
+                                        <SidebarMenuItem key={tab.id}>
+                                            <SidebarMenuButton
+                                                isActive={activeTab === tab.id}
+                                                onClick={() =>
+                                                    setActiveTab(tab.id)
+                                                }
+                                            >
+                                                <div className="flex size-5.5 items-center justify-center">
+                                                    <tab.icon className="size-4.25!" />
+                                                </div>
+                                                <span>{tab.label}</span>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    ))}
                             </SidebarMenu>
                         </SidebarGroupContent>
                     </SidebarGroup>

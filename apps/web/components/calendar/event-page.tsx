@@ -1,17 +1,24 @@
 "use client"
 
+import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { useCreateEvent } from "@/hooks/use-create-event"
 import {
-    CalendarEvent,
     defaultContent,
-    useCalendarStore,
-} from "@/store/useCalendarStore"
+    type CalendarEvent,
+} from "@/store/calendar-store.types"
+import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { useEffect, useRef, useState } from "react"
 import { EventForm } from "./event-form"
 
 export function EventPage({ eventId }: { eventId?: string }) {
     const createEvent = useCreateEvent()
     const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
+    const user = useAuthStore((s) => s.user)
 
     // 🔥 현재 사용할 id (new 포함)
     const [localId, setLocalId] = useState<string | undefined>(eventId)
@@ -31,12 +38,25 @@ export function EventPage({ eventId }: { eventId?: string }) {
                 end: Date.now(),
                 timezone: "Asia/Seoul",
                 color: "blue",
+                status: "scheduled",
+                authorId: user?.id ?? null,
+                author: user
+                    ? {
+                          id: user.id,
+                          name: user.name,
+                          email: user.email,
+                          avatarUrl: user.avatarUrl,
+                      }
+                    : null,
+                isLocked: false,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             }
 
-            createEvent(tempEvent).then(() => {
-                setLocalId(tempEvent.id)
+            createEvent(tempEvent).then((ok) => {
+                if (ok) {
+                    setLocalId(tempEvent.id)
+                }
             })
         }
     }, [eventId, createEvent])
@@ -47,12 +67,15 @@ export function EventPage({ eventId }: { eventId?: string }) {
 
     if (!event) return null
 
+    const canEdit =
+        activeCalendar?.id === "demo" ||
+        canEditCalendarEvent(event, activeCalendarMembership, user?.id)
+
     return (
         <EventForm
             event={event}
+            disabled={!canEdit}
             onChange={(patch) => {
-                // 🔥 무조건 update만
-                console.log(event.id, patch)
                 updateEvent(event.id, patch)
             }}
         />

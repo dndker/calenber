@@ -49,6 +49,7 @@ export default async function CalendarLayout({
               id: "demo",
               name: "데모 캘린더",
               avatarUrl: null,
+              accessMode: "public_open" as const,
               eventLayout: "compact" as const,
               updatedAt: "",
               createdAt: "",
@@ -63,6 +64,7 @@ export default async function CalendarLayout({
         ? {
               isMember: false,
               role: null,
+              status: null,
           }
         : await getCalendarMembership(supabase, calendarId, user?.id ?? null)
 

@@ -1,4 +1,5 @@
-import { CalendarEvent, useCalendarStore } from "@/store/useCalendarStore"
+import type { CalendarEvent } from "@/store/calendar-store.types"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { toast } from "sonner"
 
 export function useCreateEvent() {
@@ -6,14 +7,7 @@ export function useCreateEvent() {
 
     return async (event: CalendarEvent) => {
         try {
-            // const res = await api.createEvent(event)
-
-            createEvent(event)
-
-            console.log("일정이 생성되었습니다")
-            // toast.success("일정이 생성되었습니다.")
-
-            return true
+            return createEvent(event) != null
         } catch {
             toast.error("일정 생성 실패")
             return false

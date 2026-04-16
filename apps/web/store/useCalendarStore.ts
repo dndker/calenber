@@ -5,137 +5,23 @@ import {
     deleteCalendarEvent,
     updateCalendarEvent as updateCalendarEventQuery,
 } from "@/lib/calendar/mutations"
-import type {
-    CalendarMembership,
-    CalendarSummary,
-    MyCalendarItem,
-} from "@/lib/calendar/queries"
+import {
+    canCreateCalendarEvents,
+    canDeleteCalendarEvent,
+    canEditCalendarEvent,
+} from "@/lib/calendar/permissions"
+import type { MyCalendarItem } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
-import type { CalendarEventLayout } from "@/lib/calendar/types"
-import type { PartialBlock } from "@blocknote/core"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { toast } from "sonner"
+import type {
+    CalendarDragState,
+    CalendarEvent,
+    CalendarEventDraft,
+    CalendarStoreState,
+} from "./calendar-store.types"
+import { useAuthStore } from "./useAuthStore"
 import { createSSRStore } from "./createSSRStore"
-
-export type EditorContent = PartialBlock[]
-
-export const defaultContent: EditorContent = [
-    {
-        type: "paragraph",
-        content: [],
-    },
-]
-
-export type CalendarEvent = {
-    id: string
-
-    title: string
-    content: EditorContent
-
-    // 시간
-    start: number // ISO (UTC)
-    end: number // ISO (UTC)
-
-    allDay?: boolean
-
-    // 타임존
-    timezone: string // "Asia/Seoul"
-
-    // 색상
-    color: string // tailwind token or hex
-
-    // 반복 일정
-    recurrence?: {
-        type: "daily" | "weekly" | "monthly" | "yearly"
-        interval: number // 1 = 매주, 2 = 2주마다
-        byWeekday?: number[] // [1,3,5]
-        until?: string // ISO
-        count?: number
-    }
-
-    // 예외
-    exceptions?: string[] // 제외 날짜
-
-    // 메타
-    createdAt: number
-    updatedAt: number
-}
-
-type DragMode = "move" | "resize-start" | "resize-end"
-type DragState = {
-    eventId: string | null
-    mode: "move" | "resize-start" | "resize-end" | null
-
-    originStart: number
-    originEnd: number
-
-    start: number
-    end: number
-    offset: number
-}
-
-type SelectionState = {
-    isSelecting: boolean
-    start: number | null
-    end: number | null
-}
-
-type CalendarStoreState = {
-    myCalendars: MyCalendarItem[]
-    activeCalendar: CalendarSummary | null
-    activeCalendarMembership: CalendarMembership
-    calendarTimezone: string
-    isCalendarLoading: boolean
-    activeEventId?: string
-    eventLayout: CalendarEventLayout
-
-    // 캘린더 레이아웃
-    selectedDate: number
-    viewport: number
-    viewportMini: number
-    moveRange: { start: number; end: number } | null
-    setMyCalendars: (calendars: MyCalendarItem[]) => void
-    setActiveCalendar: (calendar: CalendarSummary | null) => void
-    setActiveCalendarMembership: (membership: CalendarMembership) => void
-    clearActiveCalendarContext: () => void
-    updateCalendarSnapshot: (
-        calendarId: string,
-        patch: Partial<CalendarSummary>
-    ) => void
-    setCalendarTimezone: (tz: string) => void
-    setIsCalendarLoading: (value: boolean) => void
-    setActiveEventId: (eventId?: string) => void
-    setEventLayout: (layout: CalendarEventLayout) => void
-    setSelectedDate: (date: Date) => void
-    setViewportDate: (date: Date) => void
-    setViewportMiniDate: (date: Date) => void
-
-    // 일정 레이아웃
-    events: CalendarEvent[]
-
-    setEvents: (events: CalendarEvent[]) => void
-    createEvent: (
-        data: Omit<CalendarEvent, "id" | "createdAt" | "updatedAt">
-    ) => string
-    updateEvent: (id: string, patch: Partial<CalendarEvent>) => void
-    deleteEvent: (id: string) => void
-}
-
-type CalendarDragState = {
-    drag: DragState
-    startDrag: (
-        event: CalendarEvent,
-        mode: DragMode,
-        clickedDate: number
-    ) => void
-    moveDrag: (date: number) => void
-    endDrag: () => void
-
-    selection: SelectionState
-    startSelection: (date: number) => void
-    updateSelection: (date: number) => void
-    endSelection: () => void
-}
 
 function getPersistableCalendarId() {
     const calendarId = useCalendarStore.getState().activeCalendar?.id
@@ -173,7 +59,11 @@ async function persistUpdatedEvent(
     }
 
     const supabase = createBrowserSupabase()
-    await updateCalendarEventQuery(supabase, eventId, patch)
+    const ok = await updateCalendarEventQuery(supabase, eventId, patch)
+
+    if (!ok) {
+        toast.error("일정 수정 실패")
+    }
 }
 
 async function persistDeletedEvent(eventId: string) {
@@ -199,6 +89,7 @@ export const useCalendarStore = createSSRStore<
     activeCalendarMembership: {
         isMember: false,
         role: null,
+        status: null,
     },
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
@@ -215,12 +106,51 @@ export const useCalendarStore = createSSRStore<
     setActiveCalendar: (activeCalendar) => set({ activeCalendar }),
     setActiveCalendarMembership: (activeCalendarMembership) =>
         set({ activeCalendarMembership }),
+    applyActiveCalendarMembership: (membership) =>
+        set((state) => {
+            const activeCalendar = state.activeCalendar
+
+            if (
+                !activeCalendar ||
+                activeCalendar.id === "demo" ||
+                !membership.isMember
+            ) {
+                return {
+                    activeCalendarMembership: membership,
+                }
+            }
+
+            const nextCalendar: MyCalendarItem = {
+                ...activeCalendar,
+                role: membership.role,
+            }
+            const existingIndex = state.myCalendars.findIndex(
+                (calendar) => calendar.id === activeCalendar.id
+            )
+
+            if (existingIndex >= 0) {
+                return {
+                    activeCalendarMembership: membership,
+                    myCalendars: state.myCalendars.map((calendar) =>
+                        calendar.id === activeCalendar.id
+                            ? { ...calendar, role: membership.role }
+                            : calendar
+                    ),
+                }
+            }
+
+            return {
+                activeCalendarMembership: membership,
+                myCalendars: [nextCalendar, ...state.myCalendars],
+            }
+        }),
     clearActiveCalendarContext: () =>
         set({
             activeCalendar: null,
             activeCalendarMembership: {
                 isMember: false,
                 role: null,
+                status: null,
             },
             eventLayout: "compact",
         }),
@@ -296,11 +226,32 @@ export const useCalendarStore = createSSRStore<
 
     setEvents: (events) => set({ events }),
     createEvent: (data) => {
+        const { activeCalendar, activeCalendarMembership } = get()
+
+        if (
+            activeCalendar?.id !== "demo" &&
+            !canCreateCalendarEvents(activeCalendarMembership)
+        ) {
+            toast.error("이 캘린더에서는 일정을 생성할 수 없습니다.")
+            return null
+        }
+
         const now = Date.now()
+        const currentUser = useAuthStore.getState().user
+        const currentUserId = currentUser?.id ?? null
 
         const event: CalendarEvent = {
             id: crypto.randomUUID(),
             ...data,
+            status: data.status ?? "scheduled",
+            authorId: data.authorId ?? currentUserId,
+            author: data.author ?? {
+                id: currentUser?.id ?? null,
+                name: currentUser?.name ?? null,
+                email: currentUser?.email ?? null,
+                avatarUrl: currentUser?.avatarUrl ?? null,
+            },
+            isLocked: data.isLocked ?? false,
             createdAt: now,
             updatedAt: now,
         }
@@ -320,6 +271,22 @@ export const useCalendarStore = createSSRStore<
     },
 
     updateEvent: (id, patch) => {
+        const state = get()
+        const currentUserId = useAuthStore.getState().user?.id ?? null
+        const event = state.events.find((item) => item.id === id)
+
+        if (!event) {
+            return false
+        }
+
+        if (
+            state.activeCalendar?.id !== "demo" &&
+            !canEditCalendarEvent(event, state.activeCalendarMembership, currentUserId)
+        ) {
+            toast.error("이 일정은 수정할 수 없습니다.")
+            return false
+        }
+
         set((s) => ({
             events: s.events.map((e) =>
                 e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
@@ -327,14 +294,36 @@ export const useCalendarStore = createSSRStore<
         }))
 
         void persistUpdatedEvent(id, patch)
+        return true
     },
 
     deleteEvent: (id) => {
+        const state = get()
+        const currentUserId = useAuthStore.getState().user?.id ?? null
+        const event = state.events.find((item) => item.id === id)
+
+        if (!event) {
+            return false
+        }
+
+        if (
+            state.activeCalendar?.id !== "demo" &&
+            !canDeleteCalendarEvent(
+                event,
+                state.activeCalendarMembership,
+                currentUserId
+            )
+        ) {
+            toast.error("이 일정은 삭제할 수 없습니다.")
+            return false
+        }
+
         set((s) => ({
             events: s.events.filter((e) => e.id !== id),
         }))
 
         void persistDeletedEvent(id)
+        return true
     },
 
     startDrag(event, mode, offset) {
@@ -400,10 +389,25 @@ export const useCalendarStore = createSSRStore<
         const { drag, updateEvent } = get()
         if (!drag.eventId) return
 
-        updateEvent(drag.eventId, {
+        const ok = updateEvent(drag.eventId, {
             start: drag.start,
             end: drag.end,
         })
+
+        if (!ok) {
+            set({
+                drag: {
+                    eventId: null,
+                    mode: null,
+                    originStart: 0,
+                    originEnd: 0,
+                    start: 0,
+                    end: 0,
+                    offset: 0,
+                },
+            })
+            return
+        }
 
         set({
             drag: {

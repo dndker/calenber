@@ -1,6 +1,6 @@
 "use client"
 
-import { ClockIcon } from "lucide-react"
+import { GlobeIcon } from "lucide-react"
 import { useMemo, type RefObject } from "react"
 
 import {
@@ -22,17 +22,17 @@ import {
 import { InputGroupAddon } from "@workspace/ui/components/input-group"
 
 import { cn } from "@workspace/ui/lib/utils"
-import { TIMEZONES, type TimezoneOption } from "./timezone"
+import { COUNTRIES, CountryOption } from "./country"
 
 type Props = {
     value?: string
-    onChange?: (value: string, option: TimezoneOption) => void
+    onChange?: (value: string, option: CountryOption) => void
     className?: string
     portalContainer?: RefObject<HTMLElement | null>
     disabled?: boolean
 }
 
-export function TimezoneSelect({
+export function CountrySelect({
     value,
     className,
     onChange,
@@ -40,28 +40,29 @@ export function TimezoneSelect({
     disabled = false,
 }: Props) {
     const selected = useMemo(
-        () => TIMEZONES.find((tz) => tz.value === value),
+        () => COUNTRIES.find((tz) => tz.value === value),
         [value]
     )
 
     return (
         <Combobox
             modal={false}
-            items={TIMEZONES}
+            defaultInputValue="South Korea"
+            items={COUNTRIES}
             value={selected}
-            itemToStringValue={(item) => item.time}
+            itemToStringValue={(item) => item.label}
             onValueChange={(item) => {
                 if (!item) return
                 onChange?.(item.value, item)
             }}
         >
             <ComboboxInput
-                placeholder="지역 선택"
+                placeholder="언어 선택"
                 className={cn("w-44", className)}
                 disabled={disabled}
             >
                 <InputGroupAddon>
-                    <ClockIcon />
+                    <GlobeIcon />
                 </InputGroupAddon>
             </ComboboxInput>
 
@@ -81,7 +82,7 @@ export function TimezoneSelect({
                                         {item.label}
                                     </ItemTitle>
                                     <ItemDescription className="mt-0.75 text-sm opacity-85">
-                                        {item.time} {item.description}
+                                        {item.continent}
                                     </ItemDescription>
                                 </ItemContent>
                             </Item>

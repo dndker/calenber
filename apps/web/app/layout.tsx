@@ -1,6 +1,7 @@
 import { Geist_Mono, Inter } from "next/font/google"
 
 import { ThemeContextProvider } from "@/components/provider/theme-context"
+import type { Theme } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
 import { AuthSync } from "@/components/provider/auth-sync"
 import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
@@ -441,13 +442,21 @@ export const viewport: Viewport = {
     ],
 }
 
+function normalizeTheme(theme: string | undefined): Theme {
+    if (theme === "light" || theme === "dark" || theme === "system") {
+        return theme
+    }
+
+    return "system"
+}
+
 export default async function RootLayout({
     children,
 }: Readonly<{
     children: React.ReactNode
 }>) {
     const cookieStore = await cookies()
-    const theme = cookieStore.get("theme")?.value ?? "system"
+    const theme = normalizeTheme(cookieStore.get("theme")?.value)
 
     const supabase = await createServerSupabase()
     const {

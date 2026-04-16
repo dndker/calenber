@@ -71,13 +71,13 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 function ThemeSyncToCookie() {
-    const { resolvedTheme } = useTheme()
+    const { theme } = useTheme()
 
     React.useEffect(() => {
-        if (!resolvedTheme) return
+        if (!theme) return
 
-        document.cookie = `theme=${resolvedTheme}; path=/; max-age=31536000`
-    }, [resolvedTheme])
+        document.cookie = `theme=${theme}; path=/; max-age=31536000`
+    }, [theme])
 
     return null
 }
