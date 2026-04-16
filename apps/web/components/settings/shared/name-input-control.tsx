@@ -14,6 +14,8 @@ export function NameInputControl({
     invalid = false,
     isSaving = false,
     className,
+    minLength,
+    maxLength,
     onChange,
 }: {
     value: string
@@ -22,6 +24,8 @@ export function NameInputControl({
     invalid?: boolean
     isSaving?: boolean
     className?: string
+    minLength?: number
+    maxLength?: number
     onChange: (value: string) => void
 }) {
     return (
@@ -32,6 +36,8 @@ export function NameInputControl({
                 onChange={(event) => onChange(event.target.value)}
                 aria-invalid={invalid}
                 disabled={disabled}
+                minLength={minLength}
+                maxLength={maxLength}
                 className={className}
             />
             {isSaving && (

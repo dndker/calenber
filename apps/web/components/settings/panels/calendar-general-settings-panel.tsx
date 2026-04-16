@@ -5,14 +5,15 @@ import { AvatarUploadControl } from "@/components/settings/shared/avatar-upload-
 import { NameInputControl } from "@/components/settings/shared/name-input-control"
 import { useCalendarEventLayout } from "@/hooks/use-calendar-event-layout"
 import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
-import {
-    deleteOwnedCalendar,
-    leaveCalendar,
-} from "@/lib/calendar/mutations"
+import { deleteOwnedCalendar, leaveCalendar } from "@/lib/calendar/mutations"
 import {
     canManageCalendar,
     type CalendarAccessMode,
 } from "@/lib/calendar/permissions"
+import {
+    MAX_CALENDAR_NAME_LENGTH,
+    MIN_DISPLAY_NAME_LENGTH,
+} from "@/lib/validation"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import {
@@ -37,6 +38,7 @@ import {
     FieldSeparator,
     FieldSet,
 } from "@workspace/ui/components/field"
+import { Input } from "@workspace/ui/components/input"
 import {
     Select,
     SelectContent,
@@ -76,6 +78,8 @@ export function CalendarGeneralSettingsPanel() {
     const [ownerCount, setOwnerCount] = useState(0)
     const [isLeavingCalendar, setIsLeavingCalendar] = useState(false)
     const [isDeletingCalendar, setIsDeletingCalendar] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
     useEffect(() => {
         setCalendarName(activeCalendar?.name ?? "")
@@ -138,7 +142,9 @@ export function CalendarGeneralSettingsPanel() {
     }, [activeCalendar])
 
     const trimmedCalendarName = calendarName.trim()
-    const hasEmptyNameError = trimmedCalendarName.length === 0
+    const hasCalendarNameLengthError =
+        trimmedCalendarName.length < MIN_DISPLAY_NAME_LENGTH ||
+        trimmedCalendarName.length > MAX_CALENDAR_NAME_LENGTH
 
     useEffect(() => {
         if (
@@ -152,7 +158,12 @@ export function CalendarGeneralSettingsPanel() {
         const nextName = trimmedCalendarName
         const currentName = activeCalendar.name.trim()
 
-        if (!nextName || nextName === currentName) {
+        if (
+            !nextName ||
+            nextName.length < MIN_DISPLAY_NAME_LENGTH ||
+            nextName.length > MAX_CALENDAR_NAME_LENGTH ||
+            nextName === currentName
+        ) {
             return
         }
 
@@ -203,6 +214,9 @@ export function CalendarGeneralSettingsPanel() {
     const canLeaveCalendar =
         activeCalendarMembership.isMember && (!isOwner || ownerCount >= 2)
     const canDeleteLastCalendar = myCalendars.length > 1
+    const deleteConfirmationTarget = activeCalendar.name
+    const isDeleteConfirmationMatched =
+        deleteConfirmation.trim() === deleteConfirmationTarget
 
     const handleLeaveCalendar = async () => {
         if (!activeCalendar || !canLeaveCalendar || isLeavingCalendar) {
@@ -221,7 +235,9 @@ export function CalendarGeneralSettingsPanel() {
             }
 
             setMyCalendars(
-                myCalendars.filter((calendar) => calendar.id !== activeCalendar.id)
+                myCalendars.filter(
+                    (calendar) => calendar.id !== activeCalendar.id
+                )
             )
             clearActiveCalendarContext()
             closeSettings()
@@ -272,10 +288,14 @@ export function CalendarGeneralSettingsPanel() {
             }
 
             setMyCalendars(
-                myCalendars.filter((calendar) => calendar.id !== activeCalendar.id)
+                myCalendars.filter(
+                    (calendar) => calendar.id !== activeCalendar.id
+                )
             )
             clearActiveCalendarContext()
             closeSettings()
+            setDeleteConfirmation("")
+            setIsDeleteDialogOpen(false)
             toast.success("캘린더를 삭제했습니다.")
             router.push("/calendar")
             router.refresh()
@@ -435,11 +455,20 @@ export function CalendarGeneralSettingsPanel() {
                             value={calendarName}
                             placeholder="캘린더 이름 입력.."
                             onChange={setCalendarName}
-                            invalid={hasEmptyNameError}
+                            invalid={hasCalendarNameLengthError}
                             isSaving={isSavingName}
                             disabled={!canManageSettings || isSavingName}
+                            minLength={MIN_DISPLAY_NAME_LENGTH}
+                            maxLength={MAX_CALENDAR_NAME_LENGTH}
                             className="w-100!"
                         />
+                        {hasCalendarNameLengthError && (
+                            <p className="text-xs text-destructive">
+                                {MIN_DISPLAY_NAME_LENGTH}자 이상{" "}
+                                {MAX_CALENDAR_NAME_LENGTH}자 이하로 입력해
+                                주세요.
+                            </p>
+                        )}
                     </Field>
                     <Field>
                         <FieldContent>
@@ -559,7 +588,16 @@ export function CalendarGeneralSettingsPanel() {
                                 </FieldDescription>
                             </FieldContent>
 
-                            <AlertDialog>
+                            <AlertDialog
+                                open={isDeleteDialogOpen}
+                                onOpenChange={(open) => {
+                                    setIsDeleteDialogOpen(open)
+
+                                    if (!open) {
+                                        setDeleteConfirmation("")
+                                    }
+                                }}
+                            >
                                 <AlertDialogTrigger asChild>
                                     <Button
                                         variant="destructive"
@@ -636,6 +674,25 @@ export function CalendarGeneralSettingsPanel() {
                                             없습니다.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
+                                    <div className="grid gap-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            삭제하려면{" "}
+                                            <span className="font-medium text-foreground">
+                                                {deleteConfirmationTarget}
+                                            </span>
+                                            를 입력해 주세요.
+                                        </p>
+                                        <Input
+                                            value={deleteConfirmation}
+                                            onChange={(event) =>
+                                                setDeleteConfirmation(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder={deleteConfirmationTarget}
+                                            aria-label="캘린더 삭제 확인"
+                                        />
+                                    </div>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
                                             취소
@@ -644,7 +701,8 @@ export function CalendarGeneralSettingsPanel() {
                                             variant="destructive"
                                             disabled={
                                                 !canDeleteLastCalendar ||
-                                                isDeletingCalendar
+                                                isDeletingCalendar ||
+                                                !isDeleteConfirmationMatched
                                             }
                                             onClick={() => {
                                                 void handleDeleteCalendar()

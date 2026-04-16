@@ -38,6 +38,7 @@ import {
     SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
 import Link from "next/link"
+import { CalendarWorkspacePresenceGroup } from "./calendar-workspace-presence-group"
 import ThemeSwitch from "./theme-switch"
 
 const data = [
@@ -116,6 +117,8 @@ export function NavActions() {
             {/* <div className="hidden font-medium text-muted-foreground md:inline-block">
                 Edit Oct 08
             </div> */}
+
+            <CalendarWorkspacePresenceGroup />
 
             <Button
                 variant="outline"

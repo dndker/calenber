@@ -1,0 +1,3 @@
+export const MIN_DISPLAY_NAME_LENGTH = 2
+export const MAX_USER_NAME_LENGTH = 24
+export const MAX_CALENDAR_NAME_LENGTH = 32

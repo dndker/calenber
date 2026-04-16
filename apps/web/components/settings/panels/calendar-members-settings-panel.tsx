@@ -8,6 +8,16 @@ import { DataTable } from "@/components/settings/shared/data-table"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
 import {
     DropdownMenu,
@@ -49,6 +59,11 @@ export function CalendarMembersSettingsPanel() {
     const [members, setMembers] = useState<CalendarMemberRow[]>([])
     const membersRef = useRef<CalendarMemberRow[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
+    const [memberToRemove, setMemberToRemove] =
+        useState<CalendarMemberRow | null>(null)
+    const [isRemovingMember, setIsRemovingMember] = useState(false)
+    const removeDialogResetTimeoutRef = useRef<number | null>(null)
 
     const canManageMembers =
         activeCalendarMembership.role === "manager" ||
@@ -58,10 +73,16 @@ export function CalendarMembersSettingsPanel() {
         membersRef.current = members
     }, [members])
 
+    useEffect(() => {
+        return () => {
+            if (removeDialogResetTimeoutRef.current) {
+                window.clearTimeout(removeDialogResetTimeoutRef.current)
+            }
+        }
+    }, [])
+
     const getAssignableRoles = useCallback(
-        (
-        member: CalendarMemberRow
-    ): CalendarMemberRow["role"][] => {
+        (member: CalendarMemberRow): CalendarMemberRow["role"][] => {
             if (!member.canEditRole) {
                 return [] as CalendarMemberRow["role"][]
             }
@@ -79,43 +100,78 @@ export function CalendarMembersSettingsPanel() {
         [activeCalendarMembership.role]
     )
 
-    const updateMembersRole = useCallback(async (
-        memberIds: string[],
-        nextRole: CalendarMemberRow["role"]
-    ) => {
-        if (!activeCalendar || !memberIds.length) {
+    const updateMembersRole = useCallback(
+        async (memberIds: string[], nextRole: CalendarMemberRow["role"]) => {
+            if (!activeCalendar || !memberIds.length) {
+                return
+            }
+
+            const previousMembers = membersRef.current
+
+            setMembers((current) =>
+                current.map((member) =>
+                    memberIds.includes(member.id)
+                        ? { ...member, role: nextRole }
+                        : member
+                )
+            )
+
+            try {
+                const supabase = createBrowserSupabase()
+                const { error } = await supabase
+                    .from("calendar_members")
+                    .update({ role: nextRole })
+                    .in("id", memberIds)
+                    .eq("calendar_id", activeCalendar.id)
+
+                if (error) {
+                    throw error
+                }
+
+                toast.success("멤버 권한이 업데이트되었습니다.")
+            } catch (error) {
+                console.error("Failed to update calendar member roles:", error)
+                setMembers(previousMembers)
+                toast.error("멤버 권한을 변경하지 못했습니다.")
+            }
+        },
+        [activeCalendar]
+    )
+
+    const handleRemoveMember = useCallback(async () => {
+        if (!activeCalendar || !memberToRemove || isRemovingMember) {
             return
         }
+
+        setIsRemovingMember(true)
 
         const previousMembers = membersRef.current
 
         setMembers((current) =>
-            current.map((member) =>
-                memberIds.includes(member.id)
-                    ? { ...member, role: nextRole }
-                    : member
-            )
+            current.filter((member) => member.id !== memberToRemove.id)
         )
 
         try {
             const supabase = createBrowserSupabase()
-            const { error } = await supabase
-                .from("calendar_members")
-                .update({ role: nextRole })
-                .in("id", memberIds)
-                .eq("calendar_id", activeCalendar.id)
+            const { error } = await supabase.rpc("remove_calendar_member", {
+                target_member_id: memberToRemove.id,
+            })
 
             if (error) {
                 throw error
             }
 
-            toast.success("멤버 권한이 업데이트되었습니다.")
+            toast.success("멤버를 내보냈습니다.")
+            setIsRemoveDialogOpen(false)
+            setMemberToRemove(null)
         } catch (error) {
-            console.error("Failed to update calendar member roles:", error)
+            console.error("Failed to remove calendar member:", error)
             setMembers(previousMembers)
-            toast.error("멤버 권한을 변경하지 못했습니다.")
+            toast.error("멤버를 내보내지 못했습니다.")
+        } finally {
+            setIsRemovingMember(false)
         }
-    }, [activeCalendar])
+    }, [activeCalendar, isRemovingMember, memberToRemove])
 
     const columns = useMemo(
         () =>
@@ -124,6 +180,10 @@ export function CalendarMembersSettingsPanel() {
                 getAssignableRoles,
                 onRoleChange: async (memberId, nextRole) => {
                     await updateMembersRole([memberId], nextRole)
+                },
+                onRemove: (member) => {
+                    setMemberToRemove(member)
+                    setIsRemoveDialogOpen(true)
                 },
             }),
         [canManageMembers, getAssignableRoles, updateMembersRole]
@@ -168,17 +228,28 @@ export function CalendarMembersSettingsPanel() {
                             id: member.id,
                             userId: member.user_id,
                             role: member.role,
+                            status: member.status,
                             createdAt: member.created_at,
                             displayName:
                                 member.name?.trim() ||
                                 (isCurrentUser ? user?.name : null) ||
                                 "이름 없음",
-                            email: member.email ?? (isCurrentUser ? user?.email : null),
+                            email:
+                                member.email ??
+                                (isCurrentUser ? user?.email : null),
                             avatarUrl:
                                 member.avatar_url ??
                                 (isCurrentUser ? user?.avatarUrl : null),
                             isCurrentUser,
                             canEditRole:
+                                canManageMembers &&
+                                !isCurrentUser &&
+                                (activeCalendarMembership.role === "owner" ||
+                                    (activeCalendarMembership.role ===
+                                        "manager" &&
+                                        (member.role === "viewer" ||
+                                            member.role === "editor"))),
+                            canRemove:
                                 canManageMembers &&
                                 !isCurrentUser &&
                                 (activeCalendarMembership.role === "owner" ||
@@ -210,6 +281,59 @@ export function CalendarMembersSettingsPanel() {
 
     return (
         <FieldGroup>
+            <AlertDialog
+                open={isRemoveDialogOpen}
+                onOpenChange={(open) => {
+                    setIsRemoveDialogOpen(open)
+
+                    if (open) {
+                        return
+                    }
+
+                    if (removeDialogResetTimeoutRef.current) {
+                        window.clearTimeout(removeDialogResetTimeoutRef.current)
+                    }
+
+                    // Wait for the close animation so the content doesn't blank out mid-transition.
+                    removeDialogResetTimeoutRef.current = window.setTimeout(() => {
+                        setMemberToRemove(null)
+                        removeDialogResetTimeoutRef.current = null
+                    }, 150)
+                }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            멤버를 내보내시겠습니까?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {memberToRemove
+                                ? (
+                                      <>
+                                          "{memberToRemove.displayName}"의
+                                          캘린더 접근 권한을 제거합니다.
+                                          <br />
+                                          이 작업은 이후 다시 초대해서 되돌릴 수
+                                          있습니다.
+                                      </>
+                                  )
+                                : "선택한 멤버의 캘린더 접근 권한을 제거합니다."}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            disabled={!memberToRemove || isRemovingMember}
+                            onClick={() => {
+                                void handleRemoveMember()
+                            }}
+                        >
+                            {isRemovingMember ? "처리 중..." : "멤버 내보내기"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <FieldSet>
                 <FieldGroup>
                     <Field orientation="horizontal" className="items-center!">
@@ -294,9 +418,7 @@ export function CalendarMembersSettingsPanel() {
                                                         onSelect={() => {
                                                             void updateMembersRole(
                                                                 selectedMembers.map(
-                                                                    (
-                                                                        member
-                                                                    ) =>
+                                                                    (member) =>
                                                                         member.id
                                                                 ),
                                                                 role

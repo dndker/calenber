@@ -1,12 +1,14 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
-import { parseEventContent } from "@/lib/calendar/event-content"
+import {
+    mapCalendarEventRecordToCalendarEvent,
+    type CalendarEventRecord,
+} from "@/lib/calendar/event-record"
 import type {
     CalendarAccessMode,
     CalendarMemberStatus,
     CalendarRole,
 } from "@/lib/calendar/permissions"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
-import type { CalendarEvent } from "@/store/calendar-store.types"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 export type CalendarSummary = {
     id: string
@@ -22,25 +24,18 @@ export type MyCalendarItem = CalendarSummary & {
     role: CalendarRole | null
 }
 
+export type DiscoverCalendarItem = CalendarSummary & {
+    memberCount: number
+    creatorId: string | null
+    creatorName: string | null
+    creatorEmail: string | null
+    creatorAvatarUrl: string | null
+}
+
 export type CalendarMembership = {
     isMember: boolean
     role: CalendarRole | null
     status: CalendarMemberStatus | null
-}
-
-type EventRow = {
-    id: string
-    title: string
-    content: CalendarEvent["content"] | string | null
-    start_at: string | null
-    end_at: string | null
-    status: CalendarEvent["status"] | null
-    created_by: string | null
-    is_locked: boolean | null
-    created_at: string
-    creator_name: string | null
-    creator_email: string | null
-    creator_avatar_url: string | null
 }
 
 type CalendarRow = {
@@ -59,6 +54,47 @@ type CalendarRow = {
         | null
 }
 
+type DiscoverCalendarRow = {
+    id: string
+    name: string
+    avatar_url: string | null
+    access_mode: CalendarAccessMode
+    event_layout: CalendarEventLayout
+    updated_at: string
+    created_at: string
+    member_count: number
+    creator_user_id: string | null
+    creator_name: string | null
+    creator_email: string | null
+    creator_avatar_url: string | null
+}
+
+export async function getAllCalendars(
+    supabase: SupabaseClient
+): Promise<DiscoverCalendarItem[]> {
+    const { data, error } = await supabase.rpc("get_discover_calendars")
+
+    if (error || !data) {
+        console.error("Failed to load calendars:", error)
+        return []
+    }
+
+    return (data as DiscoverCalendarRow[]).map((calendar) => ({
+        id: calendar.id,
+        name: calendar.name,
+        avatarUrl: calendar.avatar_url,
+        accessMode: calendar.access_mode,
+        eventLayout: calendar.event_layout,
+        updatedAt: calendar.updated_at,
+        createdAt: calendar.created_at,
+        memberCount: calendar.member_count,
+        creatorId: calendar.creator_user_id,
+        creatorName: calendar.creator_name,
+        creatorEmail: calendar.creator_email,
+        creatorAvatarUrl: calendar.creator_avatar_url,
+    }))
+}
+
 export async function getMyCalendars(
     supabase: SupabaseClient,
     userId: string
@@ -71,7 +107,7 @@ export async function getMyCalendars(
         .eq("calendar_members.user_id", userId)
         .eq("calendar_members.status", "active")
         .order("updated_at", { ascending: false })
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: true })
 
     if (error || !data) {
         console.error("Failed to load calendars:", error)
@@ -132,35 +168,6 @@ export async function getCalendarById(
     }
 }
 
-function mapEventRowToCalendarEvent(event: EventRow): CalendarEvent {
-    const start = event.start_at ? new Date(event.start_at).valueOf() : Date.now()
-    const end = event.end_at ? new Date(event.end_at).valueOf() : start
-
-    return {
-        id: event.id,
-        title: event.title,
-        content: parseEventContent(event.content),
-        start,
-        end,
-        allDay: true,
-        timezone: "Asia/Seoul",
-        color: "#3b82f6",
-        status: event.status ?? "scheduled",
-        authorId: event.created_by,
-        author: event.created_by
-            ? {
-                  id: event.created_by,
-                  name: event.creator_name,
-                  email: event.creator_email,
-                  avatarUrl: event.creator_avatar_url,
-              }
-            : null,
-        isLocked: event.is_locked ?? false,
-        createdAt: new Date(event.created_at).valueOf(),
-        updatedAt: new Date(event.created_at).valueOf(),
-    }
-}
-
 export async function getCalendarMembership(
     supabase: SupabaseClient,
     calendarId: string,
@@ -213,5 +220,5 @@ export async function getCalendarEvents(
         return []
     }
 
-    return (data as EventRow[]).map(mapEventRowToCalendarEvent)
+    return (data as CalendarEventRecord[]).map(mapCalendarEventRecordToCalendarEvent)
 }

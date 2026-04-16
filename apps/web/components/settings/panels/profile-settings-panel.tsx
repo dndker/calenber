@@ -1,11 +1,26 @@
 "use client"
 
+import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { AvatarUploadControl } from "@/components/settings/shared/avatar-upload-control"
 import { NameInputControl } from "@/components/settings/shared/name-input-control"
 import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
+import { deleteCurrentUserAccount } from "@/lib/calendar/mutations"
+import { MAX_USER_NAME_LENGTH, MIN_DISPLAY_NAME_LENGTH } from "@/lib/validation"
 import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
 import {
     Field,
@@ -17,25 +32,38 @@ import {
     FieldSeparator,
     FieldSet,
 } from "@workspace/ui/components/field"
+import { Input } from "@workspace/ui/components/input"
 import { Switch } from "@workspace/ui/components/switch"
+import { useRouter } from "next/navigation"
 import { ChangeEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 export function ProfileSettingsPanel() {
+    const router = useRouter()
+    const { closeSettings } = useSettingsModal()
     const user = useAuthStore((s) => s.user)
     const setUser = useAuthStore((s) => s.setUser)
+    const setMyCalendars = useCalendarStore((s) => s.setMyCalendars)
+    const clearActiveCalendarContext = useCalendarStore(
+        (s) => s.clearActiveCalendarContext
+    )
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const [name, setName] = useState(user?.name ?? "")
     const [isSavingName, setIsSavingName] = useState(false)
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
     const [isRemovingAvatar, setIsRemovingAvatar] = useState(false)
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
     useEffect(() => {
         setName(user?.name ?? "")
     }, [user?.name])
 
     const trimmedName = name.trim()
-    const hasEmptyNameError = trimmedName.length === 0
+    const hasNameLengthError =
+        trimmedName.length < MIN_DISPLAY_NAME_LENGTH ||
+        trimmedName.length > MAX_USER_NAME_LENGTH
 
     useEffect(() => {
         if (!user) {
@@ -45,7 +73,11 @@ export function ProfileSettingsPanel() {
         const nextName = trimmedName
         const currentName = user.name?.trim() ?? ""
 
-        if (!nextName) {
+        if (
+            !nextName ||
+            nextName.length < MIN_DISPLAY_NAME_LENGTH ||
+            nextName.length > MAX_USER_NAME_LENGTH
+        ) {
             return
         }
 
@@ -82,6 +114,10 @@ export function ProfileSettingsPanel() {
     }, [setUser, trimmedName, user])
 
     if (!user) return null
+
+    const deleteConfirmationTarget = user.email ?? "계정 삭제"
+    const isDeleteConfirmationMatched =
+        deleteConfirmation.trim() === deleteConfirmationTarget
 
     const getAuthenticatedUserId = async () => {
         const supabase = createBrowserSupabase()
@@ -216,6 +252,83 @@ export function ProfileSettingsPanel() {
         }
     }
 
+    const handleDeleteAccount = async () => {
+        if (!user || isDeletingAccount) {
+            return
+        }
+
+        setIsDeletingAccount(true)
+
+        try {
+            const { supabase, authUserId } = await getAuthenticatedUserId()
+            const { data: createdCalendars, error: calendarsError } =
+                await supabase
+                    .from("calendars")
+                    .select("id")
+                    .eq("created_by", authUserId)
+
+            if (calendarsError) {
+                throw calendarsError
+            }
+
+            if (user.avatarUrl) {
+                const { error: removeAvatarError } = await supabase.storage
+                    .from("avatars")
+                    .remove([`${authUserId}/avatar.webp`])
+
+                if (removeAvatarError) {
+                    console.error(
+                        "User avatar remove before account delete failed:",
+                        removeAvatarError
+                    )
+                }
+            }
+
+            const createdCalendarAvatarPaths =
+                (createdCalendars as { id: string }[] | null)?.map(
+                    (calendar) => `${calendar.id}/avatar.webp`
+                ) ??
+                []
+
+            if (createdCalendarAvatarPaths.length > 0) {
+                const { error: removeCalendarAvatarsError } =
+                    await supabase.storage
+                        .from("calendar-avatars")
+                        .remove(createdCalendarAvatarPaths)
+
+                if (removeCalendarAvatarsError) {
+                    console.error(
+                        "Calendar avatar remove before account delete failed:",
+                        removeCalendarAvatarsError
+                    )
+                }
+            }
+
+            const ok = await deleteCurrentUserAccount(supabase)
+
+            if (!ok) {
+                toast.error("계정을 삭제하지 못했습니다.")
+                return
+            }
+
+            await supabase.auth.signOut()
+            setUser(null)
+            setMyCalendars([])
+            clearActiveCalendarContext()
+            closeSettings()
+            setDeleteConfirmation("")
+            setIsDeleteDialogOpen(false)
+            toast.success("계정이 삭제되었습니다.")
+            router.replace("/signin")
+            router.refresh()
+        } catch (error) {
+            console.error("Failed to delete account:", error)
+            toast.error("계정을 삭제하지 못했습니다.")
+        } finally {
+            setIsDeletingAccount(false)
+        }
+    }
+
     return (
         <div>
             <FieldGroup>
@@ -247,11 +360,20 @@ export function ProfileSettingsPanel() {
                                     value={name}
                                     placeholder="이름 입력.."
                                     onChange={setName}
-                                    invalid={hasEmptyNameError}
+                                    invalid={hasNameLengthError}
                                     isSaving={isSavingName}
                                     disabled={isSavingName}
+                                    minLength={MIN_DISPLAY_NAME_LENGTH}
+                                    maxLength={MAX_USER_NAME_LENGTH}
                                     className="w-46"
                                 />
+                                {hasNameLengthError && (
+                                    <p className="text-xs text-destructive">
+                                        {MIN_DISPLAY_NAME_LENGTH}자 이상{" "}
+                                        {MAX_USER_NAME_LENGTH}자 이하로 입력해
+                                        주세요.
+                                    </p>
+                                )}
                             </div>
                         </Field>
                         <Field
@@ -336,12 +458,80 @@ export function ProfileSettingsPanel() {
                                     내 계정 삭제
                                 </FieldLabel>
                                 <FieldDescription>
-                                    계정을 영구저긍로 삭제합니다. 더 이상 내가
+                                    계정을 영구적으로 삭제합니다. 더 이상 내가
                                     만든 캘린더나 소속된 캘린더에 접근할 수
                                     없게됩니다.
                                 </FieldDescription>
                             </FieldContent>
-                            <Button variant="destructive">내 계정 삭제</Button>
+                            <AlertDialog
+                                open={isDeleteDialogOpen}
+                                onOpenChange={(open) => {
+                                    setIsDeleteDialogOpen(open)
+
+                                    if (!open) {
+                                        setDeleteConfirmation("")
+                                    }
+                                }}
+                            >
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                        variant="destructive"
+                                        disabled={isDeletingAccount}
+                                    >
+                                        내 계정 삭제
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent size="sm">
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                            계정을 삭제하시겠습니까?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            프로필, 내가 만든 캘린더, 내가 작성한
+                                            일정과 멤버십이 모두 영구적으로
+                                            삭제되며 되돌릴 수 없습니다.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <div className="grid gap-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            계속하려면{" "}
+                                            <span className="font-medium text-foreground">
+                                                {deleteConfirmationTarget}
+                                            </span>
+                                            를 입력해 주세요.
+                                        </p>
+                                        <Input
+                                            value={deleteConfirmation}
+                                            onChange={(event) =>
+                                                setDeleteConfirmation(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder={deleteConfirmationTarget}
+                                            aria-label="계정 삭제 확인"
+                                        />
+                                    </div>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                            취소
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                            variant="destructive"
+                                            disabled={
+                                                isDeletingAccount ||
+                                                !isDeleteConfirmationMatched
+                                            }
+                                            onClick={() => {
+                                                void handleDeleteAccount()
+                                            }}
+                                        >
+                                            {isDeletingAccount
+                                                ? "삭제 중..."
+                                                : "내 계정 삭제"}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </Field>
                     </FieldGroup>
                 </FieldSet>

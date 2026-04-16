@@ -5,6 +5,12 @@ export type CalendarRole = "viewer" | "editor" | "manager" | "owner"
 export type CalendarAccessMode = "public_open" | "public_approval" | "private"
 export type CalendarMemberStatus = "active" | "pending"
 
+export const CALENDAR_ACCESS_MODES = [
+    "public_open",
+    "public_approval",
+    "private",
+] as const satisfies readonly CalendarAccessMode[]
+
 function isActiveMember(membership: CalendarMembership) {
     return membership.isMember && membership.status === "active"
 }

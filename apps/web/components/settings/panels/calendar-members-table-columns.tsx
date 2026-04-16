@@ -32,12 +32,14 @@ export type CalendarMemberRow = {
     id: string
     userId: string
     role: "viewer" | "editor" | "manager" | "owner"
+    status: "active" | "pending"
     createdAt: string
     displayName: string
     email: string | null
     avatarUrl: string | null
     isCurrentUser: boolean
     canEditRole: boolean
+    canRemove: boolean
 }
 
 const roleLabelMap: Record<CalendarMemberRow["role"], string> = {
@@ -55,6 +57,7 @@ export function getCalendarMemberColumns({
     canManageMembers,
     getAssignableRoles,
     onRoleChange,
+    onRemove,
 }: {
     canManageMembers: boolean
     getAssignableRoles: (
@@ -64,6 +67,7 @@ export function getCalendarMemberColumns({
         memberId: string,
         nextRole: CalendarMemberRow["role"]
     ) => void | Promise<void>
+    onRemove: (member: CalendarMemberRow) => void
 }): ColumnDef<CalendarMemberRow>[] {
     return [
         ...(canManageMembers
@@ -226,7 +230,10 @@ export function getCalendarMemberColumns({
                                           <Button
                                               variant="ghost"
                                               size="icon-sm"
-                                              disabled={!member.canEditRole}
+                                              disabled={
+                                                  !member.canEditRole &&
+                                                  !member.canRemove
+                                              }
                                           >
                                               <MoreHorizontalIcon />
                                           </Button>
@@ -235,11 +242,12 @@ export function getCalendarMemberColumns({
                                           align="end"
                                           className="w-40"
                                       >
-                                          <DropdownMenuItem>
+                                          <DropdownMenuItem
+                                              variant="destructive"
+                                              disabled={!member.canRemove}
+                                              onSelect={() => onRemove(member)}
+                                          >
                                               멤버 내보내기
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                              계정 삭제
                                           </DropdownMenuItem>
                                       </DropdownMenuContent>
                                   </DropdownMenu>

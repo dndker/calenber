@@ -81,6 +81,20 @@ async function persistDeletedEvent(eventId: string) {
     }
 }
 
+function sortCalendarEvents(events: CalendarEvent[]) {
+    return [...events].sort((a, b) => {
+        if (a.start !== b.start) {
+            return a.start - b.start
+        }
+
+        if (a.createdAt !== b.createdAt) {
+            return a.createdAt - b.createdAt
+        }
+
+        return a.id.localeCompare(b.id)
+    })
+}
+
 export const useCalendarStore = createSSRStore<
     CalendarStoreState & CalendarDragState
 >((set, get) => ({
@@ -101,6 +115,7 @@ export const useCalendarStore = createSSRStore<
     viewport: 0,
     viewportMini: 0,
     moveRange: null,
+    workspacePresence: [],
 
     setMyCalendars: (myCalendars) => set({ myCalendars }),
     setActiveCalendar: (activeCalendar) => set({ activeCalendar }),
@@ -153,6 +168,7 @@ export const useCalendarStore = createSSRStore<
                 status: null,
             },
             eventLayout: "compact",
+            workspacePresence: [],
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
         set((s) => ({
@@ -166,6 +182,7 @@ export const useCalendarStore = createSSRStore<
         })),
 
     setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
+    setWorkspacePresence: (workspacePresence) => set({ workspacePresence }),
 
     setIsCalendarLoading: (value) =>
         set({
@@ -224,7 +241,25 @@ export const useCalendarStore = createSSRStore<
         isEndEdge: false,
     },
 
-    setEvents: (events) => set({ events }),
+    setEvents: (events) => set({ events: sortCalendarEvents(events) }),
+    upsertEventSnapshot: (event) =>
+        set((state) => {
+            const nextEvents = state.events.some((item) => item.id === event.id)
+                ? state.events.map((item) =>
+                      item.id === event.id ? { ...item, ...event } : item
+                  )
+                : [...state.events, event]
+
+            return {
+                events: sortCalendarEvents(nextEvents),
+            }
+        }),
+    removeEventSnapshot: (id) =>
+        set((state) => ({
+            events: state.events.filter((event) => event.id !== id),
+            activeEventId:
+                state.activeEventId === id ? undefined : state.activeEventId,
+        })),
     createEvent: (data) => {
         const { activeCalendar, activeCalendarMembership } = get()
 
@@ -257,7 +292,7 @@ export const useCalendarStore = createSSRStore<
         }
 
         set((s) => ({
-            events: [...s.events, event],
+            events: sortCalendarEvents([...s.events, event]),
             selection: {
                 isSelecting: false,
                 start: null,
@@ -288,8 +323,10 @@ export const useCalendarStore = createSSRStore<
         }
 
         set((s) => ({
-            events: s.events.map((e) =>
-                e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
+            events: sortCalendarEvents(
+                s.events.map((e) =>
+                    e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
+                )
             ),
         }))
 

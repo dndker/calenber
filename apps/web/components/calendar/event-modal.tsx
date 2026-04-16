@@ -28,7 +28,7 @@ import {
 } from "@workspace/ui/components/hover-card"
 
 import { EventPage } from "@/components/calendar/event-page"
-import { useDeleteEvent } from "@/hooks/use-delete-event"
+import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -72,7 +72,6 @@ export const EventModal = React.memo(function EventModal({
     const router = useRouter()
     const pathname = usePathname()
     const isDesktop = useMediaQuery("(min-width: 768px)")
-    const deleteEvent = useDeleteEvent()
     const user = useAuthStore((s) => s.user)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
@@ -116,15 +115,6 @@ export const EventModal = React.memo(function EventModal({
         }
     }, [basePath, eventId, event, router])
 
-    if (!eventId || !event) return null
-
-    const canDelete =
-        activeCalendar?.id === "demo" ||
-        canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
-    const canToggleLock =
-        activeCalendar?.id === "demo" ||
-        canToggleCalendarEventLock(event, activeCalendarMembership, user?.id)
-
     const handleClose = () => {
         if (closeTimerRef.current) {
             window.clearTimeout(closeTimerRef.current)
@@ -144,18 +134,26 @@ export const EventModal = React.memo(function EventModal({
         }, 150)
     }
 
-    const handleDeleteEvenet = async () => {
-        const ok = await deleteEvent(eventId)
-
-        if (ok) {
+    const handleDeleteEvent = useEventDeleteAction({
+        eventId,
+        onSuccess: () => {
             if (closeTimerRef.current) {
                 window.clearTimeout(closeTimerRef.current)
             }
             setIsClosing(false)
             setActiveEventId(undefined)
             router.replace(basePath)
-        }
-    }
+        },
+    })
+
+    if (!eventId || !event) return null
+
+    const canDelete =
+        activeCalendar?.id === "demo" ||
+        canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
+    const canToggleLock =
+        activeCalendar?.id === "demo" ||
+        canToggleCalendarEventLock(event, activeCalendarMembership, user?.id)
 
     const content = <EventPage eventId={eventId} />
 
@@ -386,9 +384,9 @@ export const EventModal = React.memo(function EventModal({
                                                 <DropdownMenuGroup>
                                                     <DropdownMenuItem
                                                         variant="destructive"
-                                                        onClick={
-                                                            handleDeleteEvenet
-                                                        }
+                                                        onClick={() => {
+                                                            void handleDeleteEvent()
+                                                        }}
                                                     >
                                                         <TrashIcon />
                                                         일정 삭제

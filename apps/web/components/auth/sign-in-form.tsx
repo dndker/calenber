@@ -17,7 +17,6 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
 import { AuthFormShell } from "./auth-form-shell"
@@ -52,7 +51,6 @@ export function SignInForm({
     initialVerified?: boolean
     initialNotice?: string | null
 }) {
-    const router = useRouter()
     const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signInWithEmail } = useEmailAuth()
     const form = useForm<SignInValues>({

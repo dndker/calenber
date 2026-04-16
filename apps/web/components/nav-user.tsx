@@ -42,6 +42,7 @@ import {
     SparklesIcon,
     UserPlus,
 } from "lucide-react"
+import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useMemo, useState } from "react"
 
@@ -92,8 +93,9 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                 <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                     <DropdownMenuTrigger asChild>
                         <SidebarMenuButton
+                            disabled={!isLoggedIn}
                             size="lg"
-                            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                            className="opacity-100! data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                         >
                             <Avatar className="h-8 w-8 rounded-lg after:rounded-lg">
                                 <AvatarImage
@@ -191,9 +193,11 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent className="w-auto">
                                             <DropdownMenuGroup>
-                                                <DropdownMenuItem>
-                                                    <PlusSquare />
-                                                    캘린더 생성 또는 참여
+                                                <DropdownMenuItem asChild>
+                                                    <Link href="/discover">
+                                                        <PlusSquare />
+                                                        캘린더 생성 또는 참여
+                                                    </Link>
                                                 </DropdownMenuItem>
                                             </DropdownMenuGroup>
                                             <DropdownMenuSeparator />

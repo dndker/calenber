@@ -1,10 +1,21 @@
+import {
+    canDeleteCalendarEvent,
+    canEditCalendarEvent,
+} from "@/lib/calendar/permissions"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
-import { canEditCalendarEvent } from "@/lib/calendar/permissions"
-import { useAuthStore } from "@/store/useAuthStore"
 import type { CalendarEvent } from "@/store/calendar-store.types"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuGroup,
+    ContextMenuItem,
+    ContextMenuTrigger,
+} from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { usePathname, useRouter } from "next/navigation"
@@ -59,6 +70,12 @@ export const EventItem = memo(
         const canEdit =
             activeCalendar?.id === "demo" ||
             canEditCalendarEvent(event, activeCalendarMembership, user?.id)
+        const canDelete =
+            activeCalendar?.id === "demo" ||
+            canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
+        const handleDeleteEvent = useEventDeleteAction({
+            eventId: event.id,
+        })
 
         const handleMoveStart = (e: React.PointerEvent) => {
             if (!canEdit) {
@@ -121,61 +138,83 @@ export const EventItem = memo(
             : "28px"
 
         return (
-            <div
-                ref={setNodeRef}
-                {...mergedListeners}
-                {...attributes}
-                className={clsx("absolute will-change-transform select-none", {
-                    "event-drag-row opacity-50": isDragging,
-                    "cursor-grab active:cursor-grabbing": overlay && canEdit,
-                })}
-                style={{
-                    ...pos,
-                    width: overlay ? "100%" : pos?.width,
-                    top: itemTop,
-                    left: overlay ? "0" : pos?.left,
-                    height: overlay ? "100%" : itemHeight,
-                    zIndex: isDragging ? 100 : 1,
-                    // background: event.color,
-                }}
-            >
-                <div
-                    onPointerDown={handleResizeStart}
-                    className={cn(
-                        "absolute top-0 left-0 z-1 h-full w-1 bg-transparent",
-                        canEdit && "cursor-ew-resize"
-                    )}
-                />
+            <ContextMenu>
+                <ContextMenuTrigger asChild>
+                    <div
+                        ref={setNodeRef}
+                        {...mergedListeners}
+                        {...attributes}
+                        className={clsx(
+                            "absolute will-change-transform select-none",
+                            {
+                                "event-drag-row opacity-50": isDragging,
+                                "cursor-grab active:cursor-grabbing":
+                                    overlay && canEdit,
+                            }
+                        )}
+                        style={{
+                            ...pos,
+                            width: overlay ? "100%" : pos?.width,
+                            top: itemTop,
+                            left: overlay ? "0" : pos?.left,
+                            height: overlay ? "100%" : itemHeight,
+                            zIndex: isDragging ? 100 : 1,
+                            // background: event.color,
+                        }}
+                    >
+                        <div
+                            onPointerDown={handleResizeStart}
+                            className={cn(
+                                "absolute top-0 left-0 z-1 h-full w-1 bg-transparent",
+                                canEdit && "cursor-ew-resize"
+                            )}
+                        />
 
-                <Button
-                    variant="outline"
-                    className={cn(
-                        "pointer-events-auto h-full w-full justify-start overflow-hidden rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
-                        useSplitLayout
-                            ? "items-start py-1.5 text-left"
-                            : "py-1",
-                        eventLayout === "split" && "items-center justify-center"
-                    )}
-                    onClick={() => {
-                        setActiveEventId(event.id)
-                        startTransition(() => {
-                            router.push(
-                                `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(event.id)}`
-                            )
-                        })
-                    }}
-                >
-                    {event.title === "" ? "새 일정" : event.title}
-                </Button>
+                        <Button
+                            variant="outline"
+                            className={cn(
+                                "pointer-events-auto h-full w-full justify-start overflow-hidden rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                useSplitLayout
+                                    ? "items-start py-1.5 text-left"
+                                    : "py-1",
+                                eventLayout === "split" &&
+                                    "items-center justify-center"
+                            )}
+                            onClick={() => {
+                                setActiveEventId(event.id)
+                                startTransition(() => {
+                                    router.push(
+                                        `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(event.id)}`
+                                    )
+                                })
+                            }}
+                        >
+                            {event.title === "" ? "새 일정" : event.title}
+                        </Button>
 
-                <div
-                    onPointerDown={handleResizeEnd}
-                    className={cn(
-                        "absolute top-0 right-0 z-100 h-full w-1 bg-transparent",
-                        canEdit && "hover:cursor-ew-resize"
-                    )}
-                />
-            </div>
+                        <div
+                            onPointerDown={handleResizeEnd}
+                            className={cn(
+                                "absolute top-0 right-0 z-100 h-full w-1 bg-transparent",
+                                canEdit && "hover:cursor-ew-resize"
+                            )}
+                        />
+                    </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="w-48">
+                    <ContextMenuGroup>
+                        <ContextMenuItem
+                            variant="destructive"
+                            disabled={!canDelete}
+                            onSelect={() => {
+                                void handleDeleteEvent()
+                            }}
+                        >
+                            일정 삭제
+                        </ContextMenuItem>
+                    </ContextMenuGroup>
+                </ContextMenuContent>
+            </ContextMenu>
         )
     },
     (prev, next) => {

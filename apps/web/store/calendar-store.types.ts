@@ -59,6 +59,13 @@ export type CalendarEventDraft = Omit<
 > &
     Partial<Pick<CalendarEvent, "authorId" | "author" | "isLocked">>
 
+export type CalendarWorkspacePresenceMember = {
+    id: string
+    displayName: string
+    avatarUrl: string | null
+    isAnonymous: boolean
+}
+
 export type DragMode = "move" | "resize-start" | "resize-end"
 
 export type DragState = {
@@ -89,6 +96,7 @@ export type CalendarStoreState = {
     viewport: number
     viewportMini: number
     moveRange: { start: number; end: number } | null
+    workspacePresence: CalendarWorkspacePresenceMember[]
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
     setActiveCalendarMembership: (membership: CalendarMembership) => void
@@ -99,6 +107,9 @@ export type CalendarStoreState = {
         patch: Partial<CalendarSummary>
     ) => void
     setCalendarTimezone: (tz: string) => void
+    setWorkspacePresence: (
+        members: CalendarWorkspacePresenceMember[]
+    ) => void
     setIsCalendarLoading: (value: boolean) => void
     setActiveEventId: (eventId?: string) => void
     setEventLayout: (layout: CalendarEventLayout) => void
@@ -107,6 +118,8 @@ export type CalendarStoreState = {
     setViewportMiniDate: (date: Date) => void
     events: CalendarEvent[]
     setEvents: (events: CalendarEvent[]) => void
+    upsertEventSnapshot: (event: CalendarEvent) => void
+    removeEventSnapshot: (id: string) => void
     createEvent: (data: CalendarEventDraft) => string | null
     updateEvent: (id: string, patch: Partial<CalendarEvent>) => boolean
     deleteEvent: (id: string) => boolean

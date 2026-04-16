@@ -1,10 +1,9 @@
 import { Geist_Mono, Inter } from "next/font/google"
-
-import { ThemeContextProvider } from "@/components/provider/theme-context"
-import type { Theme } from "@/components/provider/theme-context"
-import { ThemeProvider } from "@/components/provider/theme-provider"
 import { AuthSync } from "@/components/provider/auth-sync"
 import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
+import type { Theme } from "@/components/provider/theme-context"
+import { ThemeContextProvider } from "@/components/provider/theme-context"
+import { ThemeProvider } from "@/components/provider/theme-provider"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
@@ -28,9 +27,15 @@ const fontMono = Geist_Mono({
 const APP_DEFAULT_TITLE = "캘린버"
 const APP_TITLE_TEMPLATE = "%s - 캘린버"
 const APP_DESCRIPTION = "일정, 그 이상을 기억하다."
+const APP_URL =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000")
 
 export const metadata: Metadata = {
     applicationName: "캘린버",
+    metadataBase: new URL(APP_URL),
     title: {
         default: APP_DEFAULT_TITLE,
         template: APP_TITLE_TEMPLATE,

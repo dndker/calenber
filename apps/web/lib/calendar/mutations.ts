@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
+import type { CalendarAccessMode } from "@/lib/calendar/permissions"
 import type { CalendarMembership } from "@/lib/calendar/queries"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 
@@ -30,6 +31,54 @@ export async function createCalendarEvent(
 
     if (error || !data) {
         console.error("Failed to create calendar event:", error)
+        return null
+    }
+
+    return data
+}
+
+export async function createCalendar(
+    supabase: SupabaseClient,
+    input: {
+        name: string
+        accessMode: CalendarAccessMode
+    }
+) {
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+        return null
+    }
+
+    const { data, error } = await supabase
+        .from("calendars")
+        .insert({
+            name: input.name,
+            access_mode: input.accessMode,
+            created_by: user.id,
+        })
+        .select("id")
+        .single()
+
+    if (!data || error) {
+        console.error("Failed to create calendar:", error)
+        return null
+    }
+
+    const { error: membershipError } = await supabase
+        .from("calendar_members")
+        .insert({
+            calendar_id: data.id,
+            user_id: user.id,
+            role: "owner",
+            status: "active",
+        })
+
+    if (membershipError) {
+        console.error("Failed to create calendar owner membership:", membershipError)
+        await supabase.from("calendars").delete().eq("id", data.id)
         return null
     }
 
@@ -124,6 +173,17 @@ export async function deleteOwnedCalendar(
 
     if (error) {
         console.error("Failed to delete calendar:", error)
+        return false
+    }
+
+    return true
+}
+
+export async function deleteCurrentUserAccount(supabase: SupabaseClient) {
+    const { error } = await supabase.rpc("delete_current_user_account")
+
+    if (error) {
+        console.error("Failed to delete current user account:", error)
         return false
     }
 
