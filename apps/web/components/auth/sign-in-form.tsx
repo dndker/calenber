@@ -78,7 +78,7 @@ export function SignInForm({
         }
 
         if (result.ok) {
-            await routeToPostAuthCalendar()
+            await routeToPostAuthCalendar(result.user)
         }
     }
 

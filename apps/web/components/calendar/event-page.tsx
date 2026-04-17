@@ -2,6 +2,7 @@
 
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { useCreateEvent } from "@/hooks/use-create-event"
+import { CalendarEventPresenceGroup } from "@/components/calendar/calendar-event-presence-group"
 import {
     defaultContent,
     type CalendarEvent,
@@ -72,12 +73,17 @@ export function EventPage({ eventId }: { eventId?: string }) {
         canEditCalendarEvent(event, activeCalendarMembership, user?.id)
 
     return (
-        <EventForm
-            event={event}
-            disabled={!canEdit}
-            onChange={(patch) => {
-                updateEvent(event.id, patch)
-            }}
-        />
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-end">
+                <CalendarEventPresenceGroup eventId={event.id} />
+            </div>
+            <EventForm
+                event={event}
+                disabled={!canEdit}
+                onChange={(patch) => {
+                    updateEvent(event.id, patch)
+                }}
+            />
+        </div>
     )
 }

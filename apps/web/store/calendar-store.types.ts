@@ -3,6 +3,7 @@ import type {
     CalendarSummary,
     MyCalendarItem,
 } from "@/lib/calendar/queries"
+import type { CalendarWorkspaceCursor } from "@/lib/calendar/realtime"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
 
@@ -61,9 +62,11 @@ export type CalendarEventDraft = Omit<
 
 export type CalendarWorkspacePresenceMember = {
     id: string
+    userId: string | null
     displayName: string
     avatarUrl: string | null
     isAnonymous: boolean
+    cursor?: CalendarWorkspaceCursor
 }
 
 export type DragMode = "move" | "resize-start" | "resize-end"
@@ -96,6 +99,8 @@ export type CalendarStoreState = {
     viewport: number
     viewportMini: number
     moveRange: { start: number; end: number } | null
+    isWorkspacePresenceLoading: boolean
+    workspaceCursor: CalendarWorkspaceCursor | null
     workspacePresence: CalendarWorkspacePresenceMember[]
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
@@ -107,6 +112,8 @@ export type CalendarStoreState = {
         patch: Partial<CalendarSummary>
     ) => void
     setCalendarTimezone: (tz: string) => void
+    setIsWorkspacePresenceLoading: (isLoading: boolean) => void
+    setWorkspaceCursor: (cursor: CalendarWorkspaceCursor | null) => void
     setWorkspacePresence: (
         members: CalendarWorkspacePresenceMember[]
     ) => void

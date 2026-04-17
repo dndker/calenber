@@ -29,11 +29,13 @@ import {
 
 import { EventPage } from "@/components/calendar/event-page"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { formatRelativeTime } from "@/lib/dayjs"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Avatar,
     AvatarFallback,
+    AvatarGroup,
     AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
@@ -46,6 +48,7 @@ import {
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Separator } from "@workspace/ui/components/separator"
+import { Switch } from "@workspace/ui/components/switch"
 import {
     Tooltip,
     TooltipContent,
@@ -60,7 +63,7 @@ import {
     LockOpenIcon,
     Maximize2,
     ShareIcon,
-    Star,
+    StarIcon,
     TrashIcon,
 } from "lucide-react"
 
@@ -111,9 +114,10 @@ export const EventModal = React.memo(function EventModal({
 
     React.useEffect(() => {
         if (eventId && !event) {
+            setActiveEventId(undefined)
             router.replace(basePath)
         }
-    }, [basePath, eventId, event, router])
+    }, [basePath, eventId, event, router, setActiveEventId])
 
     const handleClose = () => {
         if (closeTimerRef.current) {
@@ -253,6 +257,83 @@ export const EventModal = React.memo(function EventModal({
                                 </Tooltip>
                             </div>
                             <div className="flex items-center gap-1.25">
+                                {event?.author &&
+                                    activeCalendarMembership.isMember && (
+                                        <HoverCard
+                                            openDelay={10}
+                                            closeDelay={100}
+                                        >
+                                            <HoverCardTrigger className="mr-0.5">
+                                                <AvatarGroup>
+                                                    <Avatar className="size-5.75">
+                                                        <AvatarImage
+                                                            src={
+                                                                event.author
+                                                                    .avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                event.author
+                                                                    .name ??
+                                                                "작성자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback>
+                                                            {event.author.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                </AvatarGroup>
+                                            </HoverCardTrigger>
+                                            <HoverCardContent
+                                                className="flex w-auto min-w-44 flex-col p-0! px-3 shadow-sm"
+                                                align="end"
+                                            >
+                                                <div className="px-3 pt-2 text-xs font-medium text-muted-foreground">
+                                                    관련 작업자
+                                                </div>
+                                                <div className="flex gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
+                                                    <Avatar className="size-6">
+                                                        <AvatarImage
+                                                            src={
+                                                                event.author
+                                                                    .avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                event.author
+                                                                    .name ??
+                                                                "작성자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback>
+                                                            {event.author.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                                        <div className="truncate font-medium text-primary">
+                                                            {event.author
+                                                                .name ??
+                                                                "이름 없음"}
+                                                        </div>
+                                                        {event.author.email && (
+                                                            <div
+                                                                className="truncate text-xs"
+                                                                suppressHydrationWarning
+                                                            >
+                                                                {formatRelativeTime(
+                                                                    event.updatedAt
+                                                                )}{" "}
+                                                                수정
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </HoverCardContent>
+                                        </HoverCard>
+                                    )}
+
                                 {activeCalendarMembership.isMember && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -262,7 +343,7 @@ export const EventModal = React.memo(function EventModal({
                                                 size="icon"
                                                 className="size-7"
                                             >
-                                                <Star className="size-4.25 text-muted-foreground" />
+                                                <StarIcon className="size-4.25 text-muted-foreground" />
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
@@ -273,65 +354,27 @@ export const EventModal = React.memo(function EventModal({
                                     </Tooltip>
                                 )}
 
-                                {event?.author &&
-                                    activeCalendarMembership.isMember && (
-                                        <HoverCard
-                                            openDelay={10}
-                                            closeDelay={100}
-                                        >
-                                            <HoverCardTrigger>
-                                                <Avatar className="size-5.75">
-                                                    <AvatarImage
-                                                        src={
-                                                            event.author
-                                                                .avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            event.author.name ??
-                                                            "작성자"
-                                                        }
-                                                    />
-                                                    <AvatarFallback>
-                                                        {event.author.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                            </HoverCardTrigger>
-                                            <HoverCardContent
-                                                className="flex w-auto items-center gap-2.5 px-3 text-sm text-muted-foreground shadow-sm"
-                                                align="end"
-                                            >
-                                                <Avatar className="size-9">
-                                                    <AvatarImage
-                                                        src={
-                                                            event.author
-                                                                .avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            event.author.name ??
-                                                            "작성자"
-                                                        }
-                                                    />
-                                                    <AvatarFallback>
-                                                        {event.author.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex min-w-0 flex-col gap-0.5">
-                                                    <div className="truncate font-medium text-primary">
-                                                        {event.author.name ??
-                                                            "이름 없음"}
-                                                    </div>
-                                                    {event.author.email && (
-                                                        <div className="truncate text-xs">
-                                                            {event.author.email}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </HoverCardContent>
-                                        </HoverCard>
+                                {event?.isLocked &&
+                                    activeCalendarMembership.isMember &&
+                                    user?.id !== event?.authorId && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    tabIndex={-1}
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="size-7"
+                                                >
+                                                    <LockIcon className="size-4.25 text-muted-foreground" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="text-sm font-medium">
+                                                    이 일정은 수정할 수
+                                                    없습니다.
+                                                </p>
+                                            </TooltipContent>
+                                        </Tooltip>
                                     )}
 
                                 <DropdownMenu>
@@ -360,6 +403,10 @@ export const EventModal = React.memo(function EventModal({
                                             </DropdownMenuItem>
                                             {canToggleLock && (
                                                 <DropdownMenuItem
+                                                    className="min-w-40 gap-3"
+                                                    onSelect={(event) => {
+                                                        event.preventDefault()
+                                                    }}
                                                     onClick={() => {
                                                         updateEvent(event.id, {
                                                             isLocked:
@@ -367,14 +414,21 @@ export const EventModal = React.memo(function EventModal({
                                                         })
                                                     }}
                                                 >
-                                                    {event.isLocked ? (
-                                                        <LockOpenIcon />
-                                                    ) : (
-                                                        <LockIcon />
-                                                    )}
-                                                    {event.isLocked
-                                                        ? "잠금 해제"
-                                                        : "수정 잠금"}
+                                                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                                        {event.isLocked ? (
+                                                            <LockIcon />
+                                                        ) : (
+                                                            <LockOpenIcon />
+                                                        )}
+                                                        <div className="flex min-w-0 flex-1 flex-col">
+                                                            일정 잠금
+                                                        </div>
+                                                    </div>
+                                                    <Switch
+                                                        size="sm"
+                                                        checked={event.isLocked}
+                                                        aria-label="일정 수정 잠금"
+                                                    />
                                                 </DropdownMenuItem>
                                             )}
                                         </DropdownMenuGroup>

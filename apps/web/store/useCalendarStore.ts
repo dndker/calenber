@@ -20,8 +20,8 @@ import type {
     CalendarEventDraft,
     CalendarStoreState,
 } from "./calendar-store.types"
-import { useAuthStore } from "./useAuthStore"
 import { createSSRStore } from "./createSSRStore"
+import { useAuthStore } from "./useAuthStore"
 
 function getPersistableCalendarId() {
     const calendarId = useCalendarStore.getState().activeCalendar?.id
@@ -95,6 +95,55 @@ function sortCalendarEvents(events: CalendarEvent[]) {
     })
 }
 
+function isSameWorkspaceCursor(
+    prev: CalendarStoreState["workspaceCursor"],
+    next: CalendarStoreState["workspaceCursor"]
+) {
+    if (prev === next) {
+        return true
+    }
+
+    if (!prev || !next) {
+        return false
+    }
+
+    return (
+        prev.type === next.type &&
+        prev.date === next.date &&
+        prev.eventId === next.eventId
+    )
+}
+
+function isSameWorkspacePresence(
+    prev: CalendarStoreState["workspacePresence"],
+    next: CalendarStoreState["workspacePresence"]
+) {
+    if (prev === next) {
+        return true
+    }
+
+    if (prev.length !== next.length) {
+        return false
+    }
+
+    return prev.every((member, index) => {
+        const target = next[index]
+
+        if (!target) {
+            return false
+        }
+
+        return (
+            member.id === target.id &&
+            member.userId === target.userId &&
+            member.displayName === target.displayName &&
+            member.avatarUrl === target.avatarUrl &&
+            member.isAnonymous === target.isAnonymous &&
+            isSameWorkspaceCursor(member.cursor ?? null, target.cursor ?? null)
+        )
+    })
+}
+
 export const useCalendarStore = createSSRStore<
     CalendarStoreState & CalendarDragState
 >((set, get) => ({
@@ -115,6 +164,8 @@ export const useCalendarStore = createSSRStore<
     viewport: 0,
     viewportMini: 0,
     moveRange: null,
+    isWorkspacePresenceLoading: false,
+    workspaceCursor: null,
     workspacePresence: [],
 
     setMyCalendars: (myCalendars) => set({ myCalendars }),
@@ -168,12 +219,16 @@ export const useCalendarStore = createSSRStore<
                 status: null,
             },
             eventLayout: "compact",
+            isWorkspacePresenceLoading: false,
+            workspaceCursor: null,
             workspacePresence: [],
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
         set((s) => ({
             myCalendars: s.myCalendars.map((calendar) =>
-                calendar.id === calendarId ? { ...calendar, ...patch } : calendar
+                calendar.id === calendarId
+                    ? { ...calendar, ...patch }
+                    : calendar
             ),
             activeCalendar:
                 s.activeCalendar?.id === calendarId
@@ -182,7 +237,20 @@ export const useCalendarStore = createSSRStore<
         })),
 
     setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
-    setWorkspacePresence: (workspacePresence) => set({ workspacePresence }),
+    setIsWorkspacePresenceLoading: (isWorkspacePresenceLoading) =>
+        set({ isWorkspacePresenceLoading }),
+    setWorkspaceCursor: (workspaceCursor) =>
+        set((state) =>
+            isSameWorkspaceCursor(state.workspaceCursor, workspaceCursor)
+                ? state
+                : { workspaceCursor }
+        ),
+    setWorkspacePresence: (workspacePresence) =>
+        set((state) =>
+            isSameWorkspacePresence(state.workspacePresence, workspacePresence)
+                ? state
+                : { workspacePresence }
+        ),
 
     setIsCalendarLoading: (value) =>
         set({
@@ -316,7 +384,11 @@ export const useCalendarStore = createSSRStore<
 
         if (
             state.activeCalendar?.id !== "demo" &&
-            !canEditCalendarEvent(event, state.activeCalendarMembership, currentUserId)
+            !canEditCalendarEvent(
+                event,
+                state.activeCalendarMembership,
+                currentUserId
+            )
         ) {
             toast.error("이 일정은 수정할 수 없습니다.")
             return false

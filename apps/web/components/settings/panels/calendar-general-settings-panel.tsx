@@ -280,10 +280,17 @@ export function CalendarGeneralSettingsPanel() {
                 }
             }
 
-            const ok = await deleteOwnedCalendar(supabase, activeCalendar.id)
+            const deleteResult = await deleteOwnedCalendar(
+                supabase,
+                activeCalendar.id
+            )
 
-            if (!ok) {
-                toast.error("캘린더를 삭제하지 못했습니다.")
+            if (deleteResult !== true) {
+                toast.error(
+                    deleteResult === "You must keep at least one owned calendar"
+                        ? "최소 하나의 소유 캘린더는 남아 있어야 합니다."
+                        : "캘린더를 삭제하지 못했습니다."
+                )
                 return
             }
 

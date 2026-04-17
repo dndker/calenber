@@ -1,3 +1,4 @@
+import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
@@ -6,7 +7,6 @@ import { getCalendarBasePath } from "@/lib/calendar/routes"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useDraggable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -18,6 +18,7 @@ import {
 } from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
+import { LockIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, startTransition, useEffect, useRef } from "react"
 
@@ -116,7 +117,9 @@ export const EventItem = memo(
         useEffect(() => {
             if (!isDragging) return
 
-            startDrag(event, "move", dragIndexRef.current)
+            if (!event.isLocked) {
+                startDrag(event, "move", dragIndexRef.current)
+            }
 
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
@@ -141,14 +144,15 @@ export const EventItem = memo(
             <ContextMenu>
                 <ContextMenuTrigger asChild>
                     <div
-                        ref={setNodeRef}
+                        ref={event.isLocked ? null : setNodeRef}
                         {...mergedListeners}
                         {...attributes}
                         className={clsx(
                             "absolute will-change-transform select-none",
                             {
-                                "event-drag-row opacity-50": isDragging,
-                                "cursor-grab active:cursor-grabbing":
+                                "event-drag-row opacity-50":
+                                    isDragging && !event.isLocked,
+                                "cursor-grab! active:cursor-grabbing!":
                                     overlay && canEdit,
                             }
                         )}
@@ -173,7 +177,7 @@ export const EventItem = memo(
                         <Button
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto h-full w-full justify-start overflow-hidden rounded px-1 transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto h-full w-full items-center justify-start gap-1 overflow-hidden rounded px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
                                     : "py-1",
@@ -189,7 +193,12 @@ export const EventItem = memo(
                                 })
                             }}
                         >
-                            {event.title === "" ? "새 일정" : event.title}
+                            {event.isLocked && (
+                                <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                            <span className="flex-1 truncate overflow-hidden">
+                                {event.title === "" ? "새 일정" : event.title}
+                            </span>
                         </Button>
 
                         <div

@@ -69,7 +69,7 @@ export function SignUpForm() {
         }
 
         if (result.ok && !result.requiresEmailVerification) {
-            await routeToPostAuthCalendar()
+            await routeToPostAuthCalendar(result.user)
         }
     }
 

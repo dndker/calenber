@@ -126,10 +126,10 @@ export function NavActions() {
                 asChild
                 size="sm"
             >
-                <Link href="/docs">
+                <a href="/docs">
                     <Info />
                     Support
-                </Link>
+                </a>
             </Button>
 
             {!isLoggedIn && (

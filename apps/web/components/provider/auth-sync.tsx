@@ -15,10 +15,10 @@ export function AuthSync() {
 
         const syncUser = async () => {
             const {
-                data: { user },
-            } = await supabase.auth.getUser()
+                data: { session },
+            } = await supabase.auth.getSession()
 
-            setUser(mapUser(user))
+            setUser(mapUser(session?.user ?? null))
             setLoading(false)
         }
 
@@ -28,8 +28,8 @@ export function AuthSync() {
             data: { subscription },
         } = supabase.auth.onAuthStateChange(
             (_event: AuthChangeEvent, session: Session | null) => {
-            setUser(mapUser(session?.user ?? null))
-            setLoading(false)
+                setUser(mapUser(session?.user ?? null))
+                setLoading(false)
             }
         )
 

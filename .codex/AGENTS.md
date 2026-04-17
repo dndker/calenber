@@ -1,0 +1,2 @@
+- bun 사용
+- 기존 supabase/migration 안에 있는 sql파일 수정 금지
