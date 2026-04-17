@@ -152,7 +152,7 @@ export const EventItem = memo(
                             {
                                 "event-drag-row opacity-50":
                                     isDragging && !event.isLocked,
-                                "cursor-grab active:cursor-grabbing":
+                                "cursor-grab! active:cursor-grabbing!":
                                     overlay && canEdit,
                             }
                         )}

@@ -689,6 +689,12 @@ export function useCalendarWorkspaceRealtime() {
             realtime.connect?.()
         }
 
+        const markChannelAsStale = (targetChannel: RealtimeChannel) => {
+            if (channelRef.current === targetChannel) {
+                channelRef.current = null
+            }
+        }
+
         const scheduleReconnect = (
             status: Exclude<CalendarWorkspaceRealtimeStatus, "SUBSCRIBED">
         ) => {
@@ -869,10 +875,10 @@ export function useCalendarWorkspaceRealtime() {
                         )
                     ) {
                         setPresenceLoading(true)
+                        markChannelAsStale(nextChannel)
                         latestPresenceKeyRef.current = null
                         latestCursorBroadcastKeyRef.current = null
                         latestCursorSnapshotRequestKeyRef.current = null
-                        await removeChannel(nextChannel)
 
                         if (typedStatus === "TIMED_OUT") {
                             timeoutCountRef.current += 1

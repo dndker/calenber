@@ -25,6 +25,9 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
     turbopack: {},
+    experimental: {
+        allowDevelopmentBuild: true,
+    },
     compiler: {
         removeConsole:
             process.env.NODE_ENV === "production"

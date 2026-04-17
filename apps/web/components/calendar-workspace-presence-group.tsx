@@ -183,72 +183,68 @@ export function CalendarWorkspacePresenceGroup() {
                     </div>
                 )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-47">
-                <DropdownMenuLabel>온라인 멤버</DropdownMenuLabel>
-                {isLoading && members.length === 0 && (
-                    <div className="flex items-center gap-2 px-2 py-3 text-sm text-muted-foreground">
-                        <Spinner className="size-4" />
-                        <span>온라인 멤버 불러오는 중</span>
-                    </div>
-                )}
-                {sortedMembers.map((user) => (
-                    <DropdownMenuItem
-                        key={user.id}
-                        asChild
-                        onClick={() => {
-                            setSelectedDate(
-                                dayjs
-                                    .tz(user.cursor?.date, calendarTimezone)
-                                    .toDate()
-                            )
-                        }}
-                    >
-                        <div className="flex items-start gap-2 overflow-hidden">
-                            <Avatar className="mt-1 size-6.5 shrink-0">
-                                <AvatarImage
-                                    src={user.avatarUrl || undefined}
-                                    alt={user.displayName}
-                                />
-                                <AvatarFallback
-                                    className={cn(
-                                        "text-xs",
-                                        user.isAnonymous && "text-[10px]!"
-                                    )}
-                                >
-                                    {user.isAnonymous
-                                        ? "익명"
-                                        : user.displayName?.[0]?.toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                <div className="flex flex-1 items-center gap-1">
-                                    <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                        {user.displayName}
+            {sortedMembers.length > 0 && (
+                <DropdownMenuContent align="end" className="w-47">
+                    <DropdownMenuLabel>온라인 멤버</DropdownMenuLabel>
+                    {sortedMembers.map((user) => (
+                        <DropdownMenuItem
+                            key={user.id}
+                            asChild
+                            onClick={() => {
+                                setSelectedDate(
+                                    dayjs
+                                        .tz(user.cursor?.date, calendarTimezone)
+                                        .toDate()
+                                )
+                            }}
+                        >
+                            <div className="flex items-start gap-2 overflow-hidden">
+                                <Avatar className="mt-1 size-6.5 shrink-0">
+                                    <AvatarImage
+                                        src={user.avatarUrl || undefined}
+                                        alt={user.displayName}
+                                    />
+                                    <AvatarFallback
+                                        className={cn(
+                                            "text-xs",
+                                            user.isAnonymous && "text-[10px]!"
+                                        )}
+                                    >
+                                        {user.isAnonymous
+                                            ? "익명"
+                                            : user.displayName?.[0]?.toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
+                                    <div className="flex flex-1 items-center gap-1">
+                                        <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
+                                            {user.displayName}
+                                        </span>
+                                        {(myUserId
+                                            ? user.userId === myUserId
+                                            : myId === user.id) && (
+                                            <Badge
+                                                variant="outline"
+                                                className="shrink-0 px-1.75 leading-normal"
+                                            >
+                                                나
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <span className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]">
+                                        {getPresenceCursorLabel(
+                                            user.cursor,
+                                            getEventTitle,
+                                            selectedDate,
+                                            calendarTimezone
+                                        )}
                                     </span>
-                                    {(myUserId
-                                        ? user.userId === myUserId
-                                        : myId === user.id) && (
-                                        <Badge
-                                            variant="outline"
-                                            className="shrink-0 px-1.75 leading-normal"
-                                        >
-                                            나
-                                        </Badge>
-                                    )}
                                 </div>
-                                <span className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]">
-                                    {getPresenceCursorLabel(
-                                        user.cursor,
-                                        getEventTitle,
-                                        selectedDate,
-                                        calendarTimezone
-                                    )}
-                                </span>
                             </div>
-                        </div>
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            )}
         </DropdownMenu>
     )
 }
