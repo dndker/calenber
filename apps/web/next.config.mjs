@@ -5,7 +5,8 @@ export const DOCS_URL =
     process.env.NEXT_PUBLIC_DOCS_URL || "http://localhost:3001"
 
 const withPWA = withPWAInit({
-    disable: process.env.NODE_ENV !== "production",
+    // disable: process.env.NODE_ENV !== "production",
+    disable: true,
     // register: true,
     dest: "public",
     fallbacks: {
@@ -27,12 +28,12 @@ const nextConfig = {
     productionBrowserSourceMaps: true,
     turbopack: {},
     compiler: {
-        removeConsole:
-            process.env.NODE_ENV === "production"
-                ? {
-                      exclude: ["error", "warn"],
-                  }
-                : false,
+        // removeConsole:
+        //     process.env.NODE_ENV === "production"
+        //         ? {
+        //               exclude: ["error", "warn"],
+        //           }
+        //         : false,
     },
     transpilePackages: ["@workspace/ui"],
     async rewrites() {
