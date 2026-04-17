@@ -24,6 +24,7 @@ const withPWA = withPWAInit({
 })
 
 const nextConfig = {
+    productionBrowserSourceMaps: true,
     turbopack: {},
     compiler: {
         removeConsole:
