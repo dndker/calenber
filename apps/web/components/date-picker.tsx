@@ -1,4 +1,4 @@
-import { useNow } from "@/hooks/use-now"
+import { useCalendarToday } from "@/hooks/use-calendar-today"
 import { useOpenEvent } from "@/hooks/use-open-event"
 import { createCalendarMembership } from "@/lib/calendar/mutations"
 import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
@@ -29,7 +29,7 @@ export const DatePicker = memo(function DatePicker() {
     const applyActiveCalendarMembership = useCalendarStore(
         (s) => s.applyActiveCalendarMembership
     )
-    const now = useNow(calendarTimezone)
+    const { today } = useCalendarToday(calendarTimezone)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const viewportMini = useCalendarStore((s) => s.viewportMini)
     const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
@@ -39,10 +39,10 @@ export const DatePicker = memo(function DatePicker() {
 
     const isToday = useMemo(() => {
         return (
-            dayjs(now).isSame(selectedDate, "day") &&
-            dayjs(now).isSame(viewportMini, "month")
+            today.isSame(selectedDate, "day") &&
+            today.isSame(viewportMini, "month")
         )
-    }, [now, selectedDate, viewportMini])
+    }, [today, selectedDate, viewportMini])
     const month = useMemo(
         () =>
             dayjs
@@ -64,7 +64,7 @@ export const DatePicker = memo(function DatePicker() {
     )
 
     const onClickToday = () => {
-        const nowTz = dayjs().tz(calendarTimezone)
+        const nowTz = today
 
         setViewportMiniDate(nowTz.startOf("month").toDate())
         setViewportDate(nowTz.toDate())

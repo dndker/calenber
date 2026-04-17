@@ -1,10 +1,22 @@
-import { useNow } from "@/hooks/use-now"
+import { useCalendarToday } from "@/hooks/use-calendar-today"
 import { useOpenEvent } from "@/hooks/use-open-event"
 import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
+import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+} from "@workspace/ui/components/avatar"
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from "@workspace/ui/components/hover-card"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { memo, useCallback, useMemo, useRef } from "react"
@@ -23,35 +35,62 @@ export const DayCell = memo(
         const endSelectionStore = useCalendarStore((s) => s.endSelection)
         const selection = useCalendarStore((s) => s.selection)
         const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
+        const workspacePresence = useCalendarStore(
+            (s): CalendarWorkspacePresenceMember[] => s.workspacePresence
+        )
+        const user = useAuthStore((s) => s.user)
 
         const isDraggingRef = useRef(false)
-        const clickTimeout = useRef<NodeJS.Timeout | null>(null)
+        const cellDate = useMemo(() => {
+            return dayjs.tz(day, calendarTz).format("YYYY-MM-DD")
+        }, [calendarTz, day])
 
         const { setNodeRef } = useDroppable({
-            id: dayjs(day).format("YYYY-MM-DD"),
+            id: cellDate,
         })
 
-        const now = useNow(calendarTz)
         const dayValue = useMemo(() => {
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
+        const { todayDate } = useCalendarToday(calendarTz)
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
         const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
         const setViewportMiniDate = useCalendarStore(
             (s) => s.setViewportMiniDate
         )
+        const myPresenceId =
+            user?.id ??
+            (typeof window !== "undefined"
+                ? sessionStorage.getItem("calendar-workspace-anonymous-id")
+                : null)
+
+        const cellMembers = useMemo(() => {
+            return workspacePresence
+                .filter((member) => {
+                    if (member.id === myPresenceId) {
+                        return false
+                    }
+
+                    return member.cursor?.date === cellDate
+                })
+                .sort((a, b) => {
+                    if (a.cursor?.type !== b.cursor?.type) {
+                        return a.cursor?.type === "event" ? -1 : 1
+                    }
+
+                    return a.displayName.localeCompare(b.displayName, "ko")
+                })
+        }, [cellDate, myPresenceId, workspacePresence])
 
         const handleClick = useCallback(() => {
-            if (isDraggingRef.current) return
-
-            if (clickTimeout.current) {
-                clearTimeout(clickTimeout.current)
+            if (isDraggingRef.current) {
+                isDraggingRef.current = false
+                return
             }
-            clickTimeout.current = setTimeout(() => {
-                setSelectedDate(day)
-                setViewportMiniDate(day)
-            }, 150)
+
+            setSelectedDate(day)
+            setViewportMiniDate(day)
         }, [day, setSelectedDate, setViewportMiniDate])
 
         const handleDoubleClick = () => {
@@ -60,10 +99,6 @@ export const DayCell = memo(
                 !canCreateCalendarEvents(activeCalendarMembership)
             ) {
                 return
-            }
-
-            if (clickTimeout.current) {
-                clearTimeout(clickTimeout.current)
             }
 
             const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
@@ -87,11 +122,14 @@ export const DayCell = memo(
                 return
             }
             isDraggingRef.current = false
+            // updateCellCursor()
 
             startSelection(dayValue)
         }
 
         const handlePointerEnter = () => {
+            // updateCellCursor()
+
             if (!isSelecting) return
             isDraggingRef.current = true
             updateSelection(dayValue)
@@ -124,9 +162,14 @@ export const DayCell = memo(
             return dayValue >= s.selection.start && dayValue <= s.selection.end
         })
 
+        const isCellMember = useMemo(
+            () => cellMembers.length > 0,
+            [cellMembers.length]
+        )
+
         return (
             <div
-                data-date={dayjs(day).format("YYYY-MM-DD")}
+                data-date={cellDate}
                 ref={setNodeRef}
                 onPointerDown={handlePointerDown}
                 onPointerEnter={handlePointerEnter}
@@ -134,7 +177,7 @@ export const DayCell = memo(
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 className={cn(
-                    "flex flex-col p-3 text-sm font-medium select-none",
+                    "relative flex flex-col p-3 text-sm font-medium select-none",
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/50 text-muted-foreground/60",
@@ -146,18 +189,59 @@ export const DayCell = memo(
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
                     {day.getDate() === 1 && (
                         <span className="text-sm text-muted-foreground/80">
-                            {dayjs(day).format("M월")}
+                            {dayjs.tz(day, calendarTz).format("M월")}
                         </span>
                     )}
 
-                    <span
-                        className={clsx("ml-auto", {
-                            "bg-primary text-primary-foreground": isSelected,
-                            "bg-muted": dayjs(now).isSame(day, "day"),
-                        })}
-                    >
-                        {day.getDate()}
-                    </span>
+                    <HoverCard openDelay={0} closeDelay={100}>
+                        <HoverCardTrigger asChild>
+                            <span
+                                className={clsx("ml-auto", {
+                                    "bg-primary text-primary-foreground":
+                                        isSelected,
+                                    "bg-muted": cellDate === todayDate,
+                                    "ring-[1.5px] ring-ring ring-offset-[1.5px]":
+                                        isCellMember,
+                                })}
+                            >
+                                {day.getDate()}
+                            </span>
+                        </HoverCardTrigger>
+                        {isCellMember && (
+                            <HoverCardContent
+                                align="end"
+                                sideOffset={5.5}
+                                alignOffset={-3}
+                                className="scrollbar-hide flex max-h-40 w-auto max-w-44 flex-wrap gap-1.5 overflow-auto px-1.75 py-1.5 shadow-sm"
+                            >
+                                {cellMembers.map((member) => (
+                                    <div
+                                        key={member.id}
+                                        className="flex items-center gap-1"
+                                    >
+                                        <Avatar className="size-5">
+                                            <AvatarImage
+                                                src={
+                                                    member.avatarUrl ??
+                                                    undefined
+                                                }
+                                                alt={
+                                                    member.displayName ??
+                                                    "작성자"
+                                                }
+                                            />
+                                            <AvatarFallback className="text-xs">
+                                                {member.displayName?.[0]?.toUpperCase() ??
+                                                    "?"}
+                                            </AvatarFallback>
+                                        </Avatar>
+
+                                        {member.displayName}
+                                    </div>
+                                ))}
+                            </HoverCardContent>
+                        )}
+                    </HoverCard>
                 </div>
             </div>
         )

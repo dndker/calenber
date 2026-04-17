@@ -1,4 +1,4 @@
-import { CalendarPlusIcon, UserPlusIcon } from "lucide-react"
+import { CalendarPlusIcon, CompassIcon } from "lucide-react"
 
 import { EmptyBlock } from "@/components/empty-block"
 import { getAllCalendars } from "@/lib/calendar/queries"
@@ -73,9 +73,11 @@ const DiscoverPage = async () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm">
-                                        <UserPlusIcon />
-                                        참가
+                                    <Button variant="outline" asChild>
+                                        <Link href={`/calendar/${calendar.id}`}>
+                                            <CompassIcon />
+                                            둘러보기
+                                        </Link>
                                     </Button>
                                 </div>
                             </CardHeader>

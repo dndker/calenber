@@ -48,6 +48,7 @@ import {
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Separator } from "@workspace/ui/components/separator"
+import { Switch } from "@workspace/ui/components/switch"
 import {
     Tooltip,
     TooltipContent,
@@ -62,7 +63,7 @@ import {
     LockOpenIcon,
     Maximize2,
     ShareIcon,
-    Star,
+    StarIcon,
     TrashIcon,
 } from "lucide-react"
 
@@ -113,9 +114,10 @@ export const EventModal = React.memo(function EventModal({
 
     React.useEffect(() => {
         if (eventId && !event) {
+            setActiveEventId(undefined)
             router.replace(basePath)
         }
-    }, [basePath, eventId, event, router])
+    }, [basePath, eventId, event, router, setActiveEventId])
 
     const handleClose = () => {
         if (closeTimerRef.current) {
@@ -255,33 +257,13 @@ export const EventModal = React.memo(function EventModal({
                                 </Tooltip>
                             </div>
                             <div className="flex items-center gap-1.25">
-                                {activeCalendarMembership.isMember && (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                tabIndex={-1}
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-7"
-                                            >
-                                                <Star className="size-4.25 text-muted-foreground" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p className="text-sm font-medium">
-                                                즐겨찾기 추가
-                                            </p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
-
                                 {event?.author &&
                                     activeCalendarMembership.isMember && (
                                         <HoverCard
                                             openDelay={10}
                                             closeDelay={100}
                                         >
-                                            <HoverCardTrigger>
+                                            <HoverCardTrigger className="mr-0.5">
                                                 <AvatarGroup>
                                                     <Avatar className="size-5.75">
                                                         <AvatarImage
@@ -311,7 +293,7 @@ export const EventModal = React.memo(function EventModal({
                                                     관련 작업자
                                                 </div>
                                                 <div className="flex gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
-                                                    <Avatar className="size-9">
+                                                    <Avatar className="size-6">
                                                         <AvatarImage
                                                             src={
                                                                 event.author
@@ -352,6 +334,49 @@ export const EventModal = React.memo(function EventModal({
                                         </HoverCard>
                                     )}
 
+                                {activeCalendarMembership.isMember && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                tabIndex={-1}
+                                                variant="ghost"
+                                                size="icon"
+                                                className="size-7"
+                                            >
+                                                <StarIcon className="size-4.25 text-muted-foreground" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p className="text-sm font-medium">
+                                                즐겨찾기 추가
+                                            </p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                )}
+
+                                {event?.isLocked &&
+                                    activeCalendarMembership.isMember &&
+                                    user?.id !== event?.authorId && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    tabIndex={-1}
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="size-7"
+                                                >
+                                                    <LockIcon className="size-4.25 text-muted-foreground" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="text-sm font-medium">
+                                                    이 일정은 수정할 수
+                                                    없습니다.
+                                                </p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -378,6 +403,10 @@ export const EventModal = React.memo(function EventModal({
                                             </DropdownMenuItem>
                                             {canToggleLock && (
                                                 <DropdownMenuItem
+                                                    className="min-w-40 gap-3"
+                                                    onSelect={(event) => {
+                                                        event.preventDefault()
+                                                    }}
                                                     onClick={() => {
                                                         updateEvent(event.id, {
                                                             isLocked:
@@ -385,14 +414,21 @@ export const EventModal = React.memo(function EventModal({
                                                         })
                                                     }}
                                                 >
-                                                    {event.isLocked ? (
-                                                        <LockOpenIcon />
-                                                    ) : (
-                                                        <LockIcon />
-                                                    )}
-                                                    {event.isLocked
-                                                        ? "잠금 해제"
-                                                        : "수정 잠금"}
+                                                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                                        {event.isLocked ? (
+                                                            <LockIcon />
+                                                        ) : (
+                                                            <LockOpenIcon />
+                                                        )}
+                                                        <div className="flex min-w-0 flex-1 flex-col">
+                                                            일정 잠금
+                                                        </div>
+                                                    </div>
+                                                    <Switch
+                                                        size="sm"
+                                                        checked={event.isLocked}
+                                                        aria-label="일정 수정 잠금"
+                                                    />
                                                 </DropdownMenuItem>
                                             )}
                                         </DropdownMenuGroup>

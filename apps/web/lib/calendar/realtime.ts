@@ -4,13 +4,13 @@ export const CALENDAR_WORKSPACE_REALTIME_EVENTS = {
     created: "calendar.event.created",
     updated: "calendar.event.updated",
     deleted: "calendar.event.deleted",
+    cursorUpdated: "calendar.cursor.updated",
+    cursorSnapshotRequested: "calendar.cursor.snapshot.requested",
+    cursorSnapshotResponded: "calendar.cursor.snapshot.responded",
 } as const
 
 export const CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS = [
-    1_000,
-    2_500,
-    5_000,
-    10_000,
+    1_000, 2_500, 5_000, 10_000,
 ] as const
 
 export const CALENDAR_WORKSPACE_REALTIME_RECOVERABLE_STATUSES = [
@@ -40,8 +40,36 @@ export type CalendarEventRealtimePayload = {
 
 export type CalendarWorkspacePresencePayload = {
     id: string
+    userId: string | null
     displayName: string
     avatarUrl: string | null
     isAnonymous: boolean
     joinedAt: string
+    cursor?: CalendarWorkspaceCursor | null
+}
+
+export type CalendarWorkspaceCursor = {
+    date: string // ISO (2026-04-17)
+    type: "cell" | "event"
+    eventId?: string
+}
+
+export type CalendarWorkspaceCursorBroadcastPayload = {
+    id: string
+    userId: string | null
+    cursor: CalendarWorkspaceCursor | null
+    occurredAt: string
+}
+
+export type CalendarWorkspaceCursorSnapshotRequestPayload = {
+    requesterId: string
+    occurredAt: string
+}
+
+export type CalendarWorkspaceCursorSnapshotResponsePayload = {
+    targetId: string
+    id: string
+    userId: string | null
+    cursor: CalendarWorkspaceCursor | null
+    occurredAt: string
 }
