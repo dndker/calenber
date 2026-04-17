@@ -68,7 +68,7 @@ export function CalendarWorkspacePresenceGroup() {
                 </AvatarGroup>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-45">
-                <DropdownMenuLabel>온라인 사용자</DropdownMenuLabel>
+                <DropdownMenuLabel>온라인 멤버</DropdownMenuLabel>
                 {members.map((user) => (
                     <DropdownMenuItem key={user.id} asChild>
                         <div className="flex items-center gap-2 overflow-hidden">
@@ -84,8 +84,6 @@ export function CalendarWorkspacePresenceGroup() {
                             <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
                                 <div className="flex flex-1 items-center gap-1">
                                     <span className="flex-initial truncate text-sm font-medium">
-                                        {user.displayName}
-                                        {user.displayName}
                                         {user.displayName}
                                     </span>
                                     {my?.name === user.displayName && (

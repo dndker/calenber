@@ -3,12 +3,14 @@
 import { encodeConfirmValue } from "@/lib/auth/confirm-value"
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 import { useState } from "react"
 import { toast } from "sonner"
 
 type AuthResult = {
     ok: boolean
     error: string | null
+    user?: User | null
     requiresEmailVerification?: boolean
     confirmValue?: string | null
 }
@@ -30,7 +32,7 @@ export function useEmailAuth() {
 
         try {
             const supabase = createBrowserSupabase()
-            const { error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             })
@@ -46,7 +48,7 @@ export function useEmailAuth() {
             }
 
             toast.success("로그인되었습니다.")
-            return { ok: true, error: null }
+            return { ok: true, error: null, user: data.user }
         } catch (error) {
             // console.error(error)
             toast.error("이메일 로그인 중 오류가 발생했습니다.")
@@ -95,13 +97,19 @@ export function useEmailAuth() {
                 return {
                     ok: true,
                     error: null,
+                    user: data.user,
                     requiresEmailVerification: true,
                     confirmValue: encodeConfirmValue(email),
                 }
             }
 
             toast.success("회원가입이 완료되었습니다.")
-            return { ok: true, error: null, confirmValue: null }
+            return {
+                ok: true,
+                error: null,
+                user: data.user,
+                confirmValue: null,
+            }
         } catch (error) {
             console.error(error)
             toast.error("회원가입 중 오류가 발생했습니다.")

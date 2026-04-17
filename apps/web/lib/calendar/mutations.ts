@@ -45,24 +45,27 @@ export async function createCalendar(
     }
 ) {
     const {
-        data: { user },
-    } = await supabase.auth.getUser()
+        data: { session },
+    } = await supabase.auth.getSession()
+
+    const user = session?.user
 
     if (!user) {
         return null
     }
 
-    const { data, error } = await supabase
+    const calendarId = crypto.randomUUID()
+
+    const { error } = await supabase
         .from("calendars")
         .insert({
+            id: calendarId,
             name: input.name,
             access_mode: input.accessMode,
             created_by: user.id,
         })
-        .select("id")
-        .single()
 
-    if (!data || error) {
+    if (error) {
         console.error("Failed to create calendar:", error)
         return null
     }
@@ -70,19 +73,21 @@ export async function createCalendar(
     const { error: membershipError } = await supabase
         .from("calendar_members")
         .insert({
-            calendar_id: data.id,
+            calendar_id: calendarId,
             user_id: user.id,
             role: "owner",
             status: "active",
         })
 
     if (membershipError) {
-        console.error("Failed to create calendar owner membership:", membershipError)
-        await supabase.from("calendars").delete().eq("id", data.id)
+        console.error(
+            "Failed to create calendar owner membership:",
+            membershipError
+        )
         return null
     }
 
-    return data
+    return { id: calendarId }
 }
 
 export async function updateCalendarEvent(
@@ -173,10 +178,10 @@ export async function deleteOwnedCalendar(
 
     if (error) {
         console.error("Failed to delete calendar:", error)
-        return false
+        return error.message
     }
 
-    return true
+    return true as const
 }
 
 export async function deleteCurrentUserAccount(supabase: SupabaseClient) {

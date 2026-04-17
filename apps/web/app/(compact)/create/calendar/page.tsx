@@ -10,6 +10,7 @@ import {
     MAX_CALENDAR_NAME_LENGTH,
     MIN_DISPLAY_NAME_LENGTH,
 } from "@/lib/validation"
+import { useAuthStore } from "@/store/useAuthStore"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { useRouter } from "next/navigation"
@@ -35,6 +36,7 @@ import {
     RadioGroup,
     RadioGroupItem,
 } from "@workspace/ui/components/radio-group"
+import { Spinner } from "@workspace/ui/components/spinner"
 
 const accessModes = [
     {
@@ -89,6 +91,8 @@ type CreateCalendarFormValues = z.infer<typeof formSchema>
 
 export default function CreateCalendarPage() {
     const router = useRouter()
+    const authUser = useAuthStore((state) => state.user)
+    const isAuthLoading = useAuthStore((state) => state.isLoading)
     const form = useForm<CreateCalendarFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -98,6 +102,16 @@ export default function CreateCalendarPage() {
     })
 
     async function onSubmit(data: CreateCalendarFormValues) {
+        if (isAuthLoading) {
+            return
+        }
+
+        if (!authUser) {
+            toast.error("로그인 후 캘린더를 만들 수 있습니다.")
+            router.push("/signin")
+            return
+        }
+
         const supabase = createBrowserSupabase()
         const createdCalendar = await createCalendar(supabase, {
             name: data.name.trim(),
@@ -221,11 +235,12 @@ export default function CreateCalendarPage() {
                         <Button
                             className="w-full"
                             size="lg"
-                            disabled={form.formState.isSubmitting}
+                            disabled={
+                                form.formState.isSubmitting || isAuthLoading
+                            }
                         >
-                            {form.formState.isSubmitting
-                                ? "캘린더 만드는 중..."
-                                : "캘린더 만들기"}
+                            {form.formState.isSubmitting && <Spinner />}
+                            캘린더 만들기
                         </Button>
                     </FieldGroup>
                 </form>

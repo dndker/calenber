@@ -29,11 +29,13 @@ import {
 
 import { EventPage } from "@/components/calendar/event-page"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { formatRelativeTime } from "@/lib/dayjs"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Avatar,
     AvatarFallback,
+    AvatarGroup,
     AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
@@ -280,55 +282,71 @@ export const EventModal = React.memo(function EventModal({
                                             closeDelay={100}
                                         >
                                             <HoverCardTrigger>
-                                                <Avatar className="size-5.75">
-                                                    <AvatarImage
-                                                        src={
-                                                            event.author
-                                                                .avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            event.author.name ??
-                                                            "작성자"
-                                                        }
-                                                    />
-                                                    <AvatarFallback>
-                                                        {event.author.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
+                                                <AvatarGroup>
+                                                    <Avatar className="size-5.75">
+                                                        <AvatarImage
+                                                            src={
+                                                                event.author
+                                                                    .avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                event.author
+                                                                    .name ??
+                                                                "작성자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback>
+                                                            {event.author.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                </AvatarGroup>
                                             </HoverCardTrigger>
                                             <HoverCardContent
-                                                className="flex w-auto items-center gap-2.5 px-3 text-sm text-muted-foreground shadow-sm"
+                                                className="flex w-auto min-w-44 flex-col p-0! px-3 shadow-sm"
                                                 align="end"
                                             >
-                                                <Avatar className="size-9">
-                                                    <AvatarImage
-                                                        src={
-                                                            event.author
-                                                                .avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            event.author.name ??
-                                                            "작성자"
-                                                        }
-                                                    />
-                                                    <AvatarFallback>
-                                                        {event.author.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex min-w-0 flex-col gap-0.5">
-                                                    <div className="truncate font-medium text-primary">
-                                                        {event.author.name ??
-                                                            "이름 없음"}
-                                                    </div>
-                                                    {event.author.email && (
-                                                        <div className="truncate text-xs">
-                                                            {event.author.email}
+                                                <div className="px-3 pt-2 text-xs font-medium text-muted-foreground">
+                                                    관련 작업자
+                                                </div>
+                                                <div className="flex gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
+                                                    <Avatar className="size-9">
+                                                        <AvatarImage
+                                                            src={
+                                                                event.author
+                                                                    .avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                event.author
+                                                                    .name ??
+                                                                "작성자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback>
+                                                            {event.author.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                                        <div className="truncate font-medium text-primary">
+                                                            {event.author
+                                                                .name ??
+                                                                "이름 없음"}
                                                         </div>
-                                                    )}
+                                                        {event.author.email && (
+                                                            <div
+                                                                className="truncate text-xs"
+                                                                suppressHydrationWarning
+                                                            >
+                                                                {formatRelativeTime(
+                                                                    event.updatedAt
+                                                                )}{" "}
+                                                                수정
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </HoverCardContent>
                                         </HoverCard>

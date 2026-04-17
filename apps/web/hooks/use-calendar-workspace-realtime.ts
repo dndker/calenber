@@ -6,14 +6,22 @@ import {
 } from "@/lib/calendar/event-record"
 import {
     CALENDAR_WORKSPACE_REALTIME_EVENTS,
+    CALENDAR_WORKSPACE_REALTIME_RECOVERABLE_STATUSES,
+    CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS,
     getCalendarWorkspaceTopic,
     type CalendarEventRealtimePayload,
+    type CalendarWorkspaceRealtimeStatus,
     type CalendarWorkspacePresencePayload,
 } from "@/lib/calendar/realtime"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { useEffect } from "react"
+import type {
+    AuthChangeEvent,
+    RealtimeChannel,
+    Session,
+} from "@supabase/supabase-js"
+import { useEffect, useRef } from "react"
 
 type CalendarBroadcastMessage = {
     payload?: CalendarEventRealtimePayload
@@ -64,6 +72,7 @@ function isCalendarWorkspacePresencePayload(
 export function useCalendarWorkspaceRealtime() {
     const activeCalendar = useCalendarStore((state) => state.activeCalendar)
     const calendarId = activeCalendar?.id
+    const accessMode = activeCalendar?.accessMode
     const upsertEventSnapshot = useCalendarStore(
         (state) => state.upsertEventSnapshot
     )
@@ -73,6 +82,15 @@ export function useCalendarWorkspaceRealtime() {
     )
     const user = useAuthStore((state) => state.user)
     const isAuthLoading = useAuthStore((state) => state.isLoading)
+    const channelRef = useRef<RealtimeChannel | null>(null)
+    const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const reconnectAttemptRef = useRef(0)
+    const subscriptionKeyRef = useRef(0)
+    const latestPresenceKeyRef = useRef<string | null>(null)
+
+    const userId = user?.id ?? null
+    const userName = user?.name?.trim() ?? ""
+    const userAvatarUrl = user?.avatarUrl ?? null
 
     useEffect(() => {
         if (!calendarId || calendarId === "demo" || isAuthLoading) {
@@ -81,17 +99,19 @@ export function useCalendarWorkspaceRealtime() {
 
         const supabase = createBrowserSupabase()
         const topic = getCalendarWorkspaceTopic(calendarId)
-        const isPrivateChannel = activeCalendar?.accessMode === "private"
-        const presenceId = user?.id ?? getAnonymousPresenceId()
+        const isPrivateChannel = accessMode === "private"
+        const presenceId = userId ?? getAnonymousPresenceId()
         const presencePayload: CalendarWorkspacePresencePayload = {
             id: presenceId,
-            displayName: user?.name?.trim() || getAnonymousPresenceName(presenceId),
-            avatarUrl: user?.avatarUrl ?? null,
-            isAnonymous: !user,
+            displayName: userName || getAnonymousPresenceName(presenceId),
+            avatarUrl: userAvatarUrl,
+            isAnonymous: !userId,
             joinedAt: new Date().toISOString(),
         }
+        const presenceKey = JSON.stringify(presencePayload)
         let isDisposed = false
-        let channel: ReturnType<typeof supabase.channel> | null = null
+        const subscriptionKey = subscriptionKeyRef.current + 1
+        subscriptionKeyRef.current = subscriptionKey
 
         const handleEventBroadcast = (message: CalendarBroadcastMessage) => {
             const payload = message.payload
@@ -115,6 +135,8 @@ export function useCalendarWorkspaceRealtime() {
         }
 
         const syncWorkspacePresence = () => {
+            const channel = channelRef.current
+
             if (!channel) {
                 return
             }
@@ -140,12 +162,80 @@ export function useCalendarWorkspaceRealtime() {
 
                     return a.joinedAt.localeCompare(b.joinedAt)
                 })
-                .map(({ joinedAt: _joinedAt, ...member }) => member)
+                .map((member) => ({
+                    id: member.id,
+                    displayName: member.displayName,
+                    avatarUrl: member.avatarUrl,
+                    isAnonymous: member.isAnonymous,
+                }))
 
             setWorkspacePresence(nextMembers)
         }
 
+        const clearRetryTimeout = () => {
+            if (!retryTimeoutRef.current) {
+                return
+            }
+
+            clearTimeout(retryTimeoutRef.current)
+            retryTimeoutRef.current = null
+        }
+
+        const removeChannel = async (targetChannel: RealtimeChannel | null) => {
+            if (!targetChannel) {
+                return
+            }
+
+            if (channelRef.current === targetChannel) {
+                channelRef.current = null
+            }
+
+            await supabase.removeChannel(targetChannel)
+        }
+
+        const scheduleReconnect = (
+            status: Exclude<CalendarWorkspaceRealtimeStatus, "SUBSCRIBED">
+        ) => {
+            if (isDisposed) {
+                return
+            }
+
+            clearRetryTimeout()
+
+            const attempt = reconnectAttemptRef.current
+            const delay =
+                CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS[
+                    Math.min(
+                        attempt,
+                        CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS.length - 1
+                    )
+                ]
+
+            reconnectAttemptRef.current = attempt + 1
+
+            retryTimeoutRef.current = setTimeout(() => {
+                if (isDisposed) {
+                    return
+                }
+
+                void subscribeToWorkspace()
+            }, delay)
+
+            if (IS_DEV) {
+                console.log("[calendar-workspace-realtime:retry]", {
+                    topic,
+                    status,
+                    attempt: attempt + 1,
+                    delay,
+                })
+            }
+        }
+
         const subscribeToWorkspace = async () => {
+            clearRetryTimeout()
+
+            await removeChannel(channelRef.current)
+
             const {
                 data: { session },
             } = await supabase.auth.getSession()
@@ -160,8 +250,12 @@ export function useCalendarWorkspaceRealtime() {
 
             if (session?.access_token) {
                 await supabase.realtime.setAuth(session.access_token)
-            } else if (isPrivateChannel) {
+            } else {
                 await supabase.realtime.setAuth()
+            }
+
+            if (isDisposed || subscriptionKeyRef.current !== subscriptionKey) {
+                return
             }
 
             const nextChannel = supabase.channel(topic, {
@@ -176,9 +270,9 @@ export function useCalendarWorkspaceRealtime() {
                 },
             })
 
-            channel = nextChannel
+            channelRef.current = nextChannel
 
-            ;(nextChannel as any)
+            nextChannel
                 .on(
                     "broadcast",
                     {
@@ -204,40 +298,92 @@ export function useCalendarWorkspaceRealtime() {
                 .on("presence", { event: "join" }, syncWorkspacePresence)
                 .on("presence", { event: "leave" }, syncWorkspacePresence)
                 .subscribe(async (status: string) => {
+                    if (
+                        isDisposed ||
+                        subscriptionKeyRef.current !== subscriptionKey ||
+                        channelRef.current !== nextChannel
+                    ) {
+                        return
+                    }
+
+                    const typedStatus = status as CalendarWorkspaceRealtimeStatus
+
                     if (IS_DEV) {
                         console.log("[calendar-workspace-realtime]", {
                             topic,
-                            status,
+                            status: typedStatus,
                             isPrivateChannel,
                             hasSession: Boolean(session?.access_token),
                         })
                     }
 
-                    if (status !== "SUBSCRIBED" || !nextChannel || isDisposed) {
+                    if (typedStatus === "SUBSCRIBED") {
+                        reconnectAttemptRef.current = 0
+                        syncWorkspacePresence()
+
+                        if (latestPresenceKeyRef.current === presenceKey) {
+                            return
+                        }
+
+                        latestPresenceKeyRef.current = presenceKey
+                        await nextChannel.track(presencePayload)
                         return
                     }
 
-                    await nextChannel.track(presencePayload)
+                    if (
+                        CALENDAR_WORKSPACE_REALTIME_RECOVERABLE_STATUSES.includes(
+                            typedStatus
+                        )
+                    ) {
+                        latestPresenceKeyRef.current = null
+                        await removeChannel(nextChannel)
+                        scheduleReconnect(typedStatus)
+                    }
                 })
         }
+
+        const {
+            data: { subscription: authSubscription },
+        } = supabase.auth.onAuthStateChange(
+            (_event: AuthChangeEvent, session: Session | null) => {
+                void supabase.realtime.setAuth(session?.access_token)
+
+                if (isDisposed || subscriptionKeyRef.current !== subscriptionKey) {
+                    return
+                }
+
+                if (_event === "TOKEN_REFRESHED" || _event === "INITIAL_SESSION") {
+                    return
+                }
+
+                latestPresenceKeyRef.current = null
+                reconnectAttemptRef.current = 0
+                void subscribeToWorkspace()
+            }
+        )
 
         void subscribeToWorkspace()
 
         return () => {
             isDisposed = true
+            subscriptionKeyRef.current += 1
+            reconnectAttemptRef.current = 0
+            latestPresenceKeyRef.current = null
+            clearRetryTimeout()
+            authSubscription.unsubscribe()
             setWorkspacePresence([])
 
-            if (channel) {
-                void supabase.removeChannel(channel)
-            }
+            void removeChannel(channelRef.current)
         }
     }, [
         calendarId,
-        activeCalendar?.accessMode,
+        accessMode,
         isAuthLoading,
         removeEventSnapshot,
         setWorkspacePresence,
         upsertEventSnapshot,
-        user,
+        userAvatarUrl,
+        userId,
+        userName,
     ])
 }

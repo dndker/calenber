@@ -28,7 +28,7 @@ const DiscoverPage = async () => {
                 <div>
                     <Button asChild>
                         <Link href="/create/calendar">
-                            <CalendarPlusIcon /> 캘린더 만듣기
+                            <CalendarPlusIcon /> 캘린더 만들기
                         </Link>
                     </Button>
                 </div>
@@ -42,8 +42,7 @@ const DiscoverPage = async () => {
                         action={
                             <Button asChild>
                                 <Link href="/create/calendar">
-                                    <CalendarPlusIcon />
-                                    첫 캘린더 만들기
+                                    <CalendarPlusIcon />첫 캘린더 만들기
                                 </Link>
                             </Button>
                         }
@@ -55,7 +54,9 @@ const DiscoverPage = async () => {
                                 <div className="flex items-center gap-3">
                                     <Avatar size="lg">
                                         <AvatarImage
-                                            src={calendar.avatarUrl || undefined}
+                                            src={
+                                                calendar.avatarUrl || undefined
+                                            }
                                             alt={calendar.name}
                                         />
                                         <AvatarFallback className="text-xs">
