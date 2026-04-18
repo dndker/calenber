@@ -20,7 +20,7 @@ export default async function CalendarLayout({
     params,
 }: {
     children: React.ReactNode
-    params: Promise<{ calendarId: string; eventId: string }>
+    params: Promise<{ calendarId: string }>
 }) {
     const { calendarId } = await params
     const cookieStore = await cookies()
