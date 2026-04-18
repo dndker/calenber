@@ -15,10 +15,10 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
+import { EyeIcon } from "lucide-react"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
@@ -34,6 +34,7 @@ function getPresenceFallbackLabel(displayName: string, isAnonymous: boolean) {
 
 export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
     const my = useAuthStore((state) => state.user)
+    const myUserId = my?.id ?? null
     const myId =
         my?.id ??
         (typeof window !== "undefined"
@@ -45,19 +46,41 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
         () =>
             members
                 .filter(
-                    (member): member is CalendarWorkspacePresenceMember & {
-                        cursor: NonNullable<CalendarWorkspacePresenceMember["cursor"]>
+                    (
+                        member
+                    ): member is CalendarWorkspacePresenceMember & {
+                        cursor: NonNullable<
+                            CalendarWorkspacePresenceMember["cursor"]
+                        >
                     } =>
                         member.cursor?.type === "event" &&
                         member.cursor.eventId === eventId
                 )
-                .sort((a, b) =>
-                    a.displayName.localeCompare(b.displayName, KOREAN_LOCALE)
-                ),
-        [eventId, members]
+                .sort((a, b) => {
+                    const aIsMe = myUserId
+                        ? a.userId === myUserId
+                        : a.id === myId
+                    const bIsMe = myUserId
+                        ? b.userId === myUserId
+                        : b.id === myId
+
+                    if (aIsMe !== bIsMe) {
+                        return aIsMe ? -1 : 1
+                    }
+
+                    if (a.cursor?.type !== b.cursor?.type) {
+                        return a.cursor?.type === "event" ? -1 : 1
+                    }
+
+                    return a.displayName.localeCompare(
+                        b.displayName,
+                        KOREAN_LOCALE
+                    )
+                }),
+        [eventId, members, myId, myUserId]
     )
 
-    if (eventMembers.length === 0) {
+    if (eventMembers.length < 2) {
         return null
     }
 
@@ -70,20 +93,21 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1"
+                    className="inline-flex items-center gap-2 rounded-full border bg-muted/40 py-1 pr-1.25 pl-2"
                     title={title}
                 >
-                    <span className="text-xs font-medium text-muted-foreground">
-                        보고 있는 사람
+                    <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                        <EyeIcon className="size-4" />
+                        함께 보고 있는 멤버 {eventMembers.length - 1}명
                     </span>
-                    <AvatarGroup className="mr-0.5">
+                    <AvatarGroup>
                         {visibleMembers.map((member) => (
-                            <Avatar key={member.id} size="sm">
+                            <Avatar key={member.id} className="size-5">
                                 <AvatarImage
                                     src={member.avatarUrl ?? undefined}
                                     alt={member.displayName}
                                 />
-                                <AvatarFallback>
+                                <AvatarFallback className="text-xs">
                                     {getPresenceFallbackLabel(
                                         member.displayName,
                                         member.isAnonymous
@@ -97,8 +121,8 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
                     </AvatarGroup>
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>이 일정 보는 사람</DropdownMenuLabel>
+            <DropdownMenuContent align="center" className="w-auto min-w-47">
+                {/* <DropdownMenuLabel>이 일정을 보는 멤버</DropdownMenuLabel> */}
                 {eventMembers.map((member) => (
                     <DropdownMenuItem key={member.id} asChild>
                         <div className="flex items-center gap-2 overflow-hidden">

@@ -21,6 +21,7 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
@@ -68,7 +69,14 @@ function getPresenceCursorLabel(
         const eventTitle = getEventTitle?.(cursor.eventId)
 
         if (eventTitle) {
-            return `${eventTitle} 확인 중`
+            return (
+                <>
+                    <span className="text-primary underline-offset-2">
+                        {eventTitle}
+                    </span>{" "}
+                    확인 중
+                </>
+            )
         }
 
         return `${cursorDate.format(format)} 일정 확인 중`
@@ -78,6 +86,9 @@ function getPresenceCursorLabel(
 }
 
 export function CalendarWorkspacePresenceGroup() {
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
     const my = useAuthStore((s) => s.user)
     const myUserId = my?.id ?? null
     const selectedDate = useCalendarStore((s) => s.selectedDate)
@@ -140,7 +151,7 @@ export function CalendarWorkspacePresenceGroup() {
 
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger>
+            <DropdownMenuTrigger className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
                 {isLoading && members.length === 0 ? (
                     <div className="flex size-8 items-center justify-center text-muted-foreground">
                         <Spinner
@@ -151,7 +162,6 @@ export function CalendarWorkspacePresenceGroup() {
                 ) : (
                     <div className="relative">
                         <AvatarGroup
-                            className="mr-1"
                             aria-label="이 캘린더를 보고 있는 사람"
                             title={title}
                         >
@@ -184,18 +194,37 @@ export function CalendarWorkspacePresenceGroup() {
                 )}
             </DropdownMenuTrigger>
             {sortedMembers.length > 0 && (
-                <DropdownMenuContent align="end" className="w-47">
+                <DropdownMenuContent align="end" className="w-auto min-w-47">
                     <DropdownMenuLabel>온라인 멤버</DropdownMenuLabel>
                     {sortedMembers.map((user) => (
                         <DropdownMenuItem
                             key={user.id}
                             asChild
                             onClick={() => {
+                                if (
+                                    myUserId
+                                        ? user.userId === myUserId
+                                        : myId === user.id
+                                ) {
+                                    return false
+                                }
+
                                 setSelectedDate(
                                     dayjs
                                         .tz(user.cursor?.date, calendarTimezone)
                                         .toDate()
                                 )
+
+                                if (user.cursor?.eventId) {
+                                    const params = new URLSearchParams(
+                                        searchParams.toString()
+                                    )
+                                    params.set("e", user.cursor.eventId)
+
+                                    router.push(
+                                        `${pathname}?${params.toString()}`
+                                    )
+                                }
                             }}
                         >
                             <div className="flex items-start gap-2 overflow-hidden">

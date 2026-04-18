@@ -71,6 +71,8 @@ export default function ContentEditor({
     onChange,
     editable = true,
 }: Props) {
+    const isLocalChangeRef = useRef(false)
+
     const { theme: ssrTheme } = useServerTheme()
     const { resolvedTheme } = useTheme()
     const currentTheme =
@@ -88,15 +90,25 @@ export default function ContentEditor({
         if (!editor) return
 
         return editor.onChange(() => {
+            isLocalChangeRef.current = true
+
             if (debounceRef.current) {
                 clearTimeout(debounceRef.current)
             }
 
             debounceRef.current = setTimeout(() => {
                 onChange?.(editor.document as EditorContent)
-            }, 300)
+                isLocalChangeRef.current = false
+            }, 700)
         })
     }, [editor, onChange])
+
+    useEffect(() => {
+        if (!editor || !value) return
+        if (isLocalChangeRef.current) return
+
+        editor.replaceBlocks(editor.document, value)
+    }, [value, editor])
 
     return (
         <BlockNoteView
@@ -105,7 +117,7 @@ export default function ContentEditor({
             editable={editable}
             theme={currentTheme as "light" | "dark"}
             data-theme={currentTheme}
-            className="bn-root min-h-[40dvh] bg-transparent text-foreground *:px-0!"
+            className="bn-root min-h-[40dvh] text-foreground *:bg-transparent! *:px-0!"
             shadCNComponents={{
                 Input,
                 Label,

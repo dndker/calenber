@@ -17,7 +17,6 @@ import { toast } from "sonner"
 import type {
     CalendarDragState,
     CalendarEvent,
-    CalendarEventDraft,
     CalendarStoreState,
 } from "./calendar-store.types"
 import { createSSRStore } from "./createSSRStore"
@@ -312,6 +311,7 @@ export const useCalendarStore = createSSRStore<
     setEvents: (events) => set({ events: sortCalendarEvents(events) }),
     upsertEventSnapshot: (event) =>
         set((state) => {
+            console.log(event)
             const nextEvents = state.events.some((item) => item.id === event.id)
                 ? state.events.map((item) =>
                       item.id === event.id ? { ...item, ...event } : item

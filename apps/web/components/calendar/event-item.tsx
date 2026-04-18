@@ -18,9 +18,9 @@ import {
 } from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { LockIcon } from "lucide-react"
+import { CheckIcon, LockIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { memo, startTransition, useEffect, useRef } from "react"
+import { memo, startTransition, useEffect, useMemo, useRef } from "react"
 
 export function getEventPosition(startIndex: number, endIndex: number) {
     const span = endIndex - startIndex + 1
@@ -116,10 +116,9 @@ export const EventItem = memo(
 
         useEffect(() => {
             if (!isDragging) return
+            if (!canEdit) return
 
-            if (!event.isLocked) {
-                startDrag(event, "move", dragIndexRef.current)
-            }
+            startDrag(event, "move", dragIndexRef.current)
 
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
@@ -140,11 +139,13 @@ export const EventItem = memo(
             ? `calc(${100 / laneCount}% - 4px)`
             : "28px"
 
+        const isCompleted = useMemo(() => event.status === "completed", [event])
+
         return (
             <ContextMenu>
                 <ContextMenuTrigger asChild>
                     <div
-                        ref={event.isLocked ? null : setNodeRef}
+                        ref={!canEdit ? null : setNodeRef}
                         {...mergedListeners}
                         {...attributes}
                         className={clsx(
@@ -177,12 +178,14 @@ export const EventItem = memo(
                         <Button
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto h-full w-full items-center justify-start gap-1 overflow-hidden rounded px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto h-full w-full items-center justify-start gap-0.75 overflow-hidden rounded px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
                                     : "py-1",
                                 eventLayout === "split" &&
-                                    "items-center justify-center"
+                                    "items-center justify-center",
+                                isCompleted &&
+                                    "text-muted-foreground line-through"
                             )}
                             onClick={() => {
                                 setActiveEventId(event.id)
@@ -193,8 +196,11 @@ export const EventItem = memo(
                                 })
                             }}
                         >
-                            {event.isLocked && (
+                            {event.isLocked && !isCompleted && (
                                 <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                            {isCompleted && (
+                                <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
                             <span className="flex-1 truncate overflow-hidden">
                                 {event.title === "" ? "새 일정" : event.title}
@@ -233,6 +239,7 @@ export const EventItem = memo(
             prev.event.end === next.event.end &&
             prev.event.title === next.event.title &&
             prev.event.color === next.event.color &&
+            prev.event.status === next.event.status &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&
             prev.endIndex === next.endIndex &&

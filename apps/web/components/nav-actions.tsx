@@ -120,17 +120,17 @@ export function NavActions() {
 
             <CalendarWorkspacePresenceGroup />
 
-            <Button
-                variant="outline"
-                className="mr-1 leading-normal"
-                asChild
-                size="sm"
-            >
-                <a href="/docs">
-                    <Info />
-                    Support
-                </a>
-            </Button>
+            {/* <Button
+                    variant="outline"
+                    className="leading-normal"
+                    asChild
+                    size="sm"
+                >
+                    <a href="/docs">
+                        <Info />
+                        Support
+                    </a>
+                </Button> */}
 
             {!isLoggedIn && (
                 <Button
@@ -177,6 +177,20 @@ export function NavActions() {
                 >
                     <Sidebar collapsible="none" className="bg-transparent">
                         <SidebarContent>
+                            <SidebarGroup className="border-b">
+                                <SidebarGroupContent className="gap-0">
+                                    <SidebarMenu>
+                                        <SidebarMenuItem>
+                                            <SidebarMenuButton asChild>
+                                                <a href="/docs" target="_blank">
+                                                    <Info />
+                                                    Support
+                                                </a>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    </SidebarMenu>
+                                </SidebarGroupContent>
+                            </SidebarGroup>
                             {data.map((group, index) => (
                                 <SidebarGroup
                                     key={index}

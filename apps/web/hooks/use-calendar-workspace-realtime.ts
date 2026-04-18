@@ -10,15 +10,15 @@ import {
     CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS,
     getCalendarWorkspaceTopic,
     type CalendarEventRealtimePayload,
-    type CalendarWorkspaceCursorBroadcastPayload,
     type CalendarWorkspaceCursor,
-    type CalendarWorkspacePresencePayload,
+    type CalendarWorkspaceCursorBroadcastPayload,
     type CalendarWorkspaceCursorSnapshotRequestPayload,
     type CalendarWorkspaceCursorSnapshotResponsePayload,
+    type CalendarWorkspacePresencePayload,
     type CalendarWorkspaceRealtimeStatus,
 } from "@/lib/calendar/realtime"
-import { createBrowserSupabase } from "@/lib/supabase/client"
 import dayjs from "@/lib/dayjs"
+import { createBrowserSupabase } from "@/lib/supabase/client"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { getAnonymousName } from "@/utils/anonymous-name"
@@ -130,7 +130,8 @@ function isCalendarWorkspaceCursorSnapshotRequestPayload(
         return false
     }
 
-    const candidate = value as Partial<CalendarWorkspaceCursorSnapshotRequestPayload>
+    const candidate =
+        value as Partial<CalendarWorkspaceCursorSnapshotRequestPayload>
 
     return (
         typeof candidate.requesterId === "string" &&
@@ -145,7 +146,8 @@ function isCalendarWorkspaceCursorSnapshotResponsePayload(
         return false
     }
 
-    const candidate = value as Partial<CalendarWorkspaceCursorSnapshotResponsePayload>
+    const candidate =
+        value as Partial<CalendarWorkspaceCursorSnapshotResponsePayload>
 
     return (
         typeof candidate.targetId === "string" &&
@@ -204,12 +206,11 @@ export function useCalendarWorkspaceRealtime() {
     const selectedDateRef = useRef(0)
     const calendarTimezoneRef = useRef(calendarTimezone)
     const workspaceCursorRef = useRef<CalendarWorkspaceCursor | null>(null)
-    const remoteCursorMapRef = useRef<Map<string, CalendarWorkspaceCursor | null>>(
-        new Map()
-    )
-    const basePresencePayloadRef = useRef<CalendarWorkspacePresencePayload | null>(
-        null
-    )
+    const remoteCursorMapRef = useRef<
+        Map<string, CalendarWorkspaceCursor | null>
+    >(new Map())
+    const basePresencePayloadRef =
+        useRef<CalendarWorkspacePresencePayload | null>(null)
 
     const userId = user?.id ?? null
     const userName = user?.name?.trim() ?? ""
@@ -259,7 +260,10 @@ export function useCalendarWorkspaceRealtime() {
                 type: "event",
                 eventId: activeEvent.id,
                 date: dayjs
-                    .tz(activeEvent.start, activeEvent.timezone || calendarTimezone)
+                    .tz(
+                        activeEvent.start,
+                        activeEvent.timezone || calendarTimezone
+                    )
                     .format("YYYY-MM-DD"),
             }
 
@@ -490,7 +494,9 @@ export function useCalendarWorkspaceRealtime() {
             upsertEventSnapshot(mapCalendarEventRecordToCalendarEvent(record))
         }
 
-        const handleCursorBroadcast = (message: CalendarCursorBroadcastMessage) => {
+        const handleCursorBroadcast = (
+            message: CalendarCursorBroadcastMessage
+        ) => {
             const payload = message.payload
 
             if (!isCalendarWorkspaceCursorBroadcastPayload(payload)) {
@@ -581,8 +587,9 @@ export function useCalendarWorkspaceRealtime() {
             >
             const dedupedMembers = Object.values(presenceState)
                 .map(pickLatestWorkspacePresenceMember)
-                .filter((member): member is CalendarWorkspacePresencePayload =>
-                    member !== null
+                .filter(
+                    (member): member is CalendarWorkspacePresencePayload =>
+                        member !== null
                 )
             const existingCursorMap = new Map(
                 useCalendarStore
@@ -595,10 +602,12 @@ export function useCalendarWorkspaceRealtime() {
                     ])
             )
             const nextMembers = Array.from(
-                dedupedMembers.reduce(
-                    (acc, member) => acc.set(member.id, member),
-                    new Map<string, CalendarWorkspacePresencePayload>()
-                ).values()
+                dedupedMembers
+                    .reduce(
+                        (acc, member) => acc.set(member.id, member),
+                        new Map<string, CalendarWorkspacePresencePayload>()
+                    )
+                    .values()
             )
                 .sort((a, b) => {
                     if (a.isAnonymous !== b.isAnonymous) {
@@ -615,12 +624,12 @@ export function useCalendarWorkspaceRealtime() {
                     isAnonymous: member.isAnonymous,
                     cursor:
                         member.id === presenceId
-                            ? workspaceCursorRef.current ??
+                            ? (workspaceCursorRef.current ??
                               member.cursor ??
-                              undefined
-                            : existingCursorMap.get(member.id) ??
+                              undefined)
+                            : (existingCursorMap.get(member.id) ??
                               member.cursor ??
-                              undefined,
+                              undefined),
                 }))
 
             const activeIds = new Set(nextMembers.map((member) => member.id))
@@ -679,10 +688,13 @@ export function useCalendarWorkspaceRealtime() {
                 await realtime.disconnect?.()
             } catch (error) {
                 if (IS_DEV) {
-                    console.warn("[calendar-workspace-realtime:socket-disconnect]", {
-                        topic,
-                        error,
-                    })
+                    console.warn(
+                        "[calendar-workspace-realtime:socket-disconnect]",
+                        {
+                            topic,
+                            error,
+                        }
+                    )
                 }
             }
 
@@ -815,16 +827,14 @@ export function useCalendarWorkspaceRealtime() {
                 .on(
                     "broadcast",
                     {
-                        event:
-                            CALENDAR_WORKSPACE_REALTIME_EVENTS.cursorSnapshotRequested,
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.cursorSnapshotRequested,
                     },
                     handleCursorSnapshotRequest
                 )
                 .on(
                     "broadcast",
                     {
-                        event:
-                            CALENDAR_WORKSPACE_REALTIME_EVENTS.cursorSnapshotResponded,
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.cursorSnapshotResponded,
                     },
                     handleCursorSnapshotResponse
                 )
@@ -928,6 +938,7 @@ export function useCalendarWorkspaceRealtime() {
             }
         )
 
+        setPresenceLoading(true)
         void subscribeToWorkspace()
 
         const remoteCursorMap = remoteCursorMapRef.current
@@ -976,6 +987,11 @@ export function useCalendarWorkspaceRealtime() {
 
         clearLoadingTimeout()
         setIsWorkspacePresenceLoading(false)
-        setWorkspacePresence([])
-    }, [calendarId, clearLoadingTimeout, setIsWorkspacePresenceLoading, setWorkspacePresence])
+        // setWorkspacePresence([])
+    }, [
+        calendarId,
+        clearLoadingTimeout,
+        setIsWorkspacePresenceLoading,
+        setWorkspacePresence,
+    ])
 }

@@ -21,6 +21,13 @@ export function createBrowserSupabase() {
                     transport: "websocket",
                     log_level: "info",
                 },
+                worker: true,
+                heartbeatCallback: (status) => {
+                    if (status === "disconnected") {
+                        // Explicitly reconnect when heartbeat fails or connection drops
+                        client.connect()
+                    }
+                },
             },
         }
     )

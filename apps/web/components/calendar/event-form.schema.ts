@@ -1,3 +1,4 @@
+import { eventStatus } from "@/store/calendar-store.types"
 import { z } from "zod"
 
 export const recurrenceSchema = z
@@ -41,6 +42,7 @@ export const eventFormSchema = z
         recurrence: recurrenceSchema.optional(),
 
         exceptions: z.array(z.string().datetime()).optional(),
+        status: z.enum(eventStatus).optional(),
     })
     .refine((data) => data.end >= data.start, {
         message: "종료 시간이 시작 시간보다 늦어야 합니다",
