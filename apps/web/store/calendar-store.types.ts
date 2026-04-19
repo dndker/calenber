@@ -93,6 +93,7 @@ export type DragState = {
 
 export type SelectionState = {
     isSelecting: boolean
+    anchor: number | null
     start: number | null
     end: number | null
 }

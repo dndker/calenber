@@ -30,3 +30,9 @@
     align-items: center;
     display: flex;
 }
+
+.bn-block-content[data-content-type="codeBlock"] {
+    border: 1px solid var(--border);
+    background-color: var(--muted);
+    color: var(--color-primary);
+}

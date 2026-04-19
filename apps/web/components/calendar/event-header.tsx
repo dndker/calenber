@@ -1,3 +1,4 @@
+import { useAdjacentEvents } from "@/hooks/use-adjacent-events"
 import {
     canDeleteCalendarEvent,
     canToggleCalendarEventLock,
@@ -81,12 +82,18 @@ export const EventHeader = memo(function EventHeader({
         (s) => s.activeCalendarMembership
     )
 
+    const calendarId = activeCalendar?.id || basePath.split("/")[2]
+
     const eventId = id ? id : (activeEventId ?? undefined)
     const event = useCalendarStore((s) =>
         eventId ? s.events.find((ev) => ev.id === eventId) : undefined
     )
 
     const tooltipSide = modal ? "top" : "bottom"
+
+    const { prevEvent, nextEvent, hasPrev, hasNext } = useAdjacentEvents(
+        eventId!
+    )
 
     if (!eventId || !event) return null
 
@@ -96,6 +103,16 @@ export const EventHeader = memo(function EventHeader({
     const canToggleLock =
         activeCalendar?.id === "demo" ||
         canToggleCalendarEventLock(event, activeCalendarMembership, user?.id)
+
+    const handleEventControls = (eventId?: string) => {
+        if (!calendarId || !eventId) return false
+
+        let eventPath = getCalendarEventPagePath(calendarId, eventId)
+        if (modal) {
+            eventPath = getCalendarEventModalPath(calendarId, eventId)
+        }
+        router.push(eventPath)
+    }
 
     return (
         <div
@@ -117,8 +134,6 @@ export const EventHeader = memo(function EventHeader({
                             size="icon"
                             className="size-6"
                             onClick={() => {
-                                const calendarId = basePath.split("/")[2]
-
                                 if (!calendarId) {
                                     return
                                 }
@@ -166,6 +181,8 @@ export const EventHeader = memo(function EventHeader({
                             variant="ghost"
                             size="icon"
                             className="size-6"
+                            disabled={!hasPrev}
+                            onClick={() => handleEventControls(prevEvent?.id)}
                         >
                             <ChevronLeftIcon className="size-5 text-muted-foreground" />
                         </Button>
@@ -181,6 +198,8 @@ export const EventHeader = memo(function EventHeader({
                             variant="ghost"
                             size="icon"
                             className="size-6"
+                            disabled={!hasNext}
+                            onClick={() => handleEventControls(nextEvent?.id)}
                         >
                             <ChevronRightIcon className="size-5 text-muted-foreground" />
                         </Button>

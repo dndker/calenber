@@ -1,3 +1,4 @@
+import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import {
     canDeleteCalendarEvent,
@@ -141,6 +142,8 @@ export const EventItem = memo(
 
         const isCompleted = useMemo(() => event.status === "completed", [event])
 
+        const eventMembers = useEventMembers(event.id, user?.id)
+
         return (
             <ContextMenu>
                 <ContextMenuTrigger asChild>
@@ -185,7 +188,9 @@ export const EventItem = memo(
                                 eventLayout === "split" &&
                                     "items-center justify-center",
                                 isCompleted &&
-                                    "text-muted-foreground line-through"
+                                    "text-muted-foreground line-through",
+                                eventMembers.length > 0 &&
+                                    "border-ring dark:border-primary/50"
                             )}
                             onClick={() => {
                                 setActiveEventId(event.id)

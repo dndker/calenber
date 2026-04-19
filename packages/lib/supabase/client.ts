@@ -15,19 +15,13 @@ export function createBrowserSupabase() {
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
             },
-
             realtime: {
                 params: {
-                    transport: "websocket",
                     log_level: "info",
+                    transport: "websocket",
                 },
                 worker: true,
-                heartbeatCallback: (status) => {
-                    if (status === "disconnected") {
-                        // Explicitly reconnect when heartbeat fails or connection drops
-                        client.connect()
-                    }
-                },
+                heartbeatIntervalMs: 15000,
             },
         }
     )

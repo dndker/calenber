@@ -292,6 +292,7 @@ export const useCalendarStore = createSSRStore<
 
     selection: {
         isSelecting: false,
+        anchor: null,
         start: null,
         end: null,
     },
@@ -363,6 +364,7 @@ export const useCalendarStore = createSSRStore<
             events: sortCalendarEvents([...s.events, event]),
             selection: {
                 isSelecting: false,
+                anchor: null,
                 start: null,
                 end: null,
             },
@@ -535,6 +537,7 @@ export const useCalendarStore = createSSRStore<
         set({
             selection: {
                 isSelecting: true,
+                anchor: date,
                 start: date,
                 end: date,
             },
@@ -545,20 +548,24 @@ export const useCalendarStore = createSSRStore<
         const { selection } = get()
         if (!selection.isSelecting || !selection.start) return
 
-        const start = selection.start
-        const end = date
+        const anchor = selection.anchor
+
+        if (anchor === null) return
+
+        const start = Math.min(anchor, date)
+        const end = Math.max(anchor, date)
 
         set({
             selection: {
                 ...selection,
-                start: Math.min(start, end),
-                end: Math.max(start, end),
+                start,
+                end,
             },
         })
     },
 
     endSelection() {
-        const { selection, createEvent, calendarTimezone } = get()
+        const { selection } = get()
 
         if (!selection.start || !selection.end) return
 
@@ -567,6 +574,7 @@ export const useCalendarStore = createSSRStore<
             set({
                 selection: {
                     isSelecting: false,
+                    anchor: null,
                     start: null,
                     end: null,
                 },

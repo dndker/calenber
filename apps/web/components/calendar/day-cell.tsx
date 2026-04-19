@@ -1,3 +1,4 @@
+import { useCellMembers } from "@/hooks/use-calendar-cell-member"
 import { useCalendarToday } from "@/hooks/use-calendar-today"
 import { useOpenEvent } from "@/hooks/use-open-event"
 import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
@@ -59,29 +60,8 @@ export const DayCell = memo(
         const setViewportMiniDate = useCalendarStore(
             (s) => s.setViewportMiniDate
         )
-        const myPresenceId =
-            user?.id ??
-            (typeof window !== "undefined"
-                ? sessionStorage.getItem("calendar-workspace-anonymous-id")
-                : null)
 
-        const cellMembers = useMemo(() => {
-            return workspacePresence
-                .filter((member) => {
-                    if (member.id === myPresenceId) {
-                        return false
-                    }
-
-                    return member.cursor?.date === cellDate
-                })
-                .sort((a, b) => {
-                    if (a.cursor?.type !== b.cursor?.type) {
-                        return a.cursor?.type === "event" ? -1 : 1
-                    }
-
-                    return a.displayName.localeCompare(b.displayName, "ko")
-                })
-        }, [cellDate, myPresenceId, workspacePresence])
+        const cellMembers = useCellMembers(cellDate, user?.id)
 
         const handleClick = useCallback(() => {
             if (isDraggingRef.current) {
@@ -200,7 +180,7 @@ export const DayCell = memo(
                                     "bg-primary text-primary-foreground":
                                         isSelected,
                                     "bg-muted": cellDate === todayDate,
-                                    "ring-[1.5px] ring-ring ring-offset-[1.5px]":
+                                    "shadow-none ring-2 ring-ring ring-offset-2 ring-offset-background":
                                         isCellMember,
                                 })}
                             >

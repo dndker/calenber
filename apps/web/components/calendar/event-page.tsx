@@ -37,6 +37,8 @@ export function EventPage({
     // 🔥 현재 사용할 id (new 포함)
     const [localId, setLocalId] = useState<string | undefined>(eventId)
 
+    const effectiveId = eventId ?? localId
+
     const hasCreatedRef = useRef(false)
 
     // 🔥 최초 생성 (new일 때 1번만)
@@ -76,8 +78,10 @@ export function EventPage({
     }, [eventId, createEvent, user])
 
     const event = useCalendarStore((s) =>
-        localId ? s.events.find((e) => e.id === localId) : undefined
+        effectiveId ? s.events.find((e) => e.id === effectiveId) : undefined
     )
+
+    console.log(eventId, event?.title)
 
     const handleDeleteEvent = useEventDeleteAction({
         eventId,

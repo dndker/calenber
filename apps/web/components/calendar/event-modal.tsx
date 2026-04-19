@@ -75,7 +75,12 @@ export const EventModal = React.memo(function EventModal({
         setIsClosing(true)
 
         useCalendarStore.setState({
-            selection: { isSelecting: false, start: null, end: null },
+            selection: {
+                isSelecting: false,
+                start: null,
+                end: null,
+                anchor: null,
+            },
         })
 
         closeTimerRef.current = window.setTimeout(() => {

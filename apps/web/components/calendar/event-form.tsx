@@ -35,6 +35,7 @@ import {
     eventStatusLabel,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Avatar,
     AvatarFallback,
@@ -116,6 +117,7 @@ export function EventForm({
               },
     })
 
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const chipsInputRef = useRef<HTMLInputElement | null>(null)
     const anchor = useComboboxAnchor()
     const [items, setItems] = useState<string[]>([])
@@ -145,6 +147,8 @@ export function EventForm({
 
     const autoSave = () => {
         if (timer.current) clearTimeout(timer.current)
+
+        if (activeCalendar?.id === "demo") return
 
         if (disabled) {
             return
@@ -195,6 +199,8 @@ export function EventForm({
     useEffect(() => {
         if (!event) return
 
+        console.log(event)
+
         form.reset({
             title: event.title,
             content: event.content,
@@ -239,6 +245,7 @@ export function EventForm({
                                 }}
                             >
                                 <ComboboxInput
+                                    {...field}
                                     placeholder="새 일정"
                                     autoFocus={true}
                                     onChange={(e) => {
