@@ -37,27 +37,32 @@ import {
     RadioGroupItem,
 } from "@workspace/ui/components/radio-group"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { EarthIcon, EarthLockIcon, LockIcon, LucideIcon } from "lucide-react"
 
 const accessModes = [
     {
         id: "public_open",
         title: "공개 · 바로 참여",
         description: "누구나 캘린더를 찾고 바로 참여할 수 있어요.",
+        icon: EarthIcon,
     },
     {
         id: "public_approval",
         title: "공개 · 승인 후 참여",
         description: "누구나 발견할 수 있지만 참여는 승인 후 가능해요.",
+        icon: EarthLockIcon,
     },
     {
         id: "private",
         title: "비공개 · 초대 전용",
         description: "링크로도 노출되지 않고 초대한 사람만 참여할 수 있어요.",
+        icon: LockIcon,
     },
 ] as const satisfies ReadonlyArray<{
     id: CalendarAccessMode
     title: string
     description: string
+    icon: LucideIcon
 }>
 
 const formSchema = z.object({
@@ -203,6 +208,7 @@ export default function CreateCalendarPage() {
                                                     <Field orientation="horizontal">
                                                         <FieldContent>
                                                             <FieldTitle>
+                                                                <accessMode.icon className="size-5" />
                                                                 {
                                                                     accessMode.title
                                                                 }

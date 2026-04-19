@@ -15,12 +15,13 @@ export function createBrowserSupabase() {
                 autoRefreshToken: true,
                 detectSessionInUrl: true,
             },
-
             realtime: {
                 params: {
-                    transport: "websocket",
                     log_level: "info",
+                    transport: "websocket",
                 },
+                worker: true,
+                heartbeatIntervalMs: 15000,
             },
         }
     )

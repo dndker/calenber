@@ -26,7 +26,7 @@ export type CalendarWorkspaceRealtimeStatus =
     | "TIMED_OUT"
 
 export function getCalendarWorkspaceTopic(calendarId: string) {
-    return `calendars:${calendarId}:workspace`
+    return `calendar:${calendarId}:workspace`
 }
 
 export type CalendarEventRealtimePayload = {

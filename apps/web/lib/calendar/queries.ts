@@ -220,5 +220,24 @@ export async function getCalendarEvents(
         return []
     }
 
-    return (data as CalendarEventRecord[]).map(mapCalendarEventRecordToCalendarEvent)
+    return (data as CalendarEventRecord[]).map(
+        mapCalendarEventRecordToCalendarEvent
+    )
+}
+
+export async function getEventById(supabase: SupabaseClient, eventId: string) {
+    const { data, error } = await supabase.rpc("get_calendar_event_by_id", {
+        target_event_id: eventId,
+    })
+
+    if (error || !data || data.length === 0) {
+        console.error("Failed to load event:", error)
+        return null
+    }
+
+    const event = mapCalendarEventRecordToCalendarEvent(
+        data[0] as CalendarEventRecord
+    )
+
+    return event
 }

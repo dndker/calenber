@@ -15,17 +15,17 @@ const ADJECTIVES = [
     "차분한",
 ]
 
-const COLORS = [
-    "빨간",
-    "파란",
-    "노란",
-    "초록",
-    "보라",
-    "검은",
-    "하얀",
-    "분홍",
-    "주황",
-]
+// const COLORS = [
+//     "빨간",
+//     "파란",
+//     "노란",
+//     "초록",
+//     "보라",
+//     "검은",
+//     "하얀",
+//     "분홍",
+//     "주황",
+// ]
 
 const ANIMALS = [
     "고라니",
@@ -53,5 +53,5 @@ export function getAnonymousName(id: string) {
         style: "lowerCase",
     })
 
-    return `익명 ${nickname}`
+    return `익명의 ${nickname}`
 }

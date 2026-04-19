@@ -1,7 +1,7 @@
 "use client"
 
-import dayjs from "@/lib/dayjs"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
+import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Breadcrumb,
@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation"
 
 export const CalendarBreadcrumb = () => {
     const viewport = useCalendarStore((s) => s.viewport)
+    const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
 
     const pathname = usePathname()
@@ -36,7 +37,9 @@ export const CalendarBreadcrumb = () => {
                     <>
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
-                                <Link href={calendarBasePath}>캘린더</Link>
+                                <Link href={calendarBasePath}>
+                                    {activeCalendar?.name}
+                                </Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />

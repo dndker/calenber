@@ -1,18 +1,31 @@
 "use client"
 
-import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { useCreateEvent } from "@/hooks/use-create-event"
-import { CalendarEventPresenceGroup } from "@/components/calendar/calendar-event-presence-group"
+import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { canEditCalendarEvent } from "@/lib/calendar/permissions"
+import { getCalendarBasePath } from "@/lib/calendar/routes"
 import {
     defaultContent,
     type CalendarEvent,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { EventForm } from "./event-form"
+import { EventHeader } from "./event-header"
 
-export function EventPage({ eventId }: { eventId?: string }) {
+export function EventPage({
+    modal = false,
+    eventId,
+}: {
+    modal?: boolean
+    eventId?: string
+}) {
+    const router = useRouter()
+    const pathname = usePathname()
+    const basePath = getCalendarBasePath(pathname)
+
     const createEvent = useCreateEvent()
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -23,6 +36,8 @@ export function EventPage({ eventId }: { eventId?: string }) {
 
     // 🔥 현재 사용할 id (new 포함)
     const [localId, setLocalId] = useState<string | undefined>(eventId)
+
+    const effectiveId = eventId ?? localId
 
     const hasCreatedRef = useRef(false)
 
@@ -60,11 +75,20 @@ export function EventPage({ eventId }: { eventId?: string }) {
                 }
             })
         }
-    }, [eventId, createEvent])
+    }, [eventId, createEvent, user])
 
     const event = useCalendarStore((s) =>
-        localId ? s.events.find((e) => e.id === localId) : undefined
+        effectiveId ? s.events.find((e) => e.id === effectiveId) : undefined
     )
+
+    console.log(eventId, event?.title)
+
+    const handleDeleteEvent = useEventDeleteAction({
+        eventId,
+        onSuccess: () => {
+            router.replace(basePath)
+        },
+    })
 
     if (!event) return null
 
@@ -74,10 +98,16 @@ export function EventPage({ eventId }: { eventId?: string }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-end">
-                <CalendarEventPresenceGroup eventId={event.id} />
-            </div>
+            {!modal && (
+                <EventHeader
+                    id={eventId}
+                    modal={modal}
+                    onDeleteEvent={handleDeleteEvent}
+                />
+            )}
+
             <EventForm
+                modal={modal}
                 event={event}
                 disabled={!canEdit}
                 onChange={(patch) => {

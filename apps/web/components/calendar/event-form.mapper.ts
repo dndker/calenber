@@ -46,5 +46,7 @@ export function mapToEvent(values: EventFormValues): Partial<CalendarEvent> {
 
         recurrence: values.recurrence,
         exceptions: values.exceptions,
+
+        status: values.status,
     }
 }

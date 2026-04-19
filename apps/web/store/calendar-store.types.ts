@@ -23,11 +23,21 @@ export type CalendarEventAuthor = {
     avatarUrl: string | null
 }
 
-export type CalendarEventStatus =
-    | "scheduled"
-    | "in_progress"
-    | "completed"
-    | "cancelled"
+export const eventStatusLabel = {
+    scheduled: "시작 전",
+    in_progress: "진행 중",
+    completed: "완료",
+    cancelled: "취소",
+}
+
+export const eventStatus = [
+    "scheduled",
+    "in_progress",
+    "completed",
+    "cancelled",
+] as const
+
+export type CalendarEventStatus = (typeof eventStatus)[number]
 
 export type CalendarEvent = {
     id: string
@@ -83,6 +93,7 @@ export type DragState = {
 
 export type SelectionState = {
     isSelecting: boolean
+    anchor: number | null
     start: number | null
     end: number | null
 }
@@ -114,9 +125,7 @@ export type CalendarStoreState = {
     setCalendarTimezone: (tz: string) => void
     setIsWorkspacePresenceLoading: (isLoading: boolean) => void
     setWorkspaceCursor: (cursor: CalendarWorkspaceCursor | null) => void
-    setWorkspacePresence: (
-        members: CalendarWorkspacePresenceMember[]
-    ) => void
+    setWorkspacePresence: (members: CalendarWorkspacePresenceMember[]) => void
     setIsCalendarLoading: (value: boolean) => void
     setActiveEventId: (eventId?: string) => void
     setEventLayout: (layout: CalendarEventLayout) => void
@@ -134,7 +143,11 @@ export type CalendarStoreState = {
 
 export type CalendarDragState = {
     drag: DragState
-    startDrag: (event: CalendarEvent, mode: DragMode, clickedDate: number) => void
+    startDrag: (
+        event: CalendarEvent,
+        mode: DragMode,
+        clickedDate: number
+    ) => void
     moveDrag: (date: number) => void
     endDrag: () => void
     selection: SelectionState

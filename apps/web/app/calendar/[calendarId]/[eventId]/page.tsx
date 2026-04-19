@@ -1,4 +1,4 @@
-import { EventPage } from "@/components/calendar/event-page"
+import { EventPageContent } from "@/components/calendar/event-page-content"
 
 export default async function Page({
     params,
@@ -7,9 +7,12 @@ export default async function Page({
 }) {
     const { eventId } = await params
 
-    return (
-        <div className="mx-auto w-full max-w-180.75 px-3 py-3 sm:py-25">
-            <EventPage eventId={eventId} />
-        </div>
-    )
+    // const supabase = await createServerSupabase()
+    // const event = await getEventById(supabase, eventId)
+
+    // useEffect(() => {
+    //     useCalendarStore.setState({ activeEventId: eventId })
+    // }, [eventId])
+
+    return <EventPageContent eventId={eventId} />
 }
