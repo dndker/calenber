@@ -1,13 +1,11 @@
 "use client"
 
 import { useCalendarWorkspaceRealtime } from "@/hooks/use-calendar-workspace-realtime"
-import { Button } from "@workspace/ui/components/button"
-import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { Separator } from "@workspace/ui/components/separator"
 import { SidebarTrigger } from "@workspace/ui/components/sidebar"
-import { SearchIcon } from "lucide-react"
 import { CalendarBreadcrumb } from "../calendar-breadcrumb"
 import { NavActions } from "../nav-actions"
+import { CalendarSearchDialog } from "./calendar-search-dialog"
 
 export function CalendarLayoutContent({
     children,
@@ -26,25 +24,11 @@ export function CalendarLayoutContent({
                         className="data-vertical:h-4 data-vertical:self-auto"
                     />
                 </div>
-                <div className="flex flex-1 items-center justify-between">
+                <div className="relative flex flex-1 items-center justify-between">
                     <CalendarBreadcrumb />
 
                     <div className="absolute top-1/2 left-1/2 -translate-1/2">
-                        <Button
-                            variant="outline"
-                            size="default"
-                            className="relative inline-flex h-8 w-full shrink-0 items-center justify-between gap-2 rounded-lg border px-2 py-2 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none transition-all outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:w-48 lg:w-40 xl:w-64"
-                        >
-                            <div className="flex items-center gap-2">
-                                <SearchIcon className="size-4" />
-                                <span>Search</span>
-                            </div>
-
-                            <KbdGroup>
-                                <Kbd>⌘</Kbd>
-                                <Kbd>k</Kbd>
-                            </KbdGroup>
-                        </Button>
+                        <CalendarSearchDialog />
                     </div>
 
                     <div className="px-3">

@@ -13,7 +13,6 @@ const withPWA = withPWAInit({
         image: "/symbol.svg",
     },
     reloadOnOnline: true,
-    customWorkerSrc: "worker",
     workboxOptions: {
         swSrc: "worker/index.ts",
     },

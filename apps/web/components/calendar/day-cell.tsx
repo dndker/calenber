@@ -160,7 +160,7 @@ export const DayCell = memo(
                     "relative flex flex-col p-3 text-sm font-medium select-none",
                     isCurrentMonth
                         ? "bg-background text-foreground"
-                        : "bg-background/50 text-muted-foreground/60",
+                        : "bg-background/80 text-muted-foreground/60",
                     isHover && "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5",
                     isSelectingRange &&
                         "select-event bg-blue-50/99.5 dark:bg-blue-50/0.5"

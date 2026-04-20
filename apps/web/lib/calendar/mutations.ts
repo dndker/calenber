@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
+import {
+    mapCalendarEventRecordToCalendarEvent,
+    type CalendarEventRecord,
+} from "@/lib/calendar/event-record"
 import type { CalendarAccessMode } from "@/lib/calendar/permissions"
 import type { CalendarMembership } from "@/lib/calendar/queries"
 import type { CalendarEvent } from "@/store/calendar-store.types"
@@ -93,49 +97,114 @@ export async function createCalendar(
 export async function updateCalendarEvent(
     supabase: SupabaseClient,
     eventId: string,
-    patch: Partial<CalendarEvent>
+    patch: Partial<CalendarEvent>,
+    options?: {
+        expectedUpdatedAt?: number
+    }
 ) {
     const updates: Record<string, unknown> = {}
+    const changedFields: string[] = []
 
     if (patch.title !== undefined) {
         updates.title = patch.title
+        changedFields.push("title")
     }
 
     if (patch.content !== undefined) {
         updates.content = serializeEventContent(patch.content)
+        changedFields.push("content")
     }
 
     if (patch.start !== undefined) {
         updates.start_at = new Date(patch.start).toISOString()
+        changedFields.push("start_at")
     }
 
     if (patch.end !== undefined) {
         updates.end_at = new Date(patch.end).toISOString()
+        changedFields.push("end_at")
     }
 
     if (patch.status !== undefined) {
         updates.status = patch.status
+        changedFields.push("status")
     }
 
     if (patch.isLocked !== undefined) {
         updates.is_locked = patch.isLocked
+        changedFields.push("is_locked")
     }
 
     if (Object.keys(updates).length === 0) {
-        return true
+        return {
+            ok: true as const,
+            status: "noop" as const,
+            event: null,
+            conflictingFields: [],
+        }
     }
 
-    const { error } = await supabase
-        .from("events")
-        .update(updates)
-        .eq("id", eventId)
+    const expectedUpdatedAt =
+        options?.expectedUpdatedAt != null
+            ? new Date(options.expectedUpdatedAt).toISOString()
+            : null
+
+    if (!expectedUpdatedAt) {
+        const { error } = await supabase
+            .from("events")
+            .update(updates)
+            .eq("id", eventId)
+
+        if (error) {
+            console.error("Failed to update calendar event:", error)
+            return {
+                ok: false as const,
+                status: "error" as const,
+                event: null,
+                conflictingFields: [],
+            }
+        }
+
+        return {
+            ok: true as const,
+            status: "updated" as const,
+            event: null,
+            conflictingFields: [],
+        }
+    }
+
+    const { data, error } = await supabase.rpc(
+        "update_calendar_event_with_conflict_resolution",
+        {
+            target_event_id: eventId,
+            expected_updated_at: expectedUpdatedAt,
+            patch: updates,
+            changed_fields: changedFields,
+        }
+    )
 
     if (error) {
         console.error("Failed to update calendar event:", error)
-        return false
+        return {
+            ok: false as const,
+            status: "error" as const,
+            event: null,
+            conflictingFields: [],
+        }
     }
 
-    return true
+    const row = Array.isArray(data) ? data[0] : null
+    const record = row?.record as CalendarEventRecord | null | undefined
+
+    return {
+        ok: row?.status === "updated" || row?.status === "merged",
+        status: (row?.status ??
+            "error") as "updated" | "merged" | "conflict" | "not_found" | "error",
+        event: record ? mapCalendarEventRecordToCalendarEvent(record) : null,
+        conflictingFields: Array.isArray(row?.conflicting_fields)
+            ? (row.conflicting_fields as string[])
+            : [],
+    }
 }
 
 export async function deleteCalendarEvent(

@@ -59,6 +59,8 @@ export type CalendarEvent = {
     status: CalendarEventStatus
     authorId: string | null
     author: CalendarEventAuthor | null
+    updatedById: string | null
+    updatedBy: CalendarEventAuthor | null
     isLocked: boolean
     createdAt: number
     updatedAt: number
@@ -66,9 +68,21 @@ export type CalendarEvent = {
 
 export type CalendarEventDraft = Omit<
     CalendarEvent,
-    "id" | "createdAt" | "updatedAt" | "authorId" | "author" | "isLocked"
+    | "id"
+    | "createdAt"
+    | "updatedAt"
+    | "authorId"
+    | "author"
+    | "updatedById"
+    | "updatedBy"
+    | "isLocked"
 > &
-    Partial<Pick<CalendarEvent, "authorId" | "author" | "isLocked">>
+    Partial<
+        Pick<
+            CalendarEvent,
+            "authorId" | "author" | "updatedById" | "updatedBy" | "isLocked"
+        >
+    >
 
 export type CalendarWorkspacePresenceMember = {
     id: string
@@ -137,7 +151,13 @@ export type CalendarStoreState = {
     upsertEventSnapshot: (event: CalendarEvent) => void
     removeEventSnapshot: (id: string) => void
     createEvent: (data: CalendarEventDraft) => string | null
-    updateEvent: (id: string, patch: Partial<CalendarEvent>) => boolean
+    updateEvent: (
+        id: string,
+        patch: Partial<CalendarEvent>,
+        options?: {
+            expectedUpdatedAt?: number
+        }
+    ) => boolean
     deleteEvent: (id: string) => boolean
 }
 

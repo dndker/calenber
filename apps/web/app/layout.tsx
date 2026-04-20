@@ -1,10 +1,17 @@
-import { Geist_Mono, Inter } from "next/font/google"
 import { AuthSync } from "@/components/provider/auth-sync"
 import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
 import type { Theme } from "@/components/provider/theme-context"
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
-import { createServerSupabase } from "@/lib/supabase/server"
+import {
+    APP_DEFAULT_IMAGE_ALT,
+    APP_DEFAULT_TITLE,
+    APP_DESCRIPTION,
+    APP_NAME,
+    APP_TITLE_TEMPLATE,
+    APP_URL,
+} from "@/lib/app-config"
+import { getServerUser } from "@/lib/auth/get-server-user"
 import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -14,6 +21,7 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
 import type { Metadata, Viewport } from "next"
+import { Geist_Mono, Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import "./editor.css"
 
@@ -24,17 +32,8 @@ const fontMono = Geist_Mono({
     variable: "--font-mono",
 })
 
-const APP_DEFAULT_TITLE = "캘린버"
-const APP_TITLE_TEMPLATE = "%s - 캘린버"
-const APP_DESCRIPTION = "일정, 그 이상을 기억하다."
-const APP_URL =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000")
-
 export const metadata: Metadata = {
-    applicationName: "캘린버",
+    applicationName: APP_NAME,
     metadataBase: new URL(APP_URL),
     title: {
         default: APP_DEFAULT_TITLE,
@@ -46,13 +45,13 @@ export const metadata: Metadata = {
         type: "website",
         locale: "ko_KR",
         // url: "https://your-domain.com/",
-        siteName: "캘린버",
+        siteName: APP_NAME,
         images: [
             {
                 url: "/icons/meta.png",
                 width: 1200,
                 height: 630,
-                alt: "일정, 그 이상을 기억하다. - 캘린버",
+                alt: APP_DEFAULT_IMAGE_ALT,
                 type: "image/png",
             },
         ],
@@ -68,7 +67,7 @@ export const metadata: Metadata = {
                 url: "/icons/meta.png",
                 width: 1200,
                 height: 630,
-                alt: "일정, 그 이상을 기억하다. - 캘린버",
+                alt: APP_DEFAULT_IMAGE_ALT,
                 type: "image/png",
             },
         ],
@@ -441,7 +440,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     userScalable: false,
     themeColor: [
-        { color: "#ffffff" },
         { media: "(prefers-color-scheme: light)", color: "#ffffff" },
         { media: "(prefers-color-scheme: dark)", color: "#0c0d0e" },
     ],
@@ -463,12 +461,7 @@ export default async function RootLayout({
     const cookieStore = await cookies()
     const theme = normalizeTheme(cookieStore.get("theme")?.value)
 
-    const supabase = await createServerSupabase()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
-
-    const appUser = mapUser(user)
+    const appUser = mapUser(await getServerUser())
 
     return (
         <html

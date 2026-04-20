@@ -1,5 +1,6 @@
 "use client"
 
+import { resolvePostAuthCalendarPath } from "@/lib/calendar/resolve-post-auth-calendar-path"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
 import type { User } from "@supabase/supabase-js"
@@ -21,7 +22,7 @@ export function useRouteToPostAuthCalendar() {
         if (user) {
             setUser(mapUser(user))
             setLoading(false)
-            router.replace("/calendar")
+            router.replace(await resolvePostAuthCalendarPath(user.id))
             return
         }
 
@@ -35,7 +36,9 @@ export function useRouteToPostAuthCalendar() {
             if (session?.user) {
                 setUser(mapUser(session.user))
                 setLoading(false)
-                router.replace("/calendar")
+                router.replace(
+                    await resolvePostAuthCalendarPath(session.user.id)
+                )
                 return
             }
 

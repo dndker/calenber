@@ -9,12 +9,16 @@ export type CalendarEventRecord = {
     end_at: string | null
     status: CalendarEvent["status"] | null
     created_by: string | null
+    updated_by: string | null
     is_locked: boolean | null
     created_at: string
     updated_at: string | null
     creator_name: string | null
     creator_email: string | null
     creator_avatar_url: string | null
+    updater_name: string | null
+    updater_email: string | null
+    updater_avatar_url: string | null
 }
 
 export function mapCalendarEventRecordToCalendarEvent(
@@ -42,6 +46,15 @@ export function mapCalendarEventRecordToCalendarEvent(
                   name: event.creator_name,
                   email: event.creator_email,
                   avatarUrl: event.creator_avatar_url,
+              }
+            : null,
+        updatedById: event.updated_by,
+        updatedBy: event.updated_by
+            ? {
+                  id: event.updated_by,
+                  name: event.updater_name,
+                  email: event.updater_email,
+                  avatarUrl: event.updater_avatar_url,
               }
             : null,
         isLocked: event.is_locked ?? false,

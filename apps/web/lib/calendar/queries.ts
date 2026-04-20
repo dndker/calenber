@@ -38,6 +38,17 @@ export type CalendarMembership = {
     status: CalendarMemberStatus | null
 }
 
+export type CalendarMemberDirectoryItem = {
+    id: string
+    userId: string
+    role: CalendarRole
+    status: CalendarMemberStatus
+    createdAt: string
+    email: string | null
+    name: string | null
+    avatarUrl: string | null
+}
+
 type CalendarRow = {
     id: string
     name: string
@@ -67,6 +78,17 @@ type DiscoverCalendarRow = {
     creator_name: string | null
     creator_email: string | null
     creator_avatar_url: string | null
+}
+
+type CalendarMemberDirectoryRow = {
+    id: string
+    user_id: string
+    role: CalendarRole
+    status: CalendarMemberStatus
+    created_at: string
+    email: string | null
+    name: string | null
+    avatar_url: string | null
 }
 
 export async function getAllCalendars(
@@ -130,8 +152,22 @@ export async function getLatestCalendarIdForUser(
     supabase: SupabaseClient,
     userId: string
 ): Promise<string | null> {
-    const calendars = await getMyCalendars(supabase, userId)
-    return calendars[0]?.id ?? null
+    const { data, error } = await supabase
+        .from("calendars")
+        .select("id, calendar_members!inner(user_id, status)")
+        .eq("calendar_members.user_id", userId)
+        .eq("calendar_members.status", "active")
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+    if (error) {
+        console.error("Failed to load latest calendar id:", error)
+        return null
+    }
+
+    return data?.id ?? null
 }
 
 export async function getCalendarById(
@@ -225,13 +261,56 @@ export async function getCalendarEvents(
     )
 }
 
-export async function getEventById(supabase: SupabaseClient, eventId: string) {
+export async function getCalendarMemberDirectory(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<CalendarMemberDirectoryItem[]> {
+    const { data, error } = await supabase.rpc("get_calendar_member_directory", {
+        target_calendar_id: calendarId,
+    })
+
+    if (error || !data) {
+        console.error("Failed to load calendar members:", error)
+        return []
+    }
+
+    return (data as CalendarMemberDirectoryRow[]).map((member) => ({
+        id: member.id,
+        userId: member.user_id,
+        role: member.role,
+        status: member.status,
+        createdAt: member.created_at,
+        email: member.email,
+        name: member.name,
+        avatarUrl: member.avatar_url,
+    }))
+}
+
+export async function getEventById(
+    supabase: SupabaseClient,
+    eventId: string,
+    options?: {
+        silentMissing?: boolean
+    }
+) {
     const { data, error } = await supabase.rpc("get_calendar_event_by_id", {
         target_event_id: eventId,
     })
 
-    if (error || !data || data.length === 0) {
+    if (error) {
+        if (options?.silentMissing && error.code === "42501") {
+            return null
+        }
+
         console.error("Failed to load event:", error)
+        return null
+    }
+
+    if (!data || data.length === 0) {
+        if (!options?.silentMissing) {
+            console.warn("Calendar event not found:", eventId)
+        }
+
         return null
     }
 

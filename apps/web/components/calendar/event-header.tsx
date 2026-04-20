@@ -1,4 +1,13 @@
+import { EventCollaboratorsHoverCard } from "@/components/calendar/event-collaborators-hover-card"
+import { EventHistoryDrawer } from "@/components/calendar/event-history-drawer"
 import { useAdjacentEvents } from "@/hooks/use-adjacent-events"
+import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
+import {
+    getCachedCalendarEventHistory,
+    loadCalendarEventHistory,
+    warmCalendarEventHistory,
+    type CalendarEventHistoryItem,
+} from "@/lib/calendar/event-history"
 import {
     canDeleteCalendarEvent,
     canToggleCalendarEventLock,
@@ -8,15 +17,9 @@ import {
     getCalendarEventModalPath,
     getCalendarEventPagePath,
 } from "@/lib/calendar/routes"
-import { formatRelativeTime } from "@/lib/dayjs"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import {
-    Avatar,
-    AvatarFallback,
-    AvatarGroup,
-    AvatarImage,
-} from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import {
     DropdownMenu,
@@ -26,11 +29,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
-} from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
 import { Switch } from "@workspace/ui/components/switch"
 import {
@@ -43,6 +41,7 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     EllipsisIcon,
+    HistoryIcon,
     LinkIcon,
     LockIcon,
     LockOpenIcon,
@@ -53,19 +52,23 @@ import {
     TrashIcon,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { memo } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { CalendarEventPresenceGroup } from "./calendar-event-presence-group"
 
 type EventHeaderProps = {
     modal?: boolean
     id?: string
+    event?: CalendarEvent | null
     onDeleteEvent: () => void
+    portalContainer?: HTMLElement | null
 }
 
 export const EventHeader = memo(function EventHeader({
     id,
+    event: eventProp,
     modal = false,
     onDeleteEvent,
+    portalContainer,
 }: EventHeaderProps) {
     const router = useRouter()
     const pathname = usePathname()
@@ -76,6 +79,7 @@ export const EventHeader = memo(function EventHeader({
     const activeEventId = useCalendarStore((s) => s.activeEventId)
 
     const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const { copyEventLink } = useCopyCalendarEventLink()
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
@@ -85,9 +89,20 @@ export const EventHeader = memo(function EventHeader({
     const calendarId = activeCalendar?.id || basePath.split("/")[2]
 
     const eventId = id ? id : (activeEventId ?? undefined)
-    const event = useCalendarStore((s) =>
+    const storeEvent = useCalendarStore((s) =>
         eventId ? s.events.find((ev) => ev.id === eventId) : undefined
     )
+    const event = eventProp ?? storeEvent
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+    const [historyState, setHistoryState] = useState<{
+        eventId?: string
+        history: CalendarEventHistoryItem[]
+    }>(() => ({
+        eventId,
+        history: eventId ? (getCachedCalendarEventHistory(eventId) ?? []) : [],
+    }))
+    const lastHistoryVersionRef = useRef<string | null>(null)
+    const pendingOpenHistoryRef = useRef(false)
 
     const tooltipSide = modal ? "top" : "bottom"
 
@@ -95,7 +110,122 @@ export const EventHeader = memo(function EventHeader({
         eventId!
     )
 
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+    const prefetchedHistory =
+        eventId == null
+            ? []
+            : historyState.eventId === eventId
+              ? historyState.history
+              : (getCachedCalendarEventHistory(eventId) ?? [])
+
+    useEffect(() => {
+        if (!eventId) {
+            return
+        }
+
+        if (typeof window === "undefined") {
+            return
+        }
+
+        let cancelled = false
+
+        const warm = () => {
+            void loadCalendarEventHistory(eventId)
+                .then((nextHistory) => {
+                    if (!cancelled) {
+                        setHistoryState({
+                            eventId,
+                            history: nextHistory,
+                        })
+                    }
+                })
+                .catch(() => {})
+        }
+
+        if ("requestIdleCallback" in window) {
+            const idleId = window.requestIdleCallback(warm, {
+                timeout: 1200,
+            })
+
+            return () => {
+                cancelled = true
+                window.cancelIdleCallback(idleId)
+            }
+        }
+
+        const timeoutId = globalThis.setTimeout(warm, 350)
+        return () => {
+            cancelled = true
+            globalThis.clearTimeout(timeoutId)
+        }
+    }, [eventId])
+
+    useEffect(() => {
+        if (!eventId || !event) {
+            lastHistoryVersionRef.current = null
+            return
+        }
+
+        const nextVersionKey = `${eventId}:${event.updatedAt}`
+
+        if (!lastHistoryVersionRef.current) {
+            lastHistoryVersionRef.current = nextVersionKey
+            return
+        }
+
+        if (lastHistoryVersionRef.current === nextVersionKey) {
+            return
+        }
+
+        lastHistoryVersionRef.current = nextVersionKey
+
+        let cancelled = false
+
+        void loadCalendarEventHistory(eventId, { force: true })
+            .then((nextHistory) => {
+                if (!cancelled) {
+                    setHistoryState({
+                        eventId,
+                        history: nextHistory,
+                    })
+                }
+            })
+            .catch(() => {})
+
+        return () => {
+            cancelled = true
+        }
+    }, [event, eventId])
+
+    useEffect(() => {
+        if (isDropdownOpen || !pendingOpenHistoryRef.current) {
+            return
+        }
+
+        pendingOpenHistoryRef.current = false
+
+        if (
+            typeof document !== "undefined" &&
+            document.activeElement instanceof HTMLElement
+        ) {
+            document.activeElement.blur()
+        }
+
+        const frameId = globalThis.requestAnimationFrame(() => {
+            setIsHistoryOpen(true)
+        })
+
+        return () => {
+            globalThis.cancelAnimationFrame(frameId)
+        }
+    }, [isDropdownOpen])
+
     if (!eventId || !event) return null
+
+    const handleOpenHistory = () => {
+        pendingOpenHistoryRef.current = true
+        setIsDropdownOpen(false)
+    }
 
     const canDelete =
         activeCalendar?.id === "demo" ||
@@ -210,63 +340,11 @@ export const EventHeader = memo(function EventHeader({
                 </Tooltip>
             </div>
             <div className="flex items-center gap-1.25">
-                {event?.author && activeCalendarMembership.isMember && (
-                    <HoverCard openDelay={10} closeDelay={100}>
-                        <HoverCardTrigger className="mr-0.5">
-                            <AvatarGroup>
-                                <Avatar className="size-5.75">
-                                    <AvatarImage
-                                        src={
-                                            event.author.avatarUrl ?? undefined
-                                        }
-                                        alt={event.author.name ?? "작성자"}
-                                    />
-                                    <AvatarFallback>
-                                        {event.author.name?.[0]?.toUpperCase() ??
-                                            "?"}
-                                    </AvatarFallback>
-                                </Avatar>
-                            </AvatarGroup>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                            className="flex w-auto min-w-44 flex-col p-0! px-3 shadow-sm"
-                            align="end"
-                        >
-                            <div className="px-3 pt-2 text-xs font-medium text-muted-foreground">
-                                관련 작업자
-                            </div>
-                            <div className="flex gap-2.5 px-3 py-2.5 text-sm text-muted-foreground">
-                                <Avatar className="size-6">
-                                    <AvatarImage
-                                        src={
-                                            event.author.avatarUrl ?? undefined
-                                        }
-                                        alt={event.author.name ?? "작성자"}
-                                    />
-                                    <AvatarFallback>
-                                        {event.author.name?.[0]?.toUpperCase() ??
-                                            "?"}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex min-w-0 flex-col gap-0.5">
-                                    <div className="truncate font-medium text-primary">
-                                        {event.author.name ?? "이름 없음"}
-                                    </div>
-                                    {event.author.email && (
-                                        <div
-                                            className="truncate text-xs"
-                                            suppressHydrationWarning
-                                        >
-                                            {formatRelativeTime(
-                                                event.updatedAt
-                                            )}{" "}
-                                            수정
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </HoverCardContent>
-                    </HoverCard>
+                {activeCalendarMembership.isMember && (
+                    <EventCollaboratorsHoverCard
+                        event={event}
+                        history={prefetchedHistory}
+                    />
                 )}
 
                 {activeCalendarMembership.isMember && (
@@ -309,7 +387,11 @@ export const EventHeader = memo(function EventHeader({
                         </Tooltip>
                     )}
 
-                <DropdownMenu>
+                <DropdownMenu
+                    modal={false}
+                    open={isDropdownOpen}
+                    onOpenChange={setIsDropdownOpen}
+                >
                     <DropdownMenuTrigger asChild>
                         <Button
                             tabIndex={-1}
@@ -320,16 +402,36 @@ export const EventHeader = memo(function EventHeader({
                             <EllipsisIcon className="size-5.5 text-muted-foreground" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-auto">
+                    <DropdownMenuContent
+                        align="end"
+                        className="w-auto"
+                        onCloseAutoFocus={(closeEvent) => {
+                            closeEvent.preventDefault()
+                        }}
+                    >
                         <DropdownMenuGroup>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    if (!calendarId) {
+                                        return
+                                    }
+
+                                    void copyEventLink({
+                                        calendarId,
+                                        eventId,
+                                        modal,
+                                    })
+                                }}
+                            >
                                 <LinkIcon />
                                 링크 복사
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
-                                <ShareIcon />
-                                공유
-                            </DropdownMenuItem>
+                            {activeCalendarMembership.isMember && (
+                                <DropdownMenuItem>
+                                    <ShareIcon />
+                                    공유
+                                </DropdownMenuItem>
+                            )}
                             {canToggleLock && (
                                 <DropdownMenuItem
                                     className="min-w-40 gap-3"
@@ -359,6 +461,25 @@ export const EventHeader = memo(function EventHeader({
                                     />
                                 </DropdownMenuItem>
                             )}
+                            {activeCalendarMembership.isMember && (
+                                <DropdownMenuItem
+                                    onPointerEnter={() => {
+                                        warmCalendarEventHistory(event.id)
+                                    }}
+                                    onSelect={(e) => {
+                                        e.preventDefault()
+
+                                        const target =
+                                            e.currentTarget as HTMLElement
+                                        target.blur()
+
+                                        handleOpenHistory()
+                                    }}
+                                >
+                                    <HistoryIcon />
+                                    일정 기록
+                                </DropdownMenuItem>
+                            )}
                         </DropdownMenuGroup>
                         {canDelete && (
                             <>
@@ -378,6 +499,13 @@ export const EventHeader = memo(function EventHeader({
                         )}
                     </DropdownMenuContent>
                 </DropdownMenu>
+                <EventHistoryDrawer
+                    eventId={event.id}
+                    open={isHistoryOpen}
+                    onOpenChange={setIsHistoryOpen}
+                    portalContainer={portalContainer}
+                    preloadedHistory={prefetchedHistory}
+                />
             </div>
         </div>
     )

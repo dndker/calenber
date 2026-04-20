@@ -1,10 +1,11 @@
 "use client"
 
+import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 import { usePathname, useRouter } from "next/navigation"
 import * as React from "react"
-import { startTransition } from "react"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
@@ -22,57 +23,61 @@ import { EventHeader } from "./event-header"
 
 export const EventModal = React.memo(function EventModal({
     e,
+    initialEvent,
 }: {
     e?: string
+    initialEvent?: CalendarEvent | null
 }) {
     const router = useRouter()
     const pathname = usePathname()
     const isDesktop = useMediaQuery("(min-width: 768px)")
-
-    const activeEventId = useCalendarStore((s) => s.activeEventId)
-    const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
-    const [isClosing, setIsClosing] = React.useState(false)
-    const closeTimerRef = React.useRef<number | null>(null)
-    const eventId = activeEventId ?? e
-    const open = Boolean(eventId) && !isClosing
+    const setActiveEventId = useCalendarStore((state) => state.setActiveEventId)
     const basePath = getCalendarBasePath(pathname)
+    const [dismissedEventId, setDismissedEventId] = React.useState<
+        string | null
+    >(null)
+    const [portalContainer, setPortalContainer] =
+        React.useState<HTMLElement | null>(null)
 
-    const event = useCalendarStore((s) =>
-        eventId ? s.events.find((ev) => ev.id === eventId) : undefined
-    )
+    const eventId = e && e !== dismissedEventId ? e : undefined
+    const open = Boolean(eventId)
 
     React.useEffect(() => {
-        return () => {
-            if (closeTimerRef.current) {
-                window.clearTimeout(closeTimerRef.current)
-            }
+        if (!e) {
+            setDismissedEventId(null)
         }
-    }, [])
+    }, [e])
 
     React.useEffect(() => {
-        if (e) {
-            setIsClosing(false)
-            setActiveEventId(e)
+        if (!eventId) {
+            setActiveEventId(undefined)
             return
         }
 
-        setIsClosing(false)
-        setActiveEventId(undefined)
-    }, [e, setActiveEventId])
+        setActiveEventId(eventId)
+    }, [eventId, setActiveEventId])
+
+    const { event, isMissing } = useCalendarEventDetail({
+        eventId,
+        initialEvent:
+            initialEvent && initialEvent.id === eventId ? initialEvent : null,
+    })
 
     React.useEffect(() => {
-        if (eventId && !event) {
-            setActiveEventId(undefined)
-            router.replace(basePath)
-        }
-    }, [basePath, eventId, event, router, setActiveEventId])
-
-    const handleClose = () => {
-        if (closeTimerRef.current) {
-            window.clearTimeout(closeTimerRef.current)
+        if (!eventId || !isMissing) {
+            return
         }
 
-        setIsClosing(true)
+        setDismissedEventId(eventId)
+        setActiveEventId(undefined)
+        window.history.replaceState(window.history.state, "", basePath)
+        router.replace(basePath, { scroll: false })
+    }, [basePath, eventId, isMissing, router, setActiveEventId])
+
+    const handleClose = React.useCallback(() => {
+        if (!eventId) {
+            return
+        }
 
         useCalendarStore.setState({
             selection: {
@@ -83,53 +88,63 @@ export const EventModal = React.memo(function EventModal({
             },
         })
 
-        closeTimerRef.current = window.setTimeout(() => {
-            setActiveEventId(undefined)
-            startTransition(() => {
-                router.replace(basePath)
-            })
-        }, 150)
-    }
+        setDismissedEventId(eventId)
+        setActiveEventId(undefined)
+        window.history.replaceState(window.history.state, "", basePath)
+        router.replace(basePath, { scroll: false })
+    }, [basePath, eventId, router, setActiveEventId])
 
     const handleDeleteEvent = useEventDeleteAction({
         eventId,
         onSuccess: () => {
-            if (closeTimerRef.current) {
-                window.clearTimeout(closeTimerRef.current)
-            }
-            setIsClosing(false)
+            setDismissedEventId(null)
             setActiveEventId(undefined)
-            router.replace(basePath)
+            window.history.replaceState(window.history.state, "", basePath)
+            router.replace(basePath, { scroll: false })
         },
     })
 
-    if (!eventId || !event) return null
+    if (!eventId) {
+        return null
+    }
 
-    const content = <EventPage modal eventId={eventId} />
+    const content = (
+        <div
+            className="cb-event-page"
+            ref={(node) => {
+                setPortalContainer(node)
+            }}
+        >
+            <EventPage modal eventId={eventId} initialEvent={event} />
+        </div>
+    )
 
     if (isDesktop) {
         return (
             <Dialog
                 open={open}
-                onOpenChange={(v) => !v && handleClose()}
-                // modal={false}
+                onOpenChange={(nextOpen) => !nextOpen && handleClose()}
             >
-                {/* {open && (
-                    <div
-                        data-state={open ? "open" : "closed"}
-                        className="fixed inset-0 isolate z-50 bg-black/45 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
-                    ></div>
-                )} */}
                 <DialogContent
+                    onOpenAutoFocus={(e) => e.preventDefault()}
                     showCloseButton={false}
-                    className="w-[calc(100%-32px)] gap-0 p-0 sm:max-w-243.75"
+                    disableAnimation
+                    className="w-[calc(100%-32px)] gap-0 overflow-hidden p-0 sm:max-w-243.75"
                     aria-describedby={undefined}
                 >
                     <DialogHeader>
                         <VisuallyHidden>
                             <DialogTitle>일정</DialogTitle>
                         </VisuallyHidden>
-                        <EventHeader modal onDeleteEvent={handleDeleteEvent} />
+                        {event ? (
+                            <EventHeader
+                                id={eventId}
+                                event={event}
+                                modal
+                                onDeleteEvent={handleDeleteEvent}
+                                portalContainer={portalContainer}
+                            />
+                        ) : null}
                     </DialogHeader>
                     <div className="mx-auto no-scrollbar max-h-[80vh] w-full overflow-y-auto px-3 pt-18 pb-20 sm:max-w-180.75">
                         {content}
@@ -140,7 +155,10 @@ export const EventModal = React.memo(function EventModal({
     }
 
     return (
-        <Drawer open={open} onOpenChange={(v) => !v && handleClose()}>
+        <Drawer
+            open={open}
+            onOpenChange={(nextOpen) => !nextOpen && handleClose()}
+        >
             <DrawerContent>{content}</DrawerContent>
         </Drawer>
     )

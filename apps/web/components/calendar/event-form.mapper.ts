@@ -25,6 +25,8 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
         status: "scheduled",
         authorId: null,
         author: null,
+        updatedById: null,
+        updatedBy: null,
         isLocked: false,
         createdAt: now,
         updatedAt: now,
