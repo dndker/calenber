@@ -1,6 +1,7 @@
 "use client"
 
-import dayjs, { formatRelativeTime } from "@/lib/dayjs"
+import { useRelativeTime } from "@/hooks/use-relative-time"
+import dayjs from "@/lib/dayjs"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
     CalendarIcon,
@@ -10,7 +11,6 @@ import {
 } from "lucide-react"
 import { Controller, useForm } from "react-hook-form"
 
-import { mapToEvent } from "./event-form.mapper"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
 
 import { Button } from "@workspace/ui/components/button"
@@ -66,27 +66,39 @@ import {
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
-import dynamic from "next/dynamic"
-import { Fragment, useEffect, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
-
-const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
-    ssr: false,
-})
 
 const statusItems = eventStatus.map((status) => ({
     value: status,
     label: eventStatusLabel[status],
 }))
 
+function EventUpdatedAtText({ value }: { value: number | undefined }) {
+    const relativeTime = useRelativeTime(value, { clampFuture: true })
+
+    return (
+        <span
+            className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]"
+            suppressHydrationWarning
+        >
+            {relativeTime} 수정
+        </span>
+    )
+}
+
 export function EventForm({
-    modal = false,
     event,
     onChange,
     disabled = false,
 }: {
     event?: CalendarEvent
-    onChange?: (patch: Partial<CalendarEvent>) => void
+    onChange?: (
+        patch: Partial<CalendarEvent>,
+        options?: {
+            expectedUpdatedAt?: number
+        }
+    ) => void
     disabled?: boolean
     modal?: boolean
 }) {
@@ -127,22 +139,121 @@ export function EventForm({
     const user = useAuthStore((a) => a.user)
 
     const timer = useRef<NodeJS.Timeout | null>(null)
+    const wasBootstrappedWithEventRef = useRef(Boolean(event))
+    const initializedEventIdRef = useRef<string | null>(null)
+    const lastAppliedUpdatedAtRef = useRef<number | null>(null)
+
+    const resetFormWithEvent = useCallback(
+        (targetEvent: CalendarEvent) => {
+            form.reset({
+                title: targetEvent.title,
+                content: targetEvent.content,
+                start: new Date(targetEvent.start),
+                end: new Date(targetEvent.end),
+                timezone: targetEvent.timezone,
+                color: targetEvent.color,
+                allDay: targetEvent.allDay,
+                recurrence: targetEvent.recurrence,
+                exceptions: targetEvent.exceptions,
+                status: targetEvent.status,
+            })
+
+            console.log("reset")
+        },
+        [form]
+    )
+
+    const isSameValue = (
+        prevValue: unknown,
+        nextValue: unknown,
+        kind: "date" | "json" | "primitive" = "primitive"
+    ) => {
+        if (kind === "date") {
+            return (
+                prevValue instanceof Date &&
+                nextValue instanceof Date &&
+                prevValue.getTime() === nextValue.getTime()
+            )
+        }
+
+        if (kind === "json") {
+            return (
+                JSON.stringify(prevValue ?? null) ===
+                JSON.stringify(nextValue ?? null)
+            )
+        }
+
+        return prevValue === nextValue
+    }
+
+    const buildPatchFromValues = (
+        sourceEvent: CalendarEvent,
+        values: EventFormValues
+    ): Partial<CalendarEvent> => {
+        const normalizedTitle =
+            values.title && values.title.trim() !== "" ? values.title : ""
+        const patch: Partial<CalendarEvent> = {}
+
+        if (!isSameValue(sourceEvent.title, normalizedTitle)) {
+            patch.title = normalizedTitle
+        }
+
+        if (!isSameValue(sourceEvent.content, values.content, "json")) {
+            patch.content = values.content
+        }
+
+        if (
+            !isSameValue(sourceEvent.start, values.start.getTime(), "primitive")
+        ) {
+            patch.start = values.start.getTime()
+        }
+
+        if (!isSameValue(sourceEvent.end, values.end.getTime(), "primitive")) {
+            patch.end = values.end.getTime()
+        }
+
+        if (!isSameValue(sourceEvent.allDay, values.allDay)) {
+            patch.allDay = values.allDay
+        }
+
+        if (!isSameValue(sourceEvent.timezone, values.timezone)) {
+            patch.timezone = values.timezone
+        }
+
+        if (!isSameValue(sourceEvent.color, values.color)) {
+            patch.color = values.color
+        }
+
+        if (!isSameValue(sourceEvent.recurrence, values.recurrence, "json")) {
+            patch.recurrence = values.recurrence
+        }
+
+        if (!isSameValue(sourceEvent.exceptions, values.exceptions, "json")) {
+            patch.exceptions = values.exceptions
+        }
+
+        if (!isSameValue(sourceEvent.status, values.status)) {
+            patch.status = values.status
+        }
+
+        return patch
+    }
 
     const saveNow = () => {
+        if (!event) {
+            return
+        }
+
         const values = form.getValues()
+        const patch = buildPatchFromValues(event, values)
 
-        const title =
-            values.title && values.title.trim() !== ""
-                ? values.title
-                : "새 일정"
+        if (Object.keys(patch).length === 0) {
+            return
+        }
 
-        const patch = mapToEvent({
-            ...values,
-            title,
+        onChange?.(patch, {
+            expectedUpdatedAt: event.updatedAt,
         })
-
-        console.log("[patch]", patch)
-        onChange?.(patch)
     }
 
     const autoSave = () => {
@@ -199,21 +310,52 @@ export function EventForm({
     useEffect(() => {
         if (!event) return
 
-        console.log(event)
+        if (initializedEventIdRef.current === null) {
+            initializedEventIdRef.current = event.id
+            lastAppliedUpdatedAtRef.current = event.updatedAt
 
-        form.reset({
-            title: event.title,
-            content: event.content,
-            start: new Date(event.start),
-            end: new Date(event.end),
-            timezone: event.timezone,
-            color: event.color,
-            allDay: event.allDay,
-            recurrence: event.recurrence,
-            exceptions: event.exceptions,
-            status: event.status,
-        })
-    }, [event, form])
+            if (!wasBootstrappedWithEventRef.current) {
+                resetFormWithEvent(event)
+            }
+
+            return
+        }
+
+        if (initializedEventIdRef.current !== event.id) {
+            initializedEventIdRef.current = event.id
+            lastAppliedUpdatedAtRef.current = event.updatedAt
+            resetFormWithEvent(event)
+            return
+        }
+
+        if (lastAppliedUpdatedAtRef.current === null) {
+            lastAppliedUpdatedAtRef.current = event.updatedAt
+            return
+        }
+
+        const isRemoteUpdate = event.updatedById !== (user?.id ?? null)
+        const hasNewerServerVersion =
+            event.updatedAt > lastAppliedUpdatedAtRef.current
+
+        if (!isRemoteUpdate || !hasNewerServerVersion) {
+            return
+        }
+
+        lastAppliedUpdatedAtRef.current = event.updatedAt
+        resetFormWithEvent(event)
+    }, [event, form, user?.id, resetFormWithEvent])
+
+    useEffect(() => {
+        return () => {
+            if (timer.current) {
+                clearTimeout(timer.current)
+            }
+
+            if (searchTimer.current) {
+                clearTimeout(searchTimer.current)
+            }
+        }
+    }, [])
 
     return (
         <form
@@ -374,30 +516,24 @@ export function EventForm({
 
                         <div className="flex w-full flex-wrap justify-start gap-1.5 px-1 md:flex-1">
                             <HoverCard openDelay={10} closeDelay={100}>
-                                <HoverCardTrigger asChild>
-                                    <div
-                                        key={event?.author?.id}
-                                        className="flex cursor-default items-center gap-1.25 rounded-full border border-border px-1.5 py-1 pr-1.75 text-sm select-none dark:bg-input/30"
-                                    >
-                                        <Avatar className="size-5.5">
-                                            <AvatarImage
-                                                src={
-                                                    event?.author?.avatarUrl ??
-                                                    undefined
-                                                }
-                                                alt={
-                                                    event?.author?.name ??
-                                                    "작성자"
-                                                }
-                                            />
-                                            <AvatarFallback className="text-xs">
-                                                {event?.author?.name?.[0]?.toUpperCase() ??
-                                                    "?"}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                    <Avatar className="size-5">
+                                        <AvatarImage
+                                            src={
+                                                event?.author?.avatarUrl ??
+                                                undefined
+                                            }
+                                            alt={
+                                                event?.author?.name ?? "작성자"
+                                            }
+                                        />
+                                        <AvatarFallback className="text-xs">
+                                            {event?.author?.name?.[0]?.toUpperCase() ??
+                                                "?"}
+                                        </AvatarFallback>
+                                    </Avatar>
 
-                                        {event?.author?.name}
-                                    </div>
+                                    {event?.author?.name}
                                 </HoverCardTrigger>
                                 <HoverCardContent
                                     className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
@@ -431,12 +567,9 @@ export function EventForm({
                                                 </Badge>
                                             )}
                                         </div>
-                                        <span className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]">
-                                            {formatRelativeTime(
-                                                event?.updatedAt
-                                            )}{" "}
-                                            수정
-                                        </span>
+                                        <EventUpdatedAtText
+                                            value={event?.updatedAt}
+                                        />
                                     </div>
                                 </HoverCardContent>
                             </HoverCard>
@@ -620,27 +753,18 @@ export function EventForm({
                     control={form.control}
                     render={({ field }) => (
                         <Field>
-                            {modal ? (
-                                <ContentEditor
-                                    value={field.value}
-                                    editable={!disabled}
-                                    onChange={(val) => {
-                                        if (disabled) return
-                                        field.onChange(val)
-                                        autoSave()
-                                    }}
-                                />
-                            ) : (
-                                <ContentEditorCSR
-                                    value={field.value}
-                                    editable={!disabled}
-                                    onChange={(val) => {
-                                        if (disabled) return
-                                        field.onChange(val)
-                                        autoSave()
-                                    }}
-                                />
-                            )}
+                            <ContentEditor
+                                value={field.value}
+                                editable={!disabled}
+                                updatedAt={event?.updatedAt}
+                                updatedById={event?.updatedById}
+                                currentUserId={user?.id ?? null}
+                                onChange={(val) => {
+                                    if (disabled) return
+                                    field.onChange(val)
+                                    autoSave()
+                                }}
+                            />
                         </Field>
                     )}
                 />

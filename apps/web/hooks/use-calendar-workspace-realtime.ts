@@ -48,6 +48,33 @@ type CalendarCursorSnapshotResponseMessage = {
 const ANONYMOUS_PRESENCE_ID_STORAGE_KEY = "calendar-workspace-anonymous-id"
 const IS_DEV = process.env.NODE_ENV === "development"
 const SOCKET_RECONNECT_TIMEOUT_THRESHOLD = 2
+const PROJECT_DB_UNAVAILABLE_ERROR_CODES = [
+    "UnableToConnectToProject",
+    "UnableToConnectToTenantDatabase",
+    "DatabaseConnectionIssue",
+    "DatabaseLackOfConnections",
+    "ConnectionInitializing",
+] as const
+
+function getRealtimeErrorMessage(error: Error | null) {
+    if (!error) {
+        return null
+    }
+
+    return typeof error.message === "string" ? error.message : String(error)
+}
+
+function isProjectDatabaseUnavailableError(error: Error | null) {
+    const message = getRealtimeErrorMessage(error)?.toLowerCase()
+
+    if (!message) {
+        return false
+    }
+
+    return PROJECT_DB_UNAVAILABLE_ERROR_CODES.some((code) =>
+        message.includes(code.toLowerCase())
+    )
+}
 
 function getAnonymousPresenceId() {
     if (typeof window === "undefined") {
@@ -708,7 +735,8 @@ export function useCalendarWorkspaceRealtime() {
         }
 
         const scheduleReconnect = (
-            status: Exclude<CalendarWorkspaceRealtimeStatus, "SUBSCRIBED">
+            status: Exclude<CalendarWorkspaceRealtimeStatus, "SUBSCRIBED">,
+            options?: { error?: Error | null; preferSlowerBackoff?: boolean }
         ) => {
             if (isDisposed) {
                 return
@@ -717,13 +745,16 @@ export function useCalendarWorkspaceRealtime() {
             clearRetryTimeout()
 
             const attempt = reconnectAttemptRef.current
-            const delay =
+            const baseDelay =
                 CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS[
                     Math.min(
                         attempt,
                         CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS.length - 1
                     )
                 ]
+            const delay = options?.preferSlowerBackoff
+                ? Math.max(baseDelay!, 15_000)
+                : baseDelay
 
             reconnectAttemptRef.current = attempt + 1
 
@@ -741,6 +772,7 @@ export function useCalendarWorkspaceRealtime() {
                     status,
                     attempt: attempt + 1,
                     delay,
+                    error: getRealtimeErrorMessage(options?.error ?? null),
                 })
             }
         }
@@ -884,13 +916,29 @@ export function useCalendarWorkspaceRealtime() {
                             typedStatus
                         )
                     ) {
+                        const isProjectDbUnavailable =
+                            isProjectDatabaseUnavailableError(err)
+
                         setPresenceLoading(true)
                         markChannelAsStale(nextChannel)
                         latestPresenceKeyRef.current = null
                         latestCursorBroadcastKeyRef.current = null
                         latestCursorSnapshotRequestKeyRef.current = null
 
-                        if (typedStatus === "TIMED_OUT") {
+                        if (isProjectDbUnavailable) {
+                            timeoutCountRef.current = 0
+
+                            if (IS_DEV) {
+                                console.warn(
+                                    "[calendar-workspace-realtime:project-db-unavailable]",
+                                    {
+                                        topic,
+                                        status: typedStatus,
+                                        error: getRealtimeErrorMessage(err),
+                                    }
+                                )
+                            }
+                        } else if (typedStatus === "TIMED_OUT") {
                             timeoutCountRef.current += 1
 
                             if (
@@ -904,7 +952,10 @@ export function useCalendarWorkspaceRealtime() {
                             timeoutCountRef.current = 0
                         }
 
-                        scheduleReconnect(typedStatus)
+                        scheduleReconnect(typedStatus, {
+                            error: err,
+                            preferSlowerBackoff: isProjectDbUnavailable,
+                        })
                     }
                 })
         }

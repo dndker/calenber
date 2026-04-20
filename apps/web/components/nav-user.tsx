@@ -44,7 +44,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { memo, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 
 export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
     const { isMobile } = useSidebar()
@@ -59,6 +59,12 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
     )
     const router = useRouter()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+    useEffect(() => {
+        for (const calendar of myCalendars) {
+            router.prefetch(getCalendarPath(calendar.id))
+        }
+    }, [myCalendars, router])
 
     const displayCalendar = useMemo(
         () =>

@@ -1,7 +1,5 @@
 /// <reference lib="webworker" />
 
-import "regenerator-runtime/runtime"
-
 import { clientsClaim } from "workbox-core"
 import { precacheAndRoute } from "workbox-precaching"
 
@@ -51,7 +49,7 @@ self.addEventListener("activate", (event) => {
 //
 // self.__WB_DISABLE_DEV_LOGS = true
 
-self.addEventListener("message", (event) => {
+self.addEventListener("message", () => {
     // HOW TO TEST THIS?
     // Run this in your browser console:
     //     window.navigator.serviceWorker.controller.postMessage({command: 'log', message: 'hello world'})

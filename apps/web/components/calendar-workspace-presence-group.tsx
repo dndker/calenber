@@ -1,39 +1,21 @@
 "use client"
 
+import {
+    AvatarGroupDropdown,
+    AvatarGroupDropdownPreview,
+    getAvatarGroupBadge,
+    getAvatarGroupFallbackLabel,
+} from "@/components/calendar/avatar-group-dropdown"
 import dayjs from "@/lib/dayjs"
 import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import {
-    Avatar,
-    AvatarFallback,
-    AvatarGroup,
-    AvatarGroupCount,
-    AvatarImage,
-} from "@workspace/ui/components/avatar"
-import { Badge } from "@workspace/ui/components/badge"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { cn } from "@workspace/ui/lib/utils"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
 const KOREAN_LOCALE = "ko"
-
-function getPresenceFallbackLabel(displayName: string, isAnonymous: boolean) {
-    if (isAnonymous) {
-        return "익"
-    }
-
-    return displayName.trim().charAt(0).toUpperCase() || "?"
-}
 
 function getPresenceCursorLabel(
     cursor:
@@ -69,14 +51,7 @@ function getPresenceCursorLabel(
         const eventTitle = getEventTitle?.(cursor.eventId)
 
         if (eventTitle) {
-            return (
-                <>
-                    <span className="text-primary underline-offset-2">
-                        {eventTitle}
-                    </span>{" "}
-                    확인 중
-                </>
-            )
+            return `${eventTitle} 확인 중`
         }
 
         return `${cursorDate.format(format)} 일정 확인 중`
@@ -141,139 +116,81 @@ export function CalendarWorkspacePresenceGroup() {
             eventId ? (eventTitleMap.get(eventId) ?? null) : null,
         [eventTitleMap]
     )
-    const visibleMembers = sortedMembers.slice(0, MAX_VISIBLE_MEMBERS)
-    const hiddenCount = Math.max(0, sortedMembers.length - MAX_VISIBLE_MEMBERS)
-    const title = sortedMembers.map((member) => member.displayName).join(", ")
+
+    const items = sortedMembers.map((user) => {
+        const isMe = myUserId ? user.userId === myUserId : myId === user.id
+
+        return {
+            id: user.id,
+            name: user.displayName,
+            avatarUrl: user.avatarUrl,
+            avatarFallback: getAvatarGroupFallbackLabel(
+                user.displayName,
+                user.isAnonymous
+            ),
+            badge: isMe ? getAvatarGroupBadge("나") : undefined,
+            time: getPresenceCursorLabel(
+                user.cursor,
+                getEventTitle,
+                selectedDate,
+                calendarTimezone
+            ),
+            onSelect: isMe
+                ? undefined
+                : () => {
+                      setSelectedDate(
+                          dayjs.tz(user.cursor?.date, calendarTimezone).toDate()
+                      )
+
+                      if (user.cursor?.eventId) {
+                          const params = new URLSearchParams(
+                              searchParams.toString()
+                          )
+                          params.set("e", user.cursor.eventId)
+
+                          router.push(`${pathname}?${params.toString()}`)
+                      }
+                  },
+        }
+    })
 
     if (!isLoading && members.length === 0) {
         return null
     }
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
-                {isLoading && members.length === 0 ? (
-                    <div className="flex size-8 items-center justify-center text-muted-foreground">
-                        <Spinner
-                            className="size-5"
-                            aria-label="온라인 멤버 불러오는 중"
-                        />
-                    </div>
-                ) : (
-                    <div className="relative">
-                        <AvatarGroup
-                            aria-label="이 캘린더를 보고 있는 사람"
-                            title={title}
-                        >
-                            {visibleMembers.map((member) => (
-                                <Avatar key={member.id} size="sm">
-                                    <AvatarImage
-                                        src={member.avatarUrl ?? undefined}
-                                        alt={member.displayName}
-                                    />
-                                    <AvatarFallback>
-                                        {getPresenceFallbackLabel(
-                                            member.displayName,
-                                            member.isAnonymous
-                                        )}
-                                    </AvatarFallback>
-                                </Avatar>
-                            ))}
-                            {hiddenCount > 0 && (
-                                <AvatarGroupCount>
-                                    +{hiddenCount}
-                                </AvatarGroupCount>
-                            )}
-                        </AvatarGroup>
-                        {isLoading && members.length > 0 && (
-                            <div className="absolute top-0 left-0 flex size-4 h-full w-full items-center justify-center bg-background/45 text-muted-foreground">
-                                <Spinner className="size-5" />
-                            </div>
-                        )}
-                    </div>
-                )}
-            </DropdownMenuTrigger>
-            {sortedMembers.length > 0 && (
-                <DropdownMenuContent align="end" className="w-auto min-w-47">
-                    <DropdownMenuLabel>온라인 멤버</DropdownMenuLabel>
-                    {sortedMembers.map((user) => (
-                        <DropdownMenuItem
-                            key={user.id}
-                            asChild
-                            onClick={() => {
-                                if (
-                                    myUserId
-                                        ? user.userId === myUserId
-                                        : myId === user.id
-                                ) {
-                                    return false
-                                }
-
-                                setSelectedDate(
-                                    dayjs
-                                        .tz(user.cursor?.date, calendarTimezone)
-                                        .toDate()
-                                )
-
-                                if (user.cursor?.eventId) {
-                                    const params = new URLSearchParams(
-                                        searchParams.toString()
-                                    )
-                                    params.set("e", user.cursor.eventId)
-
-                                    router.push(
-                                        `${pathname}?${params.toString()}`
-                                    )
-                                }
-                            }}
-                        >
-                            <div className="flex items-start gap-2 overflow-hidden">
-                                <Avatar className="mt-1 size-6.5 shrink-0">
-                                    <AvatarImage
-                                        src={user.avatarUrl || undefined}
-                                        alt={user.displayName}
-                                    />
-                                    <AvatarFallback
-                                        className={cn(
-                                            "text-xs",
-                                            user.isAnonymous && "text-[10px]!"
-                                        )}
-                                    >
-                                        {user.isAnonymous
-                                            ? "익명"
-                                            : user.displayName?.[0]?.toUpperCase()}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                    <div className="flex flex-1 items-center gap-1">
-                                        <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                            {user.displayName}
-                                        </span>
-                                        {(myUserId
-                                            ? user.userId === myUserId
-                                            : myId === user.id) && (
-                                            <Badge
-                                                variant="outline"
-                                                className="shrink-0 px-1.75 leading-normal"
-                                            >
-                                                나
-                                            </Badge>
-                                        )}
-                                    </div>
-                                    <span className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]">
-                                        {getPresenceCursorLabel(
-                                            user.cursor,
-                                            getEventTitle,
-                                            selectedDate,
-                                            calendarTimezone
-                                        )}
-                                    </span>
+        <AvatarGroupDropdown
+            items={items}
+            align="end"
+            contentClassName="min-w-47"
+            label={sortedMembers.length > 0 ? "온라인 멤버" : undefined}
+            trigger={
+                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
+                    {isLoading && members.length === 0 ? (
+                        <div className="flex size-8 items-center justify-center text-muted-foreground">
+                            <Spinner
+                                className="size-5"
+                                aria-label="온라인 멤버 불러오는 중"
+                            />
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <AvatarGroupDropdownPreview
+                                items={items}
+                                maxVisibleAvatars={MAX_VISIBLE_MEMBERS}
+                                title={items
+                                    .map((member) => member.name)
+                                    .join(", ")}
+                            />
+                            {isLoading && members.length > 0 ? (
+                                <div className="absolute top-0 left-0 flex h-full w-full items-center justify-center bg-background/45 text-muted-foreground">
+                                    <Spinner className="size-5" />
                                 </div>
-                            </div>
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            )}
-        </DropdownMenu>
+                            ) : null}
+                        </div>
+                    )}
+                </div>
+            }
+        />
     )
 }

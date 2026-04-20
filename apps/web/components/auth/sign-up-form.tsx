@@ -1,5 +1,6 @@
 "use client"
 
+import { APP_NAME } from "@/lib/app-config"
 import { useEmailAuth } from "@/hooks/use-email-auth"
 import { useRouteToPostAuthCalendar } from "@/hooks/use-route-to-post-auth-calendar"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -75,7 +76,7 @@ export function SignUpForm() {
 
     return (
         <AuthFormShell
-            title="캘린버 계정을 만들어 보세요."
+            title={`${APP_NAME} 계정을 만들어 보세요.`}
             description={
                 <>
                     이미 계정이 있으신가요? <Link href="/signin">로그인</Link>

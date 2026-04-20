@@ -52,6 +52,8 @@ export function generateMockEvents(timezone?: string): CalendarEvent[] {
             status: "scheduled",
             authorId: null,
             author: null,
+            updatedById: null,
+            updatedBy: null,
             isLocked: false,
             createdAt: dayjs().valueOf(),
             updatedAt: dayjs().valueOf(),

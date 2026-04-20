@@ -1,36 +1,19 @@
 "use client"
 
+import {
+    AvatarGroupDropdown,
+    AvatarGroupDropdownPreview,
+    getAvatarGroupBadge,
+    getAvatarGroupFallbackLabel,
+} from "@/components/calendar/avatar-group-dropdown"
 import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import {
-    Avatar,
-    AvatarFallback,
-    AvatarGroup,
-    AvatarGroupCount,
-    AvatarImage,
-} from "@workspace/ui/components/avatar"
-import { Badge } from "@workspace/ui/components/badge"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import { cn } from "@workspace/ui/lib/utils"
 import { EyeIcon } from "lucide-react"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
 const KOREAN_LOCALE = "ko"
-
-function getPresenceFallbackLabel(displayName: string, isAnonymous: boolean) {
-    if (isAnonymous) {
-        return "익"
-    }
-
-    return displayName.trim().charAt(0).toUpperCase() || "?"
-}
 
 export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
     const my = useAuthStore((state) => state.user)
@@ -84,85 +67,45 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
         return null
     }
 
-    const visibleMembers = eventMembers.slice(0, MAX_VISIBLE_MEMBERS)
-    const hiddenCount = Math.max(0, eventMembers.length - MAX_VISIBLE_MEMBERS)
-    const title = eventMembers.map((member) => member.displayName).join(", ")
+    const items = eventMembers.map((member) => {
+        const isMe = my?.id ? member.userId === my.id : myId === member.id
+
+        return {
+            id: member.id,
+            name: member.displayName,
+            avatarUrl: member.avatarUrl,
+            avatarFallback: getAvatarGroupFallbackLabel(
+                member.displayName,
+                member.isAnonymous
+            ),
+            badge: isMe ? getAvatarGroupBadge("나") : undefined,
+        }
+    })
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        <AvatarGroupDropdown
+            items={items}
+            align="center"
+            contentClassName="min-w-47"
+            rowClassName="items-center"
+            triggerAsChild
+            trigger={
                 <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-full border bg-muted/40 py-1 pr-1.25 pl-2"
-                    title={title}
+                    title={items.map((member) => member.name).join(", ")}
                 >
                     <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                         <EyeIcon className="size-4" />
                         함께 보고 있는 멤버 {eventMembers.length - 1}명
                     </span>
-                    <AvatarGroup>
-                        {visibleMembers.map((member) => (
-                            <Avatar key={member.id} className="size-5">
-                                <AvatarImage
-                                    src={member.avatarUrl ?? undefined}
-                                    alt={member.displayName}
-                                />
-                                <AvatarFallback className="text-xs">
-                                    {getPresenceFallbackLabel(
-                                        member.displayName,
-                                        member.isAnonymous
-                                    )}
-                                </AvatarFallback>
-                            </Avatar>
-                        ))}
-                        {hiddenCount > 0 && (
-                            <AvatarGroupCount>+{hiddenCount}</AvatarGroupCount>
-                        )}
-                    </AvatarGroup>
+                    <AvatarGroupDropdownPreview
+                        items={items}
+                        maxVisibleAvatars={MAX_VISIBLE_MEMBERS}
+                        avatarClassName="size-5"
+                    />
                 </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-auto min-w-47">
-                {/* <DropdownMenuLabel>이 일정을 보는 멤버</DropdownMenuLabel> */}
-                {eventMembers.map((member) => (
-                    <DropdownMenuItem key={member.id} asChild>
-                        <div className="flex items-center gap-2 overflow-hidden">
-                            <Avatar size="sm" className="shrink-0">
-                                <AvatarImage
-                                    src={member.avatarUrl ?? undefined}
-                                    alt={member.displayName}
-                                />
-                                <AvatarFallback
-                                    className={cn(
-                                        "text-xs",
-                                        member.isAnonymous && "text-[10px]!"
-                                    )}
-                                >
-                                    {member.isAnonymous
-                                        ? "익명"
-                                        : member.displayName
-                                              ?.charAt(0)
-                                              ?.toUpperCase()}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex min-w-0 flex-1 items-center gap-1">
-                                <span className="truncate text-sm font-medium">
-                                    {member.displayName}
-                                </span>
-                                {(my?.id
-                                    ? member.userId === my.id
-                                    : myId === member.id) && (
-                                    <Badge
-                                        variant="outline"
-                                        className="shrink-0 px-1.75 leading-normal"
-                                    >
-                                        나
-                                    </Badge>
-                                )}
-                            </div>
-                        </div>
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
+            }
+        />
     )
 }

@@ -40,6 +40,15 @@ export function useOpenEvent() {
                       avatarUrl: user.avatarUrl,
                   }
                 : null,
+            updatedById: user?.id ?? null,
+            updatedBy: user
+                ? {
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      avatarUrl: user.avatarUrl,
+                  }
+                : null,
             isLocked: false,
             createdAt: now,
             updatedAt: now,

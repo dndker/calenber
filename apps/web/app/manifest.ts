@@ -1,4 +1,8 @@
 // app/manifest.ts
+import {
+    APP_DESCRIPTION,
+    APP_NAME,
+} from "@/lib/app-config"
 import type { MetadataRoute } from "next"
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -12,14 +16,18 @@ export default function manifest(): MetadataRoute.Manifest {
           ? "Calenber(dev)"
           : "Calenber(local)"
 
-    const shortName = isProd ? "캘린버" : isDev ? "캘린버 Dev" : "캘린버 Local"
+    const shortName = isProd
+        ? APP_NAME
+        : isDev
+          ? `${APP_NAME} Dev`
+          : `${APP_NAME} Local`
 
     return {
         id: isProd ? "/calendar" : isDev ? "/calendar-dev" : "/calendar-local",
 
         name,
         short_name: shortName,
-        description: "일정, 그 이상을 기억하다.",
+        description: APP_DESCRIPTION,
 
         start_url: "/",
         scope: "/",

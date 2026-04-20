@@ -20,9 +20,21 @@ dayjs.extend(relativeTime)
 
 export default dayjs
 
+type FormatRelativeTimeOptions = {
+    now?: string | Date | number
+    clampFuture?: boolean
+}
+
 export function formatRelativeTime(
-    value: string | Date | null | undefined | number
+    value: string | Date | null | undefined | number,
+    options?: FormatRelativeTimeOptions
 ) {
     if (!value) return ""
-    return dayjs(value).fromNow()
+
+    const now = options?.now ? dayjs(options.now) : dayjs()
+    const target = dayjs(value)
+    const comparableTarget =
+        options?.clampFuture && target.isAfter(now) ? now : target
+
+    return comparableTarget.from(now)
 }

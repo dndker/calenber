@@ -25,7 +25,7 @@ import * as Popover from "@workspace/ui/components/popover"
 import * as Select from "@workspace/ui/components/select"
 import * as Tooltip from "@workspace/ui/components/tooltip"
 import { useTheme } from "next-themes"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useServerTheme } from "../provider/theme-context"
 import { Mention } from "./mention"
 
@@ -33,23 +33,23 @@ type Props = {
     value?: EditorContent
     onChange?: (value: EditorContent) => void
     editable?: boolean
+    updatedAt?: number
+    updatedById?: string | null
+    currentUserId?: string | null
 }
 
-// Our schema with inline content specs, which contain the configs and
-// implementations for inline content  that we want our editor to use.
 const schema = BlockNoteSchema.create({
     inlineContentSpecs: {
-        // Adds all default inline content.
         ...defaultInlineContentSpecs,
-        // Adds the mention tag.
         mention: Mention,
     },
 })
-// Function which gets all users for the mentions menu.
+
 const getMentionMenuItems = (
     editor: typeof schema.BlockNoteEditor
 ): DefaultReactSuggestionItem[] => {
     const users = ["Woong", "Steve", "Bob", "Joe", "Mike"]
+
     return users.map((user) => ({
         title: user,
         onItemClick: () => {
@@ -60,7 +60,7 @@ const getMentionMenuItems = (
                         user,
                     },
                 },
-                " ", // add a space after the mention
+                " ",
             ])
         },
     }))
@@ -70,13 +70,53 @@ export default function ContentEditor({
     value,
     onChange,
     editable = true,
+    updatedAt,
+    updatedById,
+    currentUserId,
+}: Props) {
+    const [isMounted, setIsMounted] = useState(false)
+
+    useEffect(() => {
+        setIsMounted(true)
+    }, [])
+
+    if (!isMounted) {
+        return null
+    }
+
+    return (
+        <ContentEditorClient
+            value={value}
+            onChange={onChange}
+            editable={editable}
+            updatedAt={updatedAt}
+            updatedById={updatedById}
+            currentUserId={currentUserId}
+        />
+    )
+}
+
+function ContentEditorClient({
+    value,
+    onChange,
+    editable = true,
+    updatedAt,
+    updatedById,
+    currentUserId,
 }: Props) {
     const isLocalChangeRef = useRef(false)
+    const lastAppliedContentRef = useRef<string | null>(null)
+    const lastAppliedUpdatedAtRef = useRef<number | null>(null)
 
     const { theme: ssrTheme } = useServerTheme()
     const { resolvedTheme } = useTheme()
     const currentTheme =
-        resolvedTheme ?? (ssrTheme === "system" ? "light" : ssrTheme)
+        resolvedTheme ??
+        (document.documentElement.classList.contains("dark")
+            ? "dark"
+            : ssrTheme === "dark"
+              ? "dark"
+              : "light")
 
     const editor = useCreateBlockNote({
         schema,
@@ -104,11 +144,38 @@ export default function ContentEditor({
     }, [editor, onChange])
 
     useEffect(() => {
+        return () => {
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current)
+            }
+        }
+    }, [])
+
+    useEffect(() => {
         if (!editor || !value) return
-        if (isLocalChangeRef.current) return
+
+        const nextSerializedContent = JSON.stringify(value)
+        const currentSerializedContent = JSON.stringify(editor.document)
+        const isSameContent = nextSerializedContent === currentSerializedContent
+        const isSameAuthor = updatedById != null && updatedById === currentUserId
+        const isAlreadyApplied =
+            lastAppliedContentRef.current === nextSerializedContent &&
+            lastAppliedUpdatedAtRef.current === (updatedAt ?? null)
+
+        if (isSameContent) {
+            lastAppliedContentRef.current = nextSerializedContent
+            lastAppliedUpdatedAtRef.current = updatedAt ?? null
+            return
+        }
+
+        if (isLocalChangeRef.current || isSameAuthor || isAlreadyApplied) {
+            return
+        }
 
         editor.replaceBlocks(editor.document, value)
-    }, [value, editor])
+        lastAppliedContentRef.current = nextSerializedContent
+        lastAppliedUpdatedAtRef.current = updatedAt ?? null
+    }, [currentUserId, editor, updatedAt, updatedById, value])
 
     return (
         <BlockNoteView
@@ -132,7 +199,6 @@ export default function ContentEditor({
             <SideMenuController
                 sideMenu={(props) => (
                     <SideMenu {...props}>
-                        {/* Button which removes the hovered block. */}
                         <div className="*:size-6 *:text-muted-foreground [&_svg]:size-5!">
                             <AddBlockButton />
                             <DragHandleButton {...props} />
@@ -142,9 +208,8 @@ export default function ContentEditor({
             />
 
             <SuggestionMenuController
-                triggerCharacter={"@"}
+                triggerCharacter="@"
                 getItems={async (query) =>
-                    // Gets the mentions menu items
                     filterSuggestionItems(getMentionMenuItems(editor), query)
                 }
             />

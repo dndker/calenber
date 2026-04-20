@@ -17,18 +17,26 @@ async function getLatestCalendarPath(userId: string) {
     return calendarId ? getCalendarPath(calendarId) : null
 }
 
-export async function resolvePostAuthCalendarPath() {
-    const supabase = createBrowserSupabase()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+export async function resolvePostAuthCalendarPath(
+    initialUserId?: string | null
+) {
+    let userId = initialUserId ?? null
 
-    if (!user) {
-        return "/calendar"
+    if (!userId) {
+        const supabase = createBrowserSupabase()
+        const {
+            data: { user },
+        } = await supabase.auth.getUser()
+
+        userId = user?.id ?? null
+    }
+
+    if (!userId) {
+        return "/calendar/demo"
     }
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-        const path = await getLatestCalendarPath(user.id)
+        const path = await getLatestCalendarPath(userId)
 
         if (path) {
             return path

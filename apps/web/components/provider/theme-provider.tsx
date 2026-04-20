@@ -1,38 +1,49 @@
 "use client"
 
+import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 import * as React from "react"
 
 function ThemeColorSync() {
     const { resolvedTheme } = useTheme() // Provider 안이므로 정상 동작
+    const pathname = usePathname()
 
     React.useEffect(() => {
         if (!resolvedTheme) return
 
-        // meta[name="theme-color"] 확보
-        let meta = document.querySelector<HTMLMetaElement>(
-            'meta[name="theme-color"]'
-        )
-        if (!meta) {
-            meta = document.createElement("meta")
-            meta.name = "theme-color"
-            document.head.appendChild(meta)
-        }
-
-        // 테마별 색상
         const colorMap: Record<string, string> = {
             light: "#ffffff",
             dark: "#0c0d0e",
         }
+        const color = colorMap[resolvedTheme] || "#ffffff"
 
-        meta.content = colorMap[resolvedTheme] || "#ffffff"
+        const applyThemeColor = () => {
+            const metas = Array.from(
+                document.querySelectorAll<HTMLMetaElement>(
+                    'meta[name="theme-color"]'
+                )
+            )
 
-        // iOS/Safari가 가끔 복귀 시 초기화하는 문제 대응(선택)
-        const onVis = () =>
-            (meta!.content = colorMap[resolvedTheme] || "#ffffff")
+            if (metas.length === 0) {
+                const meta = document.createElement("meta")
+                meta.name = "theme-color"
+                meta.content = color
+                document.head.appendChild(meta)
+                return
+            }
+
+            for (const meta of metas) {
+                meta.content = color
+            }
+        }
+
+        applyThemeColor()
+
+        // 라우트 전환이나 iOS/Safari 복귀 시 head 메타가 다시 써지는 경우를 보정.
+        const onVis = () => applyThemeColor()
         document.addEventListener("visibilitychange", onVis)
         return () => document.removeEventListener("visibilitychange", onVis)
-    }, [resolvedTheme])
+    }, [pathname, resolvedTheme])
 
     return null
 }

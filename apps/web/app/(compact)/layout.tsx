@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/supabase/server"
+import { getServerUser } from "@/lib/auth/get-server-user"
 import { redirect } from "next/navigation"
 
 export default async function Layout({
@@ -6,12 +6,7 @@ export default async function Layout({
 }: {
     children: React.ReactNode
 }) {
-    const supabase = await createServerSupabase()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
+    if (!(await getServerUser())) {
         redirect("/calendar")
     }
 

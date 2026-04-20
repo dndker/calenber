@@ -49,7 +49,10 @@ async function persistCreatedEvent(event: CalendarEvent) {
 
 async function persistUpdatedEvent(
     eventId: string,
-    patch: Partial<CalendarEvent>
+    patch: Partial<CalendarEvent>,
+    options?: {
+        expectedUpdatedAt?: number
+    }
 ) {
     const calendarId = getPersistableCalendarId()
 
@@ -58,10 +61,27 @@ async function persistUpdatedEvent(
     }
 
     const supabase = createBrowserSupabase()
-    const ok = await updateCalendarEventQuery(supabase, eventId, patch)
+    const result = await updateCalendarEventQuery(supabase, eventId, patch, options)
 
-    if (!ok) {
+    if (!result.ok) {
+        if (result.status === "conflict" && result.event) {
+            useCalendarStore.getState().upsertEventSnapshot(result.event)
+            toast.warning("다른 멤버의 수정과 충돌해 최신 내용으로 갱신했습니다.")
+            return
+        }
+
         toast.error("일정 수정 실패")
+        return
+    }
+
+    if (result.event) {
+        const currentEvent = useCalendarStore
+            .getState()
+            .events.find((event) => event.id === result.event?.id)
+
+        if (!currentEvent || result.event.updatedAt >= currentEvent.updatedAt) {
+            useCalendarStore.getState().upsertEventSnapshot(result.event)
+        }
     }
 }
 
@@ -312,7 +332,6 @@ export const useCalendarStore = createSSRStore<
     setEvents: (events) => set({ events: sortCalendarEvents(events) }),
     upsertEventSnapshot: (event) =>
         set((state) => {
-            console.log(event)
             const nextEvents = state.events.some((item) => item.id === event.id)
                 ? state.events.map((item) =>
                       item.id === event.id ? { ...item, ...event } : item
@@ -355,6 +374,13 @@ export const useCalendarStore = createSSRStore<
                 email: currentUser?.email ?? null,
                 avatarUrl: currentUser?.avatarUrl ?? null,
             },
+            updatedById: currentUserId,
+            updatedBy: {
+                id: currentUser?.id ?? null,
+                name: currentUser?.name ?? null,
+                email: currentUser?.email ?? null,
+                avatarUrl: currentUser?.avatarUrl ?? null,
+            },
             isLocked: data.isLocked ?? false,
             createdAt: now,
             updatedAt: now,
@@ -375,9 +401,10 @@ export const useCalendarStore = createSSRStore<
         return event.id
     },
 
-    updateEvent: (id, patch) => {
+    updateEvent: (id, patch, options) => {
         const state = get()
-        const currentUserId = useAuthStore.getState().user?.id ?? null
+        const currentUser = useAuthStore.getState().user
+        const currentUserId = currentUser?.id ?? null
         const event = state.events.find((item) => item.id === id)
 
         if (!event) {
@@ -399,12 +426,27 @@ export const useCalendarStore = createSSRStore<
         set((s) => ({
             events: sortCalendarEvents(
                 s.events.map((e) =>
-                    e.id === id ? { ...e, ...patch, updatedAt: Date.now() } : e
+                    e.id === id
+                        ? {
+                              ...e,
+                              ...patch,
+                              updatedAt: Date.now(),
+                              updatedById: currentUserId,
+                              updatedBy: {
+                                  id: currentUser?.id ?? null,
+                                  name: currentUser?.name ?? null,
+                                  email: currentUser?.email ?? null,
+                                  avatarUrl: currentUser?.avatarUrl ?? null,
+                              },
+                          }
+                        : e
                 )
             ),
         }))
 
-        void persistUpdatedEvent(id, patch)
+        void persistUpdatedEvent(id, patch, {
+            expectedUpdatedAt: options?.expectedUpdatedAt ?? event.updatedAt,
+        })
         return true
     },
 

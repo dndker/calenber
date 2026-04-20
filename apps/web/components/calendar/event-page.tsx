@@ -1,5 +1,6 @@
 "use client"
 
+import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
 import { useCreateEvent } from "@/hooks/use-create-event"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
@@ -12,15 +13,18 @@ import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
+import { Skeleton } from "@workspace/ui/components/skeleton"
 import { EventForm } from "./event-form"
 import { EventHeader } from "./event-header"
 
 export function EventPage({
     modal = false,
     eventId,
+    initialEvent,
 }: {
     modal?: boolean
     eventId?: string
+    initialEvent?: CalendarEvent | null
 }) {
     const router = useRouter()
     const pathname = usePathname()
@@ -40,6 +44,9 @@ export function EventPage({
     const effectiveId = eventId ?? localId
 
     const hasCreatedRef = useRef(false)
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+        null
+    )
 
     // 🔥 최초 생성 (new일 때 1번만)
     useEffect(() => {
@@ -64,6 +71,15 @@ export function EventPage({
                           avatarUrl: user.avatarUrl,
                       }
                     : null,
+                updatedById: user?.id ?? null,
+                updatedBy: user
+                    ? {
+                          id: user.id,
+                          name: user.name,
+                          email: user.email,
+                          avatarUrl: user.avatarUrl,
+                      }
+                    : null,
                 isLocked: false,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
@@ -77,18 +93,38 @@ export function EventPage({
         }
     }, [eventId, createEvent, user])
 
-    const event = useCalendarStore((s) =>
-        effectiveId ? s.events.find((e) => e.id === effectiveId) : undefined
-    )
-
-    console.log(eventId, event?.title)
+    const { event, isLoading, isMissing } = useCalendarEventDetail({
+        eventId: effectiveId,
+        initialEvent,
+    })
 
     const handleDeleteEvent = useEventDeleteAction({
-        eventId,
+        eventId: effectiveId,
         onSuccess: () => {
             router.replace(basePath)
         },
     })
+
+    if (isLoading && !event) {
+        return (
+            <div className="flex flex-col gap-4">
+                {!modal && <Skeleton className="h-12 w-full rounded-xl" />}
+                <div className="flex flex-col gap-3">
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                    <Skeleton className="h-30 w-full rounded-xl" />
+                    <Skeleton className="h-56 w-full rounded-xl" />
+                </div>
+            </div>
+        )
+    }
+
+    if (isMissing) {
+        return (
+            <div className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                일정을 찾을 수 없습니다.
+            </div>
+        )
+    }
 
     if (!event) return null
 
@@ -97,12 +133,19 @@ export function EventPage({
         canEditCalendarEvent(event, activeCalendarMembership, user?.id)
 
     return (
-        <div className="flex flex-col gap-4">
+        <div
+            className="cb-event-page flex flex-col gap-4"
+            ref={(node) => {
+                setPortalContainer(node)
+            }}
+        >
             {!modal && (
                 <EventHeader
-                    id={eventId}
+                    id={effectiveId}
+                    event={event}
                     modal={modal}
                     onDeleteEvent={handleDeleteEvent}
+                    portalContainer={portalContainer}
                 />
             )}
 
@@ -110,8 +153,8 @@ export function EventPage({
                 modal={modal}
                 event={event}
                 disabled={!canEdit}
-                onChange={(patch) => {
-                    updateEvent(event.id, patch)
+                onChange={(patch, options) => {
+                    updateEvent(event.id, patch, options)
                 }}
             />
         </div>
