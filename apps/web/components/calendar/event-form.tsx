@@ -516,30 +516,24 @@ export function EventForm({
 
                         <div className="flex w-full flex-wrap justify-start gap-1.5 px-1 md:flex-1">
                             <HoverCard openDelay={10} closeDelay={100}>
-                                <HoverCardTrigger asChild>
-                                    <div
-                                        key={event?.author?.id}
-                                        className="flex cursor-default items-center gap-1.25 rounded-full border border-border px-1.5 py-1 pr-1.75 text-sm select-none dark:bg-input/30"
-                                    >
-                                        <Avatar className="size-5.5">
-                                            <AvatarImage
-                                                src={
-                                                    event?.author?.avatarUrl ??
-                                                    undefined
-                                                }
-                                                alt={
-                                                    event?.author?.name ??
-                                                    "작성자"
-                                                }
-                                            />
-                                            <AvatarFallback className="text-xs">
-                                                {event?.author?.name?.[0]?.toUpperCase() ??
-                                                    "?"}
-                                            </AvatarFallback>
-                                        </Avatar>
+                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                    <Avatar className="size-5">
+                                        <AvatarImage
+                                            src={
+                                                event?.author?.avatarUrl ??
+                                                undefined
+                                            }
+                                            alt={
+                                                event?.author?.name ?? "작성자"
+                                            }
+                                        />
+                                        <AvatarFallback className="text-xs">
+                                            {event?.author?.name?.[0]?.toUpperCase() ??
+                                                "?"}
+                                        </AvatarFallback>
+                                    </Avatar>
 
-                                        {event?.author?.name}
-                                    </div>
+                                    {event?.author?.name}
                                 </HoverCardTrigger>
                                 <HoverCardContent
                                     className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"

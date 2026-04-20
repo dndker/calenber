@@ -103,16 +103,16 @@ export const EventItem = memo(
             if (!canEdit) {
                 return
             }
-            startDrag(event, "resize-start", event.start)
-            listeners?.onPointerDown?.(e)
+            // startDrag(event, "resize-start", event.start)
+            // listeners?.onPointerDown?.(e)
         }
 
         const handleResizeEnd = (e: React.PointerEvent) => {
             if (!canEdit) {
                 return
             }
-            startDrag(event, "resize-end", event.end)
-            listeners?.onPointerDown?.(e)
+            // startDrag(event, "resize-end", event.end)
+            // listeners?.onPointerDown?.(e)
         }
 
         useEffect(() => {
@@ -148,7 +148,6 @@ export const EventItem = memo(
             <ContextMenu>
                 <ContextMenuTrigger asChild>
                     <div
-                        ref={!canEdit ? null : setNodeRef}
                         {...mergedListeners}
                         {...attributes}
                         className={clsx(
@@ -173,15 +172,15 @@ export const EventItem = memo(
                         <div
                             onPointerDown={handleResizeStart}
                             className={cn(
-                                "absolute top-0 left-0 z-1 h-full w-1 bg-transparent",
+                                "pointer-events-auto absolute top-0 left-0 z-100 h-full w-1 rounded-s-md bg-transparent hover:bg-border/65 dark:hover:bg-border",
                                 canEdit && "cursor-ew-resize"
                             )}
                         />
-
                         <Button
+                            ref={!canEdit ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto h-full w-full items-center justify-start gap-0.75 overflow-hidden rounded px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden rounded px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
                                     : "py-1",
@@ -189,8 +188,9 @@ export const EventItem = memo(
                                     "items-center justify-center",
                                 isCompleted &&
                                     "text-muted-foreground line-through",
-                                eventMembers.length > 0 &&
-                                    "border-ring dark:border-primary/50"
+                                eventMembers.length > 0 && "shadow-lg/7"
+                                // eventMembers.length > 0 &&
+                                //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
                             onClick={() => {
                                 setActiveEventId(event.id)
@@ -211,11 +211,10 @@ export const EventItem = memo(
                                 {event.title === "" ? "새 일정" : event.title}
                             </span>
                         </Button>
-
                         <div
                             onPointerDown={handleResizeEnd}
                             className={cn(
-                                "absolute top-0 right-0 z-100 h-full w-1 bg-transparent",
+                                "pointer-events-auto absolute top-0 right-0 z-100 h-full w-1 rounded-e-md bg-transparent hover:bg-border",
                                 canEdit && "hover:cursor-ew-resize"
                             )}
                         />

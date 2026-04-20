@@ -8,19 +8,10 @@ import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.typ
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
-import {
-    Avatar,
-    AvatarFallback,
-    AvatarImage,
-} from "@workspace/ui/components/avatar"
-import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
-} from "@workspace/ui/components/hover-card"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { memo, useCallback, useMemo, useRef } from "react"
+import { DayCellMemberHoverCard } from "./day-cell-member-hover-card"
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
@@ -173,55 +164,24 @@ export const DayCell = memo(
                         </span>
                     )}
 
-                    <HoverCard openDelay={0} closeDelay={100}>
-                        <HoverCardTrigger asChild>
-                            <span
-                                className={clsx("ml-auto", {
-                                    "bg-primary text-primary-foreground":
-                                        isSelected,
-                                    "bg-muted": cellDate === todayDate,
-                                    "shadow-none ring-2 ring-ring ring-offset-2 ring-offset-background":
-                                        isCellMember,
-                                })}
-                            >
-                                {day.getDate()}
-                            </span>
-                        </HoverCardTrigger>
-                        {isCellMember && (
-                            <HoverCardContent
-                                align="end"
-                                sideOffset={5.5}
-                                alignOffset={-3}
-                                className="scrollbar-hide flex max-h-40 w-auto max-w-44 flex-wrap gap-1.5 overflow-auto px-1.75 py-1.5 shadow-sm"
-                            >
-                                {cellMembers.map((member) => (
-                                    <div
-                                        key={member.id}
-                                        className="flex items-center gap-1"
-                                    >
-                                        <Avatar className="size-5">
-                                            <AvatarImage
-                                                src={
-                                                    member.avatarUrl ??
-                                                    undefined
-                                                }
-                                                alt={
-                                                    member.displayName ??
-                                                    "작성자"
-                                                }
-                                            />
-                                            <AvatarFallback className="text-xs">
-                                                {member.displayName?.[0]?.toUpperCase() ??
-                                                    "?"}
-                                            </AvatarFallback>
-                                        </Avatar>
-
-                                        {member.displayName}
-                                    </div>
-                                ))}
-                            </HoverCardContent>
-                        )}
-                    </HoverCard>
+                    <DayCellMemberHoverCard
+                        cellMembers={cellMembers}
+                        sideOffset={5.5}
+                        alignOffset={-3}
+                        align="end"
+                    >
+                        <span
+                            className={clsx("ml-auto", {
+                                "bg-primary text-primary-foreground":
+                                    isSelected,
+                                "bg-muted": cellDate === todayDate,
+                                "shadow-none ring-2 ring-ring ring-offset-2 ring-offset-background":
+                                    isCellMember,
+                            })}
+                        >
+                            {day.getDate()}
+                        </span>
+                    </DayCellMemberHoverCard>
                 </div>
             </div>
         )
