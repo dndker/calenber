@@ -15,16 +15,20 @@ function isActiveMember(membership: CalendarMembership) {
     return membership.isMember && membership.status === "active"
 }
 
+export function canViewCalendarSettings(membership: CalendarMembership) {
+    return isActiveMember(membership)
+}
+
 export function canManageCalendar(membership: CalendarMembership) {
     return (
-        isActiveMember(membership) &&
+        canViewCalendarSettings(membership) &&
         (membership.role === "manager" || membership.role === "owner")
     )
 }
 
 export function canCreateCalendarEvents(membership: CalendarMembership) {
     return (
-        isActiveMember(membership) &&
+        canViewCalendarSettings(membership) &&
         (membership.role === "editor" ||
             membership.role === "manager" ||
             membership.role === "owner")
@@ -36,7 +40,7 @@ export function canEditCalendarEvent(
     membership: CalendarMembership,
     userId: string | null | undefined
 ) {
-    if (!isActiveMember(membership)) {
+    if (!canViewCalendarSettings(membership)) {
         return false
     }
 
@@ -71,7 +75,7 @@ export function canToggleCalendarEventLock(
     return (
         canManageCalendar(membership) ||
         Boolean(
-            isActiveMember(membership) &&
+            canViewCalendarSettings(membership) &&
                 userId &&
                 event.authorId === userId &&
                 (membership.role === "editor" ||

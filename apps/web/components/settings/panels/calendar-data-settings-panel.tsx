@@ -4,7 +4,12 @@ import {
     getCalendarDataColumns,
     type CalendarDataRow,
 } from "@/components/settings/panels/calendar-data-table-columns"
+import {
+    CalendarCategoryTable,
+    type CalendarCategoryTableRow,
+} from "@/components/settings/panels/calendar-category-table"
 import { DataTable } from "@/components/settings/shared/data-table"
+import { type CalendarCategoryColor } from "@/lib/calendar/category-color"
 import {
     createCalendarEventCategory,
     deleteCalendarEvent,
@@ -12,7 +17,10 @@ import {
     updateCalendarEvent,
     updateCalendarEventCategory,
 } from "@/lib/calendar/mutations"
-import { canManageCalendar } from "@/lib/calendar/permissions"
+import {
+    canManageCalendar,
+    canViewCalendarSettings,
+} from "@/lib/calendar/permissions"
 import type {
     CalendarEvent,
     CalendarEventCategory,
@@ -39,25 +47,12 @@ import {
     FieldSeparator,
     FieldSet,
 } from "@workspace/ui/components/field"
-import { Input } from "@workspace/ui/components/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/ui/components/select"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@workspace/ui/components/table"
 import {
     CalendarRangeIcon,
     CircleXIcon,
     ListFilterIcon,
     ListFilterPlusIcon,
-    Loader2Icon,
-    MoreHorizontalIcon,
-    PlusIcon,
     XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -124,112 +119,6 @@ function removeCategoryFromEvent(event: CalendarEvent, categoryId: string) {
     }
 }
 
-function CategoryNameInput({
-    category,
-    disabled,
-    isSaving,
-    onRename,
-}: {
-    category: CalendarEventCategory
-    disabled: boolean
-    isSaving: boolean
-    onRename: (categoryId: string, nextName: string) => Promise<boolean>
-}) {
-    const [draft, setDraft] = useState(category.name)
-    const debounceRef = useRef<NodeJS.Timeout | null>(null)
-
-    const flushRename = useCallback(
-        async (value: string) => {
-            const trimmedValue = value.trim()
-            const trimmedName = category.name.trim()
-
-            if (!trimmedValue) {
-                setDraft(category.name)
-                return
-            }
-
-            if (trimmedValue === trimmedName) {
-                if (value !== category.name) {
-                    setDraft(category.name)
-                }
-                return
-            }
-
-            const ok = await onRename(category.id, trimmedValue)
-
-            if (!ok) {
-                setDraft(category.name)
-            }
-        },
-        [category.id, category.name, onRename]
-    )
-
-    useEffect(() => {
-        if (disabled || isSaving) {
-            return
-        }
-
-        const trimmedDraft = draft.trim()
-        const trimmedName = category.name.trim()
-
-        if (!trimmedDraft || trimmedDraft === trimmedName) {
-            return
-        }
-
-        debounceRef.current = setTimeout(() => {
-            void flushRename(draft)
-        }, 450)
-
-        return () => {
-            if (debounceRef.current) {
-                clearTimeout(debounceRef.current)
-                debounceRef.current = null
-            }
-        }
-    }, [category.name, disabled, draft, flushRename, isSaving])
-
-    return (
-        <div className="flex items-center gap-2">
-            <Input
-                value={draft}
-                disabled={disabled}
-                onChange={(event) => {
-                    setDraft(event.target.value)
-                }}
-                onBlur={() => {
-                    if (debounceRef.current) {
-                        clearTimeout(debounceRef.current)
-                        debounceRef.current = null
-                    }
-
-                    void flushRename(draft)
-                }}
-                onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                        event.currentTarget.blur()
-                        return
-                    }
-
-                    if (event.key === "Escape") {
-                        if (debounceRef.current) {
-                            clearTimeout(debounceRef.current)
-                            debounceRef.current = null
-                        }
-
-                        setDraft(category.name)
-                        event.currentTarget.blur()
-                    }
-                }}
-                className="h-9"
-                placeholder="카테고리 이름"
-            />
-            {isSaving ? (
-                <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-            ) : null}
-        </div>
-    )
-}
-
 export function CalendarDataSettingsPanel() {
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
@@ -255,21 +144,25 @@ export function CalendarDataSettingsPanel() {
     const [busyCategoryIds, setBusyCategoryIds] = useState<string[]>([])
 
     const canManageEvents = canManageCalendar(activeCalendarMembership)
+    const canViewData = canViewCalendarSettings(activeCalendarMembership)
 
     useEffect(() => {
         eventsRef.current = events
     }, [events])
 
-    const syncCategoryOnEvents = useCallback((nextCategory: CalendarEventCategory) => {
-        useCalendarStore.setState((state) => ({
-            events: state.events.map((event) =>
-                replaceCategoryInEvent(event, nextCategory)
-            ),
-            viewEvent: state.viewEvent
-                ? replaceCategoryInEvent(state.viewEvent, nextCategory)
-                : null,
-        }))
-    }, [])
+    const syncCategoryOnEvents = useCallback(
+        (nextCategory: CalendarEventCategory) => {
+            useCalendarStore.setState((state) => ({
+                events: state.events.map((event) =>
+                    replaceCategoryInEvent(event, nextCategory)
+                ),
+                viewEvent: state.viewEvent
+                    ? replaceCategoryInEvent(state.viewEvent, nextCategory)
+                    : null,
+            }))
+        },
+        []
+    )
 
     const removeCategoryFromEvents = useCallback((categoryId: string) => {
         useCalendarStore.setState((state) => ({
@@ -438,6 +331,7 @@ export function CalendarDataSettingsPanel() {
                         category.id,
                         {
                             options: {
+                                ...category.options,
                                 visibleByDefault,
                             },
                         }
@@ -470,8 +364,63 @@ export function CalendarDataSettingsPanel() {
         ]
     )
 
+    const changeCategoryColor = useCallback(
+        async (
+            category: CalendarEventCategory,
+            color: CalendarCategoryColor
+        ) => {
+            if (!activeCalendar || !canManageEvents) {
+                return
+            }
+
+            if (category.options.color === color) {
+                return
+            }
+
+            await withBusyCategory(category.id, async () => {
+                try {
+                    const supabase = createBrowserSupabase()
+                    const updatedCategory = await updateCalendarEventCategory(
+                        supabase,
+                        category.id,
+                        {
+                            options: {
+                                ...category.options,
+                                color,
+                            },
+                        }
+                    )
+
+                    if (!updatedCategory) {
+                        throw new Error("Category color update failed.")
+                    }
+
+                    upsertEventCategorySnapshot(updatedCategory)
+                    syncCategoryOnEvents(updatedCategory)
+                } catch (error) {
+                    console.error(
+                        "Failed to update calendar category color:",
+                        error
+                    )
+                    toast.error("카테고리 색상을 변경하지 못했습니다.")
+                }
+            })
+        },
+        [
+            activeCalendar,
+            canManageEvents,
+            syncCategoryOnEvents,
+            upsertEventCategorySnapshot,
+            withBusyCategory,
+        ]
+    )
+
     const createCategory = useCallback(async () => {
-        if (!activeCalendar || activeCalendar.id === "demo" || !canManageEvents) {
+        if (
+            !activeCalendar ||
+            activeCalendar.id === "demo" ||
+            !canManageEvents
+        ) {
             return
         }
 
@@ -483,8 +432,7 @@ export function CalendarDataSettingsPanel() {
 
         const existingCategory = eventCategories.find(
             (category) =>
-                category.name.trim().toLowerCase() ===
-                trimmedName.toLowerCase()
+                category.name.trim().toLowerCase() === trimmedName.toLowerCase()
         )
 
         if (existingCategory) {
@@ -634,17 +582,35 @@ export function CalendarDataSettingsPanel() {
             ),
         [authorOptions, selectedAuthors]
     )
+    const categoryUsageCountMap = useMemo(() => {
+        const usageCountMap = new Map<string, number>()
 
-    const categoryRows = useMemo(() => {
+        calendarEvents.forEach((event) => {
+            event.categoryIds.forEach((categoryId) => {
+                usageCountMap.set(
+                    categoryId,
+                    (usageCountMap.get(categoryId) ?? 0) + 1
+                )
+            })
+        })
+
+        return usageCountMap
+    }, [calendarEvents])
+
+    const categoryRows = useMemo<CalendarCategoryTableRow[]>(() => {
         return sortCategoriesForSettings(eventCategories).map((category) => ({
             ...category,
-            usageCount: calendarEvents.filter((event) =>
-                event.categoryIds.includes(category.id)
-            ).length,
+            usageCount: categoryUsageCountMap.get(category.id) ?? 0,
         }))
-    }, [calendarEvents, eventCategories])
+    }, [categoryUsageCountMap, eventCategories])
 
     useEffect(() => {
+        if (!canViewData) {
+            setEvents([])
+            setIsLoading(false)
+            return
+        }
+
         if (!activeCalendar || activeCalendar.id === "demo") {
             setEvents([])
             setIsLoading(false)
@@ -729,7 +695,23 @@ export function CalendarDataSettingsPanel() {
         return () => {
             isCancelled = true
         }
-    }, [activeCalendar, canManageEvents])
+    }, [activeCalendar, canManageEvents, canViewData])
+
+    if (!activeCalendar) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                캘린더를 선택하면 데이터 설정을 확인할 수 있습니다.
+            </div>
+        )
+    }
+
+    if (!canViewData) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                이 캘린더의 데이터 설정은 멤버만 조회할 수 있습니다.
+            </div>
+        )
+    }
 
     return (
         <FieldGroup>
@@ -999,199 +981,38 @@ export function CalendarDataSettingsPanel() {
                             </FieldDescription>
                         </FieldContent>
 
-                        <div className="rounded-xl border">
-                            <div className="flex flex-col gap-3 border-b px-3 py-3 sm:flex-row sm:items-center">
-                                <div className="flex-1">
-                                    <Input
-                                        value={newCategoryName}
-                                        disabled={
-                                            !canManageEvents ||
-                                            isCreatingCategory ||
-                                            !activeCalendar ||
-                                            activeCalendar.id === "demo"
-                                        }
-                                        onChange={(event) => {
-                                            setNewCategoryName(
-                                                event.target.value
-                                            )
-                                        }}
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter") {
-                                                event.preventDefault()
-                                                void createCategory()
-                                            }
-                                        }}
-                                        placeholder="새 카테고리 추가"
-                                        className="h-9"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="secondary">
-                                        전체 {categoryRows.length}개
-                                    </Badge>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        disabled={
-                                            !canManageEvents ||
-                                            isCreatingCategory ||
-                                            !newCategoryName.trim()
-                                        }
-                                        onClick={() => {
-                                            void createCategory()
-                                        }}
-                                    >
-                                        {isCreatingCategory ? (
-                                            <Loader2Icon className="animate-spin" />
-                                        ) : (
-                                            <PlusIcon />
-                                        )}
-                                        추가
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-full">
-                                            이름
-                                        </TableHead>
-                                        <TableHead className="w-34">
-                                            초기 체크
-                                        </TableHead>
-                                        <TableHead className="w-28">
-                                            연결 일정
-                                        </TableHead>
-                                        <TableHead className="w-12 text-right" />
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {categoryRows.length ? (
-                                        categoryRows.map((category) => {
-                                            const isBusy =
-                                                busyCategoryIds.includes(
-                                                    category.id
-                                                )
-
-                                            return (
-                                                <TableRow key={category.id}>
-                                                    <TableCell>
-                                                        <div className="space-y-1">
-                                                            <CategoryNameInput
-                                                                key={`${category.id}-${category.updatedAt}`}
-                                                                category={
-                                                                    category
-                                                                }
-                                                                disabled={
-                                                                    !canManageEvents ||
-                                                                    isBusy
-                                                                }
-                                                                isSaving={
-                                                                    isBusy
-                                                                }
-                                                                onRename={
-                                                                    renameCategory
-                                                                }
-                                                            />
-                                                            <p className="text-xs text-muted-foreground">
-                                                                입력을 멈추면
-                                                                자동 저장됩니다.
-                                                            </p>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Select
-                                                            value={
-                                                                category.options
-                                                                    .visibleByDefault
-                                                                    ? "visible"
-                                                                    : "hidden"
-                                                            }
-                                                            onValueChange={(
-                                                                value
-                                                            ) => {
-                                                                void changeCategoryDefaultVisibility(
-                                                                    category,
-                                                                    value ===
-                                                                        "visible"
-                                                                )
-                                                            }}
-                                                            disabled={
-                                                                !canManageEvents ||
-                                                                isBusy
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="h-9 w-full min-w-0">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="visible">
-                                                                    기본 표시
-                                                                </SelectItem>
-                                                                <SelectItem value="hidden">
-                                                                    기본 숨김
-                                                                </SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="font-normal"
-                                                        >
-                                                            {category.usageCount}
-                                                            개 일정
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon-sm"
-                                                                    disabled={
-                                                                        !canManageEvents ||
-                                                                        isBusy
-                                                                    }
-                                                                >
-                                                                    {isBusy ? (
-                                                                        <Loader2Icon className="animate-spin" />
-                                                                    ) : (
-                                                                        <MoreHorizontalIcon />
-                                                                    )}
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-                                                                <DropdownMenuItem
-                                                                    variant="destructive"
-                                                                    onSelect={() => {
-                                                                        void removeCategory(
-                                                                            category
-                                                                        )
-                                                                    }}
-                                                                >
-                                                                    카테고리 삭제
-                                                                </DropdownMenuItem>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell
-                                                colSpan={4}
-                                                className="h-24 text-center text-muted-foreground"
-                                            >
-                                                등록된 카테고리가 없습니다.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+                        <CalendarCategoryTable
+                            rows={categoryRows}
+                            newCategoryName={newCategoryName}
+                            canManageEvents={canManageEvents}
+                            isCreatingCategory={isCreatingCategory}
+                            isDisabled={
+                                !activeCalendar ||
+                                activeCalendar.id === "demo" ||
+                                !canManageEvents
+                            }
+                            busyCategoryIds={busyCategoryIds}
+                            onNewCategoryNameChange={setNewCategoryName}
+                            onCreateCategory={() => {
+                                void createCategory()
+                            }}
+                            onRenameCategory={renameCategory}
+                            onChangeCategoryColor={(category, color) => {
+                                void changeCategoryColor(category, color)
+                            }}
+                            onChangeCategoryDefaultVisibility={(
+                                category,
+                                visibleByDefault
+                            ) => {
+                                void changeCategoryDefaultVisibility(
+                                    category,
+                                    visibleByDefault
+                                )
+                            }}
+                            onRemoveCategory={(category) => {
+                                void removeCategory(category)
+                            }}
+                        />
                     </Field>
                 </FieldGroup>
             </FieldSet>

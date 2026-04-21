@@ -8,6 +8,7 @@ import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
 import { deleteOwnedCalendar, leaveCalendar } from "@/lib/calendar/mutations"
 import {
     canManageCalendar,
+    canViewCalendarSettings,
     type CalendarAccessMode,
 } from "@/lib/calendar/permissions"
 import {
@@ -202,6 +203,14 @@ export function CalendarGeneralSettingsPanel() {
         return (
             <div className="text-sm text-muted-foreground">
                 캘린더를 선택하면 일반 설정을 변경할 수 있습니다.
+            </div>
+        )
+    }
+
+    if (!canViewCalendarSettings(activeCalendarMembership)) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                이 캘린더 설정은 멤버만 조회할 수 있습니다.
             </div>
         )
     }

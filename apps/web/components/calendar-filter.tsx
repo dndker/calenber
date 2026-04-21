@@ -2,6 +2,10 @@
 
 import * as React from "react"
 
+import { getCalendarCategoryCheckboxClassName } from "@/lib/calendar/category-color"
+import { canManageCalendar } from "@/lib/calendar/permissions"
+import { useCalendarStore } from "@/store/useCalendarStore"
+import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
     Collapsible,
@@ -24,6 +28,7 @@ import {
     TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { ChevronRightIcon } from "lucide-react"
+import { useSettingsModal } from "./settings/settings-modal-provider"
 
 export const CalendarFilter = React.memo(function CalendarFilter({
     groups,
@@ -35,6 +40,7 @@ export const CalendarFilter = React.memo(function CalendarFilter({
         items: {
             id: string
             label: string
+            color?: string
             checked: boolean
             disabled?: boolean
             description?: string
@@ -46,6 +52,13 @@ export const CalendarFilter = React.memo(function CalendarFilter({
         checked: boolean
     ) => void
 }) {
+    const { openSettings } = useSettingsModal()
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
+
+    const canManageSettings = canManageCalendar(activeCalendarMembership)
+
     return (
         <>
             {groups.map((group) => (
@@ -85,8 +98,15 @@ export const CalendarFilter = React.memo(function CalendarFilter({
                                                                     <Checkbox
                                                                         id={`calendar-checkbox-${group.id}-${item.id}-${index}`}
                                                                         name={`calendar-checkbox-${group.id}-${item.id}-${index}`}
-                                                                        checked={item.checked}
-                                                                        disabled={item.disabled}
+                                                                        checked={
+                                                                            item.checked
+                                                                        }
+                                                                        disabled={
+                                                                            item.disabled
+                                                                        }
+                                                                        className={getCalendarCategoryCheckboxClassName(
+                                                                            item.color
+                                                                        )}
                                                                         onCheckedChange={(
                                                                             checked
                                                                         ) => {
@@ -109,7 +129,9 @@ export const CalendarFilter = React.memo(function CalendarFilter({
                                                                         htmlFor={`calendar-checkbox-${group.id}-${item.id}-${index}`}
                                                                         className="h-full cursor-pointer"
                                                                     >
-                                                                        {item.label}
+                                                                        {
+                                                                            item.label
+                                                                        }
                                                                     </FieldLabel>
                                                                 </Field>
                                                             </SidebarMenuButton>
@@ -126,6 +148,26 @@ export const CalendarFilter = React.memo(function CalendarFilter({
                                                 </SidebarMenuItem>
                                             )
                                         })}
+
+                                        {group.items.length === 0 && (
+                                            <div className="mt-1 flex flex-col gap-1.5 px-2 pb-1">
+                                                <div className="text-muted-foreground">
+                                                    등록된 카테고리가 없습니다.
+                                                </div>
+                                                {canManageSettings && (
+                                                    <Button
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            openSettings(
+                                                                "calendar_data"
+                                                            )
+                                                        }
+                                                    >
+                                                        카테고리 설정
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
                                     </SidebarMenu>
                                 </SidebarGroupContent>
                             </CollapsibleContent>

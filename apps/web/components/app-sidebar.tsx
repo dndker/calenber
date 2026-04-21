@@ -6,11 +6,8 @@ import { CalendarFilter } from "@/components/calendar-filter"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
+import { eventStatus, eventStatusLabel } from "@/store/calendar-store.types"
 import { shallow } from "@/store/createSSRStore"
-import {
-    eventStatus,
-    eventStatusLabel,
-} from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -63,7 +60,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         () => [
             {
                 id: "status",
-                name: "일정 상태",
+                name: "상태",
                 items: eventStatus.map((status) => ({
                     id: status,
                     label: eventStatusLabel[status],
@@ -78,15 +75,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         ? eventCategories.map((category) => ({
                               id: category.id,
                               label: category.name,
+                              color: category.options.color,
                               checked: !excludedCategoryIdSet.has(category.id),
                           }))
                         : [
-                              {
-                                  id: "empty-category",
-                                  label: "등록된 카테고리가 없습니다.",
-                                  checked: false,
-                                  disabled: true,
-                              },
+                              //   {
+                              //       id: "empty-category",
+                              //       label: "등록된 카테고리가 없습니다.",
+                              //       checked: false,
+                              //       disabled: false,
+                              //   },
                           ],
             },
         ],
@@ -111,7 +109,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
                 <NavUser
-                    user={user ? { ...fallbackUser.user, ...user } : fallbackUser.user}
+                    user={
+                        user
+                            ? { ...fallbackUser.user, ...user }
+                            : fallbackUser.user
+                    }
                 />
             </SidebarHeader>
             <SidebarContent>

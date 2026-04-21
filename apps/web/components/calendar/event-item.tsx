@@ -1,5 +1,6 @@
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { getCalendarCategoryDotClassName } from "@/lib/calendar/category-color"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
@@ -20,7 +21,7 @@ import {
 } from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { CheckIcon, LockIcon } from "lucide-react"
+import { CheckIcon, LockIcon, XIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useEffect, useRef } from "react"
 
@@ -264,12 +265,13 @@ export const EventItem = memo(
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
 
-        const mergedListeners = interactive && canEdit
-            ? {
-                  ...listeners,
-                  onPointerDown: handleMoveStart,
-              }
-            : undefined
+        const mergedListeners =
+            interactive && canEdit
+                ? {
+                      ...listeners,
+                      onPointerDown: handleMoveStart,
+                  }
+                : undefined
 
         const resolvedDisplayLaneCount = displayLaneCount ?? laneCount
         const useSplitLayout =
@@ -283,6 +285,9 @@ export const EventItem = memo(
 
         const eventMembers = useEventMembers(event.id, user?.id)
         const isCompleted = event.status === "completed"
+        const isCancelled = event.status === "cancelled"
+        const primaryCategoryColor =
+            event.categories[0]?.options.color ?? event.category?.options.color
         const eventRadiusClass = cn(
             continuesFromPrevWeek
                 ? "rounded-l-none border-l-0"
@@ -348,10 +353,11 @@ export const EventItem = memo(
                                     "cursor-grab active:cursor-grabbing",
                                 eventLayout === "split" &&
                                     "items-center justify-center text-center",
-                                isCompleted &&
+                                (isCompleted || isCancelled) &&
                                     "text-muted-foreground line-through",
                                 eventMembers.length > 0 && "shadow-lg/7",
-                                eventRadiusClass
+                                eventRadiusClass,
+                                primaryCategoryColor && "pl-2.25"
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
@@ -370,11 +376,24 @@ export const EventItem = memo(
                                 )
                             }}
                         >
-                            {event.isLocked && !isCompleted && (
+                            {primaryCategoryColor ? (
+                                <span
+                                    className={cn(
+                                        getCalendarCategoryDotClassName(
+                                            primaryCategoryColor,
+                                            "absolute top-1/2 left-0.75 z-10 inline-block h-[calc(100%-9px)] w-0.75 -translate-y-1/2 rounded-full"
+                                        )
+                                    )}
+                                />
+                            ) : null}
+                            {event.isLocked && !isCompleted && !isCancelled && (
                                 <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
                             {isCompleted && (
                                 <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                            {isCancelled && (
+                                <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
                             <span className="flex-initial truncate overflow-hidden">
                                 {event.title === "" ? "새 일정" : event.title}
@@ -415,6 +434,10 @@ export const EventItem = memo(
             prev.event.start === next.event.start &&
             prev.event.end === next.event.end &&
             prev.event.title === next.event.title &&
+            prev.event.categories[0]?.options.color ===
+                next.event.categories[0]?.options.color &&
+            prev.event.category?.options.color ===
+                next.event.category?.options.color &&
             areStringArraysEqual(
                 prev.event.categoryIds,
                 next.event.categoryIds

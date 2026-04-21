@@ -14,7 +14,7 @@ import {
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
 import dayjs from "@/lib/dayjs"
-import { generateMockEvents } from "@/lib/mock-event"
+import { generateMockEvents, getDemoEventCategories } from "@/lib/mock-event"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
@@ -63,6 +63,7 @@ export default async function CalendarLayout({
         role: null,
         status: null,
     }
+    const demoEventCategories = isDemo ? getDemoEventCategories() : []
 
     const [
         myCalendars,
@@ -80,10 +81,12 @@ export default async function CalendarLayout({
                 ? Promise.resolve(guestMembership)
                 : getCalendarMembership(supabase, calendarId, user?.id ?? null),
             isDemo
-                ? Promise.resolve(generateMockEvents(calendarTimezone))
+                ? Promise.resolve(
+                      generateMockEvents(calendarTimezone, demoEventCategories)
+                  )
                 : getCalendarEvents(supabase, calendarId),
             isDemo
-                ? Promise.resolve([])
+                ? Promise.resolve(demoEventCategories)
                 : getCalendarEventCategories(supabase, calendarId),
         ])
 

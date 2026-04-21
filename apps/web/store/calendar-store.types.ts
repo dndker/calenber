@@ -3,6 +3,7 @@ import type {
     CalendarSummary,
     MyCalendarItem,
 } from "@/lib/calendar/queries"
+import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type { CalendarWorkspaceCursor } from "@/lib/calendar/realtime"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
@@ -51,6 +52,7 @@ export type CalendarEventCategory = {
     name: string
     options: {
         visibleByDefault: boolean
+        color?: CalendarCategoryColor
     }
     createdById: string | null
     createdAt: number
@@ -117,7 +119,14 @@ export type CalendarEventDraft = Omit<
     Partial<
         Pick<
             CalendarEvent,
-            "authorId" | "author" | "updatedById" | "updatedBy" | "isLocked"
+            | "id"
+            | "createdAt"
+            | "updatedAt"
+            | "authorId"
+            | "author"
+            | "updatedById"
+            | "updatedBy"
+            | "isLocked"
         >
     >
 

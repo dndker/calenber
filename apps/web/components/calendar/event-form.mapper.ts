@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "@/store/calendar-store.types"
+import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
 import { EventFormValues } from "./event-form.schema"
 
 export function toCalendarEvent(values: EventFormValues): CalendarEvent {
@@ -23,6 +24,7 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
             name: name.trim(),
             options: {
                 visibleByDefault: true,
+                color: randomCalendarCategoryColor(),
             },
             createdById: null,
             createdAt: now,
@@ -65,6 +67,7 @@ export function mapToEvent(values: EventFormValues): Partial<CalendarEvent> {
             name: name.trim(),
             options: {
                 visibleByDefault: true,
+                color: randomCalendarCategoryColor(),
             },
             createdById: null,
             createdAt: Date.now(),

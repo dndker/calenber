@@ -2,6 +2,7 @@ import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
+import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
 import { parseEventContent } from "@/lib/calendar/event-content"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import type {
@@ -91,6 +92,7 @@ export type CalendarEventCategorySummary = {
     name: string
     options: {
         visibleByDefault: boolean
+        color: CalendarEvent["categories"][number]["options"]["color"]
     }
     createdById: string | null
     createdAt: string
@@ -160,6 +162,10 @@ type CalendarEventWithCalendarRow = {
         id: string
         calendar_id: string
         name: string
+        options: {
+            visibleByDefault?: boolean
+            color?: CalendarEvent["categories"][number]["options"]["color"]
+        } | null
         created_by: string | null
         created_at: string
         updated_at: string
@@ -197,6 +203,7 @@ type CalendarEventCategoryRow = {
     name: string
     options: {
         visibleByDefault?: boolean
+        color?: CalendarEvent["categories"][number]["options"]["color"]
     } | null
     created_by: string | null
     created_at: string
@@ -415,6 +422,7 @@ export async function getCalendarEventCategories(
         name: category.name,
         options: {
             visibleByDefault: category.options?.visibleByDefault !== false,
+            color: normalizeCalendarCategoryColor(category.options?.color),
         },
         createdById: category.created_by,
         createdAt: category.created_at,
@@ -541,7 +549,7 @@ export async function getEventMetadataByCalendarId(
     const { data, error } = await supabase
         .from("events")
         .select(
-            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, updated_at, created_at), event_categories(id, calendar_id, name, created_by, created_at, updated_at)"
+            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
         )
         .eq("id", eventId)
         .eq("calendar_id", calendarId)

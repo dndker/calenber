@@ -5,6 +5,7 @@ import { CalendarMembersSettingsPanel } from "@/components/settings/panels/calen
 import { EmptySettingsPanel } from "@/components/settings/panels/empty-settings-panel"
 import { ProfileNotificationSettingsPanel } from "@/components/settings/panels/profile-notification-settings-panel"
 import { ProfileSettingsPanel } from "@/components/settings/panels/profile-settings-panel"
+import { canViewCalendarSettings } from "@/lib/calendar/permissions"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
@@ -139,13 +140,24 @@ export function SettingsModal({
 function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
     const user = useAuthStore((s) => s.user)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
     const fallbackTab = SETTINGS_TABS[0]?.id ?? initialTab
+    const canViewCalendarTabs = canViewCalendarSettings(
+        activeCalendarMembership
+    )
     const availableTabs = SETTINGS_TABS.filter(
-        (tab) => tab.group === "account" || activeCalendar
+        (tab) =>
+            tab.group === "account" ||
+            (activeCalendar && canViewCalendarTabs)
     )
     const [activeTab, setActiveTab] = useState<SettingsTabId>(
         availableTabs.find((tab) => tab.id === initialTab)?.id ?? fallbackTab
     )
+    const resolvedActiveTab = availableTabs.some((tab) => tab.id === activeTab)
+        ? activeTab
+        : (availableTabs[0]?.id ?? fallbackTab)
 
     return (
         <div className="flex h-full overflow-hidden bg-background">
@@ -166,7 +178,8 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                                             <SidebarMenuItem key={tab.id}>
                                                 <SidebarMenuButton
                                                     isActive={
-                                                        activeTab === tab.id
+                                                        resolvedActiveTab ===
+                                                        tab.id
                                                     }
                                                     onClick={() =>
                                                         setActiveTab(tab.id)
@@ -218,7 +231,10 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                                     .map((tab) => (
                                         <SidebarMenuItem key={tab.id}>
                                             <SidebarMenuButton
-                                                isActive={activeTab === tab.id}
+                                                isActive={
+                                                    resolvedActiveTab ===
+                                                    tab.id
+                                                }
                                                 onClick={() =>
                                                     setActiveTab(tab.id)
                                                 }
@@ -243,7 +259,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                             key={tab.id}
                             tabId={tab.id}
                             tabLabel={tab.label}
-                            active={activeTab === tab.id}
+                            active={resolvedActiveTab === tab.id}
                         />
                     ))}
                 </div>

@@ -5,6 +5,7 @@ import {
     type CalendarMemberRow,
 } from "@/components/settings/panels/calendar-members-table-columns"
 import { DataTable } from "@/components/settings/shared/data-table"
+import { canViewCalendarSettings } from "@/lib/calendar/permissions"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
@@ -68,6 +69,7 @@ export function CalendarMembersSettingsPanel() {
     const canManageMembers =
         activeCalendarMembership.role === "manager" ||
         activeCalendarMembership.role === "owner"
+    const canViewMembers = canViewCalendarSettings(activeCalendarMembership)
 
     useEffect(() => {
         membersRef.current = members
@@ -190,6 +192,12 @@ export function CalendarMembersSettingsPanel() {
     )
 
     useEffect(() => {
+        if (!canViewMembers) {
+            setMembers([])
+            setIsLoading(false)
+            return
+        }
+
         if (!activeCalendar || activeCalendar.id === "demo") {
             setMembers([])
             setIsLoading(false)
@@ -277,7 +285,29 @@ export function CalendarMembersSettingsPanel() {
         return () => {
             isCancelled = true
         }
-    }, [activeCalendar, user, canManageMembers, activeCalendarMembership.role])
+    }, [
+        activeCalendar,
+        user,
+        canManageMembers,
+        canViewMembers,
+        activeCalendarMembership.role,
+    ])
+
+    if (!activeCalendar) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                캘린더를 선택하면 멤버 목록을 확인할 수 있습니다.
+            </div>
+        )
+    }
+
+    if (!canViewMembers) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                이 캘린더의 멤버 정보는 멤버만 조회할 수 있습니다.
+            </div>
+        )
+    }
 
     return (
         <FieldGroup>
@@ -310,7 +340,8 @@ export function CalendarMembersSettingsPanel() {
                             {memberToRemove
                                 ? (
                                       <>
-                                          "{memberToRemove.displayName}"의
+                                          &quot;{memberToRemove.displayName}
+                                          &quot;의
                                           캘린더 접근 권한을 제거합니다.
                                           <br />
                                           이 작업은 이후 다시 초대해서 되돌릴 수
@@ -344,7 +375,9 @@ export function CalendarMembersSettingsPanel() {
                                 사용자만 이 링크를 볼 수 있습니다.
                             </FieldDescription>
                         </FieldContent>
-                        <Button variant="secondary">링크 복사</Button>
+                        <Button variant="secondary" disabled={!canManageMembers}>
+                            링크 복사
+                        </Button>
                     </Field>
                 </FieldGroup>
             </FieldSet>

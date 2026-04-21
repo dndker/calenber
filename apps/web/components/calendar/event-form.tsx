@@ -1,7 +1,12 @@
 "use client"
 
 import {
-    getCalendarEventCategories,
+    getCalendarCategoryDotClassName,
+    getCalendarCategoryLabelClassName,
+    randomCalendarCategoryColor,
+    type CalendarCategoryColor,
+} from "@/lib/calendar/category-color"
+import {
     getCalendarMemberDirectory,
     type CalendarMemberDirectoryItem,
 } from "@/lib/calendar/queries"
@@ -51,18 +56,17 @@ import {
     AvatarFallback,
     AvatarImage,
 } from "@workspace/ui/components/avatar"
+import { Badge } from "@workspace/ui/components/badge"
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
 import {
-    Combobox,
-    ComboboxContent,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxList,
-} from "@workspace/ui/components/combobox"
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
 import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -79,9 +83,51 @@ const statusItems = eventStatus.map((status) => ({
 
 type StatusOption = (typeof statusItems)[number]
 
+const statusLabelClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled:
+        "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "[&_button]:hidden border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "[&_button]:hidden border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "[&_button]:hidden border-0"
+    ),
+}
+
+const statusItemClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled:
+        "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+}
+
+const statusDotClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled: "bg-muted-foreground/70",
+    in_progress: getCalendarCategoryDotClassName("blue"),
+    completed: getCalendarCategoryDotClassName("green"),
+    cancelled: getCalendarCategoryDotClassName("red"),
+}
+
 type CategoryOption = {
     value: string
     label: string
+    color?: CalendarCategoryColor
     isCreate?: boolean
     data?: CalendarEventCategory
 }
@@ -185,9 +231,6 @@ export function EventForm({
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const eventCategories = useCalendarStore((s) => s.eventCategories)
-    const setEventCategories = useCalendarStore((s) => s.setEventCategories)
-    const [items, setItems] = useState<string[]>([])
-    const [open, setOpen] = useState(false)
     const [memberDirectoryState, setMemberDirectoryState] = useState<{
         calendarId: string | null
         members: CalendarMemberDirectoryItem[]
@@ -197,9 +240,30 @@ export function EventForm({
     })
 
     const timer = useRef<NodeJS.Timeout | null>(null)
+    const draftCategoryColorsRef = useRef<Map<string, CalendarCategoryColor>>(
+        new Map()
+    )
     const wasBootstrappedWithEventRef = useRef(Boolean(event))
     const initializedEventIdRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
+
+    const getDraftCategoryColor = useCallback((name: string) => {
+        const trimmedName = name.trim()
+
+        if (!trimmedName) {
+            return randomCalendarCategoryColor()
+        }
+
+        const existingColor = draftCategoryColorsRef.current.get(trimmedName)
+
+        if (existingColor) {
+            return existingColor
+        }
+
+        const nextColor = randomCalendarCategoryColor()
+        draftCategoryColorsRef.current.set(trimmedName, nextColor)
+        return nextColor
+    }, [])
 
     const resetFormWithEvent = useCallback(
         (targetEvent: CalendarEvent) => {
@@ -302,6 +366,7 @@ export function EventForm({
                             name: categoryName,
                             options: {
                                 visibleByDefault: true,
+                                color: getDraftCategoryColor(categoryName),
                             },
                             createdById: null,
                             createdAt: Date.now(),
@@ -429,43 +494,6 @@ export function EventForm({
         }, 350)
     }
 
-    const searchTimer = useRef<NodeJS.Timeout | null>(null)
-
-    const events = [
-        "새로운 일정 업무",
-        "업무하기",
-        "낮잠자기",
-        "쇼핑",
-        "콜라보",
-    ] as const
-
-    const fakeSearch = async (query: string): Promise<string[]> => {
-        // 약간 비동기 느낌 주기 (선택)
-        await new Promise((r) => setTimeout(r, 100))
-
-        return events.filter((item) =>
-            item.toLowerCase().includes(query.toLowerCase())
-        )
-    }
-
-    const handleSearch = (value: string) => {
-        if (searchTimer.current) clearTimeout(searchTimer.current)
-
-        searchTimer.current = setTimeout(async () => {
-            if (value.trim().length === 0) {
-                setItems([])
-                setOpen(false)
-                return
-            }
-
-            // 🔥 여기서 실제 검색 (API or store)
-            const result = await fakeSearch(value)
-
-            setItems(result)
-            setOpen(result.length > 0)
-        }, 150)
-    }
-
     useEffect(() => {
         if (!event) return
 
@@ -535,22 +563,6 @@ export function EventForm({
         const targetCalendarId = activeCalendar.id
         const supabase = createBrowserSupabase()
 
-        void getCalendarEventCategories(supabase, targetCalendarId).then(
-            (categories) => {
-                if (cancelled) {
-                    return
-                }
-
-                setEventCategories(
-                    categories.map((category) => ({
-                        ...category,
-                        createdAt: new Date(category.createdAt).valueOf(),
-                        updatedAt: new Date(category.updatedAt).valueOf(),
-                    }))
-                )
-            }
-        )
-
         void getCalendarMemberDirectory(supabase, targetCalendarId).then(
             (members) => {
                 if (cancelled) {
@@ -567,7 +579,7 @@ export function EventForm({
         return () => {
             cancelled = true
         }
-    }, [activeCalendar?.id, setEventCategories])
+    }, [activeCalendar?.id])
 
     const memberDirectory =
         !activeCalendar?.id ||
@@ -577,13 +589,20 @@ export function EventForm({
             : memberDirectoryState.members
 
     useEffect(() => {
+        eventCategories.forEach((category) => {
+            if (category.options.color) {
+                draftCategoryColorsRef.current.set(
+                    category.name.trim(),
+                    category.options.color
+                )
+            }
+        })
+    }, [eventCategories])
+
+    useEffect(() => {
         return () => {
             if (timer.current) {
                 clearTimeout(timer.current)
-            }
-
-            if (searchTimer.current) {
-                clearTimeout(searchTimer.current)
             }
         }
     }, [])
@@ -612,21 +631,24 @@ export function EventForm({
                     ? {
                           value: matchedCategory.name,
                           label: matchedCategory.name,
+                          color: matchedCategory.options.color,
                           data: matchedCategory,
                       }
                     : {
                           value: categoryName,
                           label: categoryName,
+                          color: getDraftCategoryColor(categoryName),
                           isCreate: true,
                       }
             }),
-        [eventCategories, watchedCategoryNames]
+        [eventCategories, getDraftCategoryColor, watchedCategoryNames]
     )
     const categoryItems = useMemo<CategoryOption[]>(
         () =>
             eventCategories.map((category) => ({
                 value: category.name,
                 label: category.name,
+                color: category.options.color,
                 data: category,
             })),
         [eventCategories]
@@ -755,6 +777,7 @@ export function EventForm({
 
     return (
         <form
+            data-modal={modal ? "true" : "false"}
             className="flex flex-col gap-6"
             onSubmit={(e) => e.preventDefault()}
         >
@@ -766,62 +789,21 @@ export function EventForm({
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
                             {/* <FieldLabel>제목</FieldLabel> */}
-                            <Combobox
-                                items={items}
-                                open={open}
-                                onOpenChange={(next) => {
-                                    if (items.length > 0) {
-                                        setOpen(next)
+                            <input
+                                {...field}
+                                placeholder="새 일정"
+                                autoFocus
+                                onChange={(e) => {
+                                    if (disabled) {
+                                        return
                                     }
+
+                                    field.onChange(e.target.value)
+                                    autoSave()
                                 }}
-                                onValueChange={(item: string | null) => {
-                                    if (!item) return false
-
-                                    form.setValue("title", item)
-                                    setOpen(false)
-                                    saveNow({
-                                        ...form.getValues(),
-                                        title: item,
-                                    })
-                                }}
-                            >
-                                <ComboboxInput
-                                    {...field}
-                                    placeholder="새 일정"
-                                    autoFocus={true}
-                                    onChange={(e) => {
-                                        const value = e.target.value
-
-                                        if (disabled) {
-                                            return
-                                        }
-
-                                        field.onChange(value)
-                                        autoSave()
-                                        handleSearch(value)
-
-                                        if (!value.trim()) {
-                                            setItems([])
-                                            setOpen(false)
-                                            return
-                                        }
-                                    }}
-                                    className="*ring-0! h-auto border-0! bg-transparent! font-bold opacity-100! shadow-none! ring-0! outline-0! *:h-auto *:rounded-md *:p-0 *:text-primary! *:opacity-100! *:not-focus:hover:bg-muted/60 *:data-[slot=input-group-addon]:hidden *:md:text-4xl"
-                                    disabled={disabled}
-                                />
-                                <ComboboxContent className="min-w-full">
-                                    <ComboboxList>
-                                        {(item) => (
-                                            <ComboboxItem
-                                                key={item}
-                                                value={item}
-                                            >
-                                                {item}
-                                            </ComboboxItem>
-                                        )}
-                                    </ComboboxList>
-                                </ComboboxContent>
-                            </Combobox>
+                                className="h-auto w-full border-0 bg-transparent p-0 font-bold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl"
+                                disabled={disabled}
+                            />
                             {/* <Input
                                 {...field}
                                 autoFocus={true}
@@ -939,27 +921,92 @@ export function EventForm({
                                         }}
                                         invalid={fieldState.invalid}
                                         placeholder="멤버 선택"
+                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
                                         renderChipContent={(participant) => (
                                             <>
-                                                <Avatar className="size-4.5">
-                                                    <AvatarImage
-                                                        src={
-                                                            participant.data
-                                                                ?.avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            participant.data
-                                                                ?.name ??
-                                                            "참가자"
-                                                        }
-                                                    />
-                                                    <AvatarFallback className="text-[10px]">
-                                                        {participant.data?.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                {participant.label}
+                                                <HoverCard
+                                                    openDelay={10}
+                                                    closeDelay={100}
+                                                >
+                                                    <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                                        <Avatar className="size-4.5">
+                                                            <AvatarImage
+                                                                src={
+                                                                    participant
+                                                                        .data
+                                                                        ?.avatarUrl ??
+                                                                    undefined
+                                                                }
+                                                                alt={
+                                                                    participant
+                                                                        .data
+                                                                        ?.name ??
+                                                                    "참가자"
+                                                                }
+                                                            />
+                                                            <AvatarFallback className="text-xs">
+                                                                {participant.data?.name?.[0]?.toUpperCase() ??
+                                                                    "?"}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        {participant.label}
+                                                    </HoverCardTrigger>
+                                                    <HoverCardContent
+                                                        className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
+                                                        align="start"
+                                                        alignOffset={-4}
+                                                        sideOffset={7}
+                                                    >
+                                                        <Avatar className="shrink-0">
+                                                            <AvatarImage
+                                                                src={
+                                                                    participant
+                                                                        .data
+                                                                        ?.avatarUrl ||
+                                                                    undefined
+                                                                }
+                                                                alt={
+                                                                    participant
+                                                                        .data
+                                                                        ?.name ||
+                                                                    "사용자"
+                                                                }
+                                                            />
+                                                            <AvatarFallback className="text-sm">
+                                                                {participant.data?.name?.[0]?.toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
+                                                            <div className="flex flex-1 items-center gap-1">
+                                                                <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
+                                                                    {
+                                                                        participant
+                                                                            .data
+                                                                            ?.name
+                                                                    }
+                                                                </span>
+                                                                {user?.id ===
+                                                                    participant
+                                                                        ?.data
+                                                                        ?.userId && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="shrink-0 px-1.75 leading-normal"
+                                                                    >
+                                                                        나
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="truncate text-xs text-muted-foreground">
+                                                                {
+                                                                    participant
+                                                                        ?.data
+                                                                        ?.email
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </HoverCardContent>
+                                                </HoverCard>
                                             </>
                                         )}
                                         renderItemContent={(participant) => (
@@ -1110,16 +1157,36 @@ export function EventForm({
                                                 }}
                                                 invalid={fieldState.invalid}
                                                 placeholder="카테고리 추가"
-                                                renderChipContent={(category) =>
-                                                    category.label
+                                                chipClassName={(category) =>
+                                                    getCalendarCategoryLabelClassName(
+                                                        category.color,
+                                                        "h-6.5 gap-0 [&_button]:hover:bg-transparent leading-normal"
+                                                    )
                                                 }
+                                                renderChipContent={(
+                                                    category
+                                                ) => (
+                                                    <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
+                                                        {category.label}
+                                                    </span>
+                                                )}
                                                 renderItemContent={(
                                                     category
-                                                ) =>
-                                                    category.isCreate
-                                                        ? `새 카테고리 생성: ${category.label}`
-                                                        : category.label
-                                                }
+                                                ) => (
+                                                    <span className="inline-flex items-center gap-2">
+                                                        <span
+                                                            className={getCalendarCategoryLabelClassName(
+                                                                category.color,
+                                                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
+                                                            )}
+                                                        >
+                                                            {category.label}
+                                                        </span>
+                                                        {category.isCreate
+                                                            ? "새 카테고리 생성"
+                                                            : null}
+                                                    </span>
+                                                )}
                                                 createOptionFromQuery={(
                                                     query
                                                 ) =>
@@ -1127,6 +1194,9 @@ export function EventForm({
                                                         ? {
                                                               value: query,
                                                               label: query,
+                                                              color: getDraftCategoryColor(
+                                                                  query
+                                                              ),
                                                               isCreate: true,
                                                           }
                                                         : null
@@ -1189,15 +1259,46 @@ export function EventForm({
                                                 closeOnSelect
                                                 showRemove={false}
                                                 renderChipContent={(status) => (
-                                                    <>
-                                                        <span className="size-2 rounded-full bg-primary"></span>
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        <span
+                                                            className={[
+                                                                statusDotClassNameMap[
+                                                                    status.value as StatusOption["value"]
+                                                                ],
+                                                                "size-2 rounded-full",
+                                                            ].join(" ")}
+                                                        />
                                                         {status.label}
-                                                    </>
+                                                    </span>
                                                 )}
-                                                renderItemContent={(status) =>
-                                                    status.label
+                                                renderItemContent={(status) => (
+                                                    <span
+                                                        className={[
+                                                            statusItemClassNameMap[
+                                                                status.value as StatusOption["value"]
+                                                            ],
+                                                            "inline-flex h-6.5 items-center gap-1.5 text-sm",
+                                                        ].join(" ")}
+                                                    >
+                                                        <span
+                                                            className={[
+                                                                statusDotClassNameMap[
+                                                                    status.value as StatusOption["value"]
+                                                                ],
+                                                                "inline-block size-2 rounded-full",
+                                                            ].join(" ")}
+                                                        />
+                                                        {status.label}
+                                                    </span>
+                                                )}
+                                                chipClassName={(status) =>
+                                                    [
+                                                        "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
+                                                        statusLabelClassNameMap[
+                                                            status.value as StatusOption["value"]
+                                                        ],
+                                                    ].join(" ")
                                                 }
-                                                chipClassName="[&_button]:hidden flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm dark:bg-input/50"
                                             />
                                         </div>
                                     </Field>

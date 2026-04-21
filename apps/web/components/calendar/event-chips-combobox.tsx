@@ -31,6 +31,7 @@ export type EventChipsComboboxOption<TData = unknown> = {
     value: string
     label: string
     searchText?: string
+    color?: string
     isCreate?: boolean
     data?: TData
 }
@@ -48,7 +49,9 @@ type EventChipsComboboxProps<TData = unknown> = {
     createOptionFromQuery?: (
         query: string
     ) => EventChipsComboboxOption<TData> | null
-    chipClassName?: string
+    chipClassName?:
+        | string
+        | ((option: EventChipsComboboxOption<TData>) => string | undefined)
     showRemove?: boolean
     closeOnSelect?: boolean
     inputClassName?: string
@@ -239,7 +242,11 @@ export function EventChipsCombobox<TData = unknown>({
                         <>
                             {selectedOptions.map((option) => (
                                 <ComboboxChip
-                                    className={chipClassName}
+                                    className={
+                                        typeof chipClassName === "function"
+                                            ? chipClassName(option)
+                                            : chipClassName
+                                    }
                                     key={option.value}
                                     showRemove={showRemove}
                                 >

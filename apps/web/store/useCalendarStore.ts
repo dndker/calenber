@@ -139,10 +139,8 @@ function sortEventCategories(
     categories: CalendarStoreState["eventCategories"]
 ) {
     return [...categories].sort((a, b) => {
-        const nameCompare = a.name.localeCompare(b.name)
-
-        if (nameCompare !== 0) {
-            return nameCompare
+        if (a.createdAt !== b.createdAt) {
+            return a.createdAt - b.createdAt
         }
 
         return a.id.localeCompare(b.id)
@@ -580,9 +578,21 @@ export const useCalendarStore = createSSRStore<
         const now = Date.now()
         const currentUser = useAuthStore.getState().user
         const currentUserId = currentUser?.id ?? null
+        const eventId =
+            "id" in data && typeof data.id === "string" && data.id
+                ? data.id
+                : crypto.randomUUID()
+        const createdAt =
+            "createdAt" in data && typeof data.createdAt === "number"
+                ? data.createdAt
+                : now
+        const updatedAt =
+            "updatedAt" in data && typeof data.updatedAt === "number"
+                ? data.updatedAt
+                : now
 
         const event: CalendarEvent = {
-            id: crypto.randomUUID(),
+            id: eventId,
             ...data,
             ...deriveEventCategories(data.categories, get().eventCategories),
             categoryIds:
@@ -614,8 +624,8 @@ export const useCalendarStore = createSSRStore<
                 avatarUrl: currentUser?.avatarUrl ?? null,
             },
             isLocked: data.isLocked ?? false,
-            createdAt: now,
-            updatedAt: now,
+            createdAt,
+            updatedAt,
         }
 
         set((s) => ({

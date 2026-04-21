@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
+import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
 import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
@@ -10,6 +11,7 @@ import type {
     CalendarEvent,
     CalendarEventCategory,
 } from "@/store/calendar-store.types"
+import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
 
 type CalendarEventCategoryRow = {
     id: string
@@ -17,6 +19,7 @@ type CalendarEventCategoryRow = {
     name: string
     options: {
         visibleByDefault?: boolean
+        color?: CalendarEventCategory["options"]["color"]
     } | null
     created_by: string | null
     created_at: string
@@ -28,6 +31,9 @@ function normalizeEventCategoryOptions(
 ) {
     return {
         visibleByDefault: options?.visibleByDefault !== false,
+        color:
+            normalizeCalendarCategoryColor(options?.color) ??
+            randomCalendarCategoryColor(),
     }
 }
 
@@ -65,6 +71,10 @@ async function ensureCalendarEventCategory(
         {
             target_calendar_id: calendarId,
             target_name: trimmedName,
+            target_options:
+                input?.options != null
+                    ? normalizeEventCategoryOptions(input.options)
+                    : null,
         }
     )
 

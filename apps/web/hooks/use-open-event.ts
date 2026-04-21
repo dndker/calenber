@@ -58,18 +58,21 @@ export function useOpenEvent() {
             updatedAt: now,
         }
 
-        const ok = await createEvent(event)
+        const createdEventId = await createEvent(event)
 
-        if (!ok) {
+        if (!createdEventId) {
             return
         }
 
-        setActiveEventId(id)
-        setViewEvent(event)
+        setActiveEventId(createdEventId)
+        setViewEvent({
+            ...event,
+            id: createdEventId,
+        })
         router.push(
             getCalendarModalOpenPath({
                 pathname,
-                eventId: id,
+                eventId: createdEventId,
             })
         )
     }

@@ -1,4 +1,5 @@
 import { parseEventContent } from "@/lib/calendar/event-content"
+import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 
 export type CalendarEventRecord = {
@@ -11,6 +12,7 @@ export type CalendarEventRecord = {
     categories: CalendarEvent["categories"] | null
     category_id: string | null
     category_name: string | null
+    category_options: CalendarEvent["categories"][number]["options"] | null
     category_created_by: string | null
     category_created_at: string | null
     category_updated_at: string | null
@@ -42,6 +44,10 @@ export function mapCalendarEventRecordToCalendarEvent(
         event.categories?.map((category) => ({
             ...category,
             calendarId: category.calendarId || event.calendar_id,
+            options: {
+                visibleByDefault: category.options?.visibleByDefault !== false,
+                color: normalizeCalendarCategoryColor(category.options?.color),
+            },
         })) ??
         (event.category_id && event.category_name
             ? [
@@ -50,7 +56,11 @@ export function mapCalendarEventRecordToCalendarEvent(
                       calendarId: event.calendar_id,
                       name: event.category_name,
                       options: {
-                          visibleByDefault: true,
+                          visibleByDefault:
+                              event.category_options?.visibleByDefault !== false,
+                          color: normalizeCalendarCategoryColor(
+                              event.category_options?.color
+                          ),
                       },
                       createdById: event.category_created_by,
                       createdAt: new Date(
