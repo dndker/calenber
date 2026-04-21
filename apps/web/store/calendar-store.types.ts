@@ -3,6 +3,7 @@ import type {
     CalendarSummary,
     MyCalendarItem,
 } from "@/lib/calendar/queries"
+import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type { CalendarWorkspaceCursor } from "@/lib/calendar/realtime"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
@@ -23,6 +24,41 @@ export type CalendarEventAuthor = {
     avatarUrl: string | null
 }
 
+export type CalendarEventParticipant = {
+    id: string
+    eventId: string
+    userId: string
+    role: "participant"
+    createdAt: number
+    user: {
+        id: string
+        name: string | null
+        email: string | null
+        avatarUrl: string | null
+    }
+}
+
+export type CalendarEventRecurrence = {
+    type: "daily" | "weekly" | "monthly" | "yearly"
+    interval: number
+    byWeekday?: number[]
+    until?: string
+    count?: number
+}
+
+export type CalendarEventCategory = {
+    id: string
+    calendarId: string
+    name: string
+    options: {
+        visibleByDefault: boolean
+        color?: CalendarCategoryColor
+    }
+    createdById: string | null
+    createdAt: number
+    updatedAt: number
+}
+
 export const eventStatusLabel = {
     scheduled: "시작 전",
     in_progress: "진행 중",
@@ -39,6 +75,11 @@ export const eventStatus = [
 
 export type CalendarEventStatus = (typeof eventStatus)[number]
 
+export type CalendarEventFilterState = {
+    excludedStatuses: CalendarEventStatus[]
+    excludedCategoryIds: string[]
+}
+
 export type CalendarEvent = {
     id: string
     title: string
@@ -47,15 +88,13 @@ export type CalendarEvent = {
     end: number
     allDay?: boolean
     timezone: string
-    color: string
-    recurrence?: {
-        type: "daily" | "weekly" | "monthly" | "yearly"
-        interval: number
-        byWeekday?: number[]
-        until?: string
-        count?: number
-    }
+    categoryIds: string[]
+    categories: CalendarEventCategory[]
+    categoryId: string | null
+    category: CalendarEventCategory | null
+    recurrence?: CalendarEventRecurrence
     exceptions?: string[]
+    participants: CalendarEventParticipant[]
     status: CalendarEventStatus
     authorId: string | null
     author: CalendarEventAuthor | null
@@ -80,7 +119,14 @@ export type CalendarEventDraft = Omit<
     Partial<
         Pick<
             CalendarEvent,
-            "authorId" | "author" | "updatedById" | "updatedBy" | "isLocked"
+            | "id"
+            | "createdAt"
+            | "updatedAt"
+            | "authorId"
+            | "author"
+            | "updatedById"
+            | "updatedBy"
+            | "isLocked"
         >
     >
 
@@ -119,6 +165,7 @@ export type CalendarStoreState = {
     calendarTimezone: string
     isCalendarLoading: boolean
     activeEventId?: string
+    viewEvent: CalendarEvent | null
     eventLayout: CalendarEventLayout
     selectedDate: number
     viewport: number
@@ -127,6 +174,8 @@ export type CalendarStoreState = {
     isWorkspacePresenceLoading: boolean
     workspaceCursor: CalendarWorkspaceCursor | null
     workspacePresence: CalendarWorkspacePresenceMember[]
+    eventCategories: CalendarEventCategory[]
+    eventFilters: CalendarEventFilterState
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
     setActiveCalendarMembership: (membership: CalendarMembership) => void
@@ -140,8 +189,19 @@ export type CalendarStoreState = {
     setIsWorkspacePresenceLoading: (isLoading: boolean) => void
     setWorkspaceCursor: (cursor: CalendarWorkspaceCursor | null) => void
     setWorkspacePresence: (members: CalendarWorkspacePresenceMember[]) => void
+    setEventCategories: (categories: CalendarEventCategory[]) => void
+    toggleEventStatusFilter: (status: CalendarEventStatus) => void
+    toggleEventCategoryFilter: (categoryId: string) => void
+    resetEventFilters: () => void
+    upsertEventCategorySnapshot: (category: CalendarEventCategory) => void
+    removeEventCategorySnapshot: (categoryId: string) => void
+    setEventCategoryDefaultVisibility: (
+        categoryId: string,
+        visibleByDefault: boolean
+    ) => void
     setIsCalendarLoading: (value: boolean) => void
     setActiveEventId: (eventId?: string) => void
+    setViewEvent: (event: CalendarEvent | null) => void
     setEventLayout: (layout: CalendarEventLayout) => void
     setSelectedDate: (date: Date) => void
     setViewportDate: (date: Date) => void

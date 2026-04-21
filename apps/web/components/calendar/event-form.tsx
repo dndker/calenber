@@ -1,16 +1,28 @@
 "use client"
 
-import { useRelativeTime } from "@/hooks/use-relative-time"
+import {
+    getCalendarCategoryDotClassName,
+    getCalendarCategoryLabelClassName,
+    randomCalendarCategoryColor,
+    type CalendarCategoryColor,
+} from "@/lib/calendar/category-color"
+import {
+    getCalendarMemberDirectory,
+    type CalendarMemberDirectoryItem,
+} from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
+import { createBrowserSupabase } from "@/lib/supabase/client"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
     CalendarIcon,
     ChevronDownIcon,
     CircleCheckBigIcon,
+    TagsIcon,
     UsersIcon,
 } from "lucide-react"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
+import { EventChipsCombobox } from "./event-chips-combobox"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
 
 import { Button } from "@workspace/ui/components/button"
@@ -29,10 +41,13 @@ import {
 } from "@workspace/ui/components/popover"
 
 import {
-    type CalendarEvent,
     defaultContent,
     eventStatus,
     eventStatusLabel,
+    type CalendarEvent,
+    type CalendarEventCategory,
+    type CalendarEventParticipant,
+    type EditorContent,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -48,49 +63,124 @@ import {
     CollapsibleTrigger,
 } from "@workspace/ui/components/collapsible"
 import {
-    Combobox,
-    ComboboxChip,
-    ComboboxChips,
-    ComboboxChipsInput,
-    ComboboxContent,
-    ComboboxEmpty,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxList,
-    ComboboxValue,
-    useComboboxAnchor,
-} from "@workspace/ui/components/combobox"
-import {
     HoverCard,
     HoverCardContent,
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
-import { Fragment, useCallback, useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
+
+const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
+    ssr: false,
+})
 
 const statusItems = eventStatus.map((status) => ({
     value: status,
     label: eventStatusLabel[status],
 }))
 
-function EventUpdatedAtText({ value }: { value: number | undefined }) {
-    const relativeTime = useRelativeTime(value, { clampFuture: true })
+type StatusOption = (typeof statusItems)[number]
 
-    return (
-        <span
-            className="truncate text-xs tracking-tight text-muted-foreground [word-spacing:-0.5px]"
-            suppressHydrationWarning
-        >
-            {relativeTime} 수정
-        </span>
+const statusLabelClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled:
+        "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "[&_button]:hidden border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "[&_button]:hidden border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "[&_button]:hidden border-0"
+    ),
+}
+
+const statusItemClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled:
+        "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+}
+
+const statusDotClassNameMap: Record<StatusOption["value"], string> = {
+    scheduled: "bg-muted-foreground/70",
+    in_progress: getCalendarCategoryDotClassName("blue"),
+    completed: getCalendarCategoryDotClassName("green"),
+    cancelled: getCalendarCategoryDotClassName("red"),
+}
+
+type CategoryOption = {
+    value: string
+    label: string
+    color?: CalendarCategoryColor
+    isCreate?: boolean
+    data?: CalendarEventCategory
+}
+
+type ParticipantOption = {
+    value: string
+    label: string
+    searchText: string
+    data: {
+        id: string
+        userId: string
+        name: string | null
+        email: string | null
+        avatarUrl: string | null
+    }
+}
+
+function normalizeNames(values: string[]) {
+    return Array.from(
+        new Set(values.map((value) => value.trim()).filter(Boolean))
     )
+}
+
+function normalizeIds(values: string[]) {
+    return Array.from(new Set(values.filter(Boolean)))
+}
+
+const EMPTY_MEMBER_DIRECTORY: CalendarMemberDirectoryItem[] = []
+
+function getDefaultParticipantIds({
+    event,
+    currentUserId,
+}: {
+    event?: CalendarEvent
+    currentUserId?: string | null
+}) {
+    const eventParticipantIds =
+        event?.participants.map((participant) => participant.userId) ?? []
+
+    if (eventParticipantIds.length > 0) {
+        return normalizeIds(eventParticipantIds)
+    }
+
+    const fallbackUserId = event?.authorId ?? currentUserId ?? null
+
+    return fallbackUserId ? [fallbackUserId] : []
 }
 
 export function EventForm({
     event,
     onChange,
     disabled = false,
+    modal = false,
 }: {
     event?: CalendarEvent
     onChange?: (
@@ -102,8 +192,14 @@ export function EventForm({
     disabled?: boolean
     modal?: boolean
 }) {
+    const user = useAuthStore((a) => a.user)
+    const defaultParticipantIds = useMemo(
+        () => getDefaultParticipantIds({ event, currentUserId: user?.id }),
+        [event, user?.id]
+    )
+
     const form = useForm<EventFormValues>({
-        resolver: zodResolver(eventFormSchema),
+        resolver: zodResolver(eventFormSchema) as Resolver<EventFormValues>,
         defaultValues: event
             ? {
                   title: event.title,
@@ -111,7 +207,10 @@ export function EventForm({
                   start: new Date(event.start),
                   end: new Date(event.end),
                   timezone: event.timezone,
-                  color: event.color,
+                  categoryNames: event.categories.map(
+                      (category) => category.name
+                  ),
+                  participantIds: defaultParticipantIds,
                   allDay: event.allDay,
                   recurrence: event.recurrence,
                   exceptions: event.exceptions,
@@ -123,25 +222,48 @@ export function EventForm({
                   start: new Date(),
                   end: new Date(),
                   timezone: "Asia/Seoul",
-                  color: "blue",
+                  categoryNames: [],
+                  participantIds: defaultParticipantIds,
                   allDay: false,
                   status: eventStatus[0],
               },
     })
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-    const chipsInputRef = useRef<HTMLInputElement | null>(null)
-    const anchor = useComboboxAnchor()
-    const [items, setItems] = useState<string[]>([])
-    const [open, setOpen] = useState(false)
-    const [statusOpen, setStatusOpen] = useState<boolean>(false)
-
-    const user = useAuthStore((a) => a.user)
+    const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const [memberDirectoryState, setMemberDirectoryState] = useState<{
+        calendarId: string | null
+        members: CalendarMemberDirectoryItem[]
+    }>({
+        calendarId: null,
+        members: [],
+    })
 
     const timer = useRef<NodeJS.Timeout | null>(null)
+    const draftCategoryColorsRef = useRef<Map<string, CalendarCategoryColor>>(
+        new Map()
+    )
     const wasBootstrappedWithEventRef = useRef(Boolean(event))
     const initializedEventIdRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
+
+    const getDraftCategoryColor = useCallback((name: string) => {
+        const trimmedName = name.trim()
+
+        if (!trimmedName) {
+            return randomCalendarCategoryColor()
+        }
+
+        const existingColor = draftCategoryColorsRef.current.get(trimmedName)
+
+        if (existingColor) {
+            return existingColor
+        }
+
+        const nextColor = randomCalendarCategoryColor()
+        draftCategoryColorsRef.current.set(trimmedName, nextColor)
+        return nextColor
+    }, [])
 
     const resetFormWithEvent = useCallback(
         (targetEvent: CalendarEvent) => {
@@ -151,16 +273,20 @@ export function EventForm({
                 start: new Date(targetEvent.start),
                 end: new Date(targetEvent.end),
                 timezone: targetEvent.timezone,
-                color: targetEvent.color,
+                categoryNames: targetEvent.categories.map(
+                    (category) => category.name
+                ),
+                participantIds: getDefaultParticipantIds({
+                    event: targetEvent,
+                    currentUserId: user?.id,
+                }),
                 allDay: targetEvent.allDay,
                 recurrence: targetEvent.recurrence,
                 exceptions: targetEvent.exceptions,
                 status: targetEvent.status,
             })
-
-            console.log("reset")
         },
-        [form]
+        [form, user?.id]
     )
 
     const isSameValue = (
@@ -220,8 +346,103 @@ export function EventForm({
             patch.timezone = values.timezone
         }
 
-        if (!isSameValue(sourceEvent.color, values.color)) {
-            patch.color = values.color
+        const nextCategoryNames = normalizeNames(values.categoryNames)
+        const sourceCategoryNames = normalizeNames(
+            sourceEvent.categories.map((category) => category.name)
+        )
+
+        if (!isSameValue(sourceCategoryNames, nextCategoryNames, "json")) {
+            const nextCategories = nextCategoryNames.map(
+                (categoryName): CalendarEventCategory => {
+                    const matchedCategory =
+                        eventCategories.find(
+                            (category) => category.name.trim() === categoryName
+                        ) ?? null
+
+                    return (
+                        matchedCategory ?? {
+                            id: "",
+                            calendarId: activeCalendar?.id ?? "",
+                            name: categoryName,
+                            options: {
+                                visibleByDefault: true,
+                                color: getDraftCategoryColor(categoryName),
+                            },
+                            createdById: null,
+                            createdAt: Date.now(),
+                            updatedAt: Date.now(),
+                        }
+                    )
+                }
+            )
+
+            patch.categories = nextCategories
+            patch.category = nextCategories[0] ?? null
+        }
+
+        const nextParticipantIds = normalizeIds(values.participantIds)
+        const sourceParticipantIds = normalizeIds(
+            sourceEvent.participants.map((participant) => participant.userId)
+        )
+
+        if (!isSameValue(sourceParticipantIds, nextParticipantIds, "json")) {
+            const memberMap = new Map(
+                memberDirectory.map((member) => [member.userId, member])
+            )
+
+            const nextParticipants = nextParticipantIds.flatMap(
+                (participantId): CalendarEventParticipant[] => {
+                    const sourceParticipant = sourceEvent.participants.find(
+                        (participant) => participant.userId === participantId
+                    )
+
+                    if (sourceParticipant) {
+                        return [sourceParticipant]
+                    }
+
+                    const member = memberMap.get(participantId)
+
+                    if (member) {
+                        return [
+                            {
+                                id: member.id,
+                                eventId: sourceEvent.id,
+                                userId: member.userId,
+                                role: "participant",
+                                createdAt: Date.now(),
+                                user: {
+                                    id: member.userId,
+                                    name: member.name,
+                                    email: member.email,
+                                    avatarUrl: member.avatarUrl,
+                                },
+                            },
+                        ]
+                    }
+
+                    if (participantId === user?.id) {
+                        return [
+                            {
+                                id: `local:${participantId}`,
+                                eventId: sourceEvent.id,
+                                userId: participantId,
+                                role: "participant",
+                                createdAt: Date.now(),
+                                user: {
+                                    id: participantId,
+                                    name: user.name,
+                                    email: user.email,
+                                    avatarUrl: user.avatarUrl,
+                                },
+                            },
+                        ]
+                    }
+
+                    return []
+                }
+            )
+
+            patch.participants = nextParticipants
         }
 
         if (!isSameValue(sourceEvent.recurrence, values.recurrence, "json")) {
@@ -239,12 +460,15 @@ export function EventForm({
         return patch
     }
 
-    const saveNow = () => {
-        if (!event) {
+    const saveNow = (values: EventFormValues = form.getValues()) => {
+        if (timer.current) {
+            clearTimeout(timer.current)
+        }
+
+        if (activeCalendar?.id === "demo" || disabled || !event) {
             return
         }
 
-        const values = form.getValues()
         const patch = buildPatchFromValues(event, values)
 
         if (Object.keys(patch).length === 0) {
@@ -268,43 +492,6 @@ export function EventForm({
         timer.current = setTimeout(() => {
             saveNow()
         }, 350)
-    }
-
-    const searchTimer = useRef<NodeJS.Timeout | null>(null)
-
-    const events = [
-        "새로운 일정 업무",
-        "업무하기",
-        "낮잠자기",
-        "쇼핑",
-        "콜라보",
-    ] as const
-
-    const fakeSearch = async (query: string): Promise<string[]> => {
-        // 약간 비동기 느낌 주기 (선택)
-        await new Promise((r) => setTimeout(r, 100))
-
-        return events.filter((item) =>
-            item.toLowerCase().includes(query.toLowerCase())
-        )
-    }
-
-    const handleSearch = (value: string) => {
-        if (searchTimer.current) clearTimeout(searchTimer.current)
-
-        searchTimer.current = setTimeout(async () => {
-            if (value.trim().length === 0) {
-                setItems([])
-                setOpen(false)
-                return
-            }
-
-            // 🔥 여기서 실제 검색 (API or store)
-            const result = await fakeSearch(value)
-
-            setItems(result)
-            setOpen(result.length > 0)
-        }, 150)
     }
 
     useEffect(() => {
@@ -346,19 +533,251 @@ export function EventForm({
     }, [event, form, user?.id, resetFormWithEvent])
 
     useEffect(() => {
+        if (event) {
+            return
+        }
+
+        const currentParticipantIds = normalizeIds(
+            form.getValues("participantIds") ?? []
+        )
+
+        if (
+            currentParticipantIds.length > 0 ||
+            defaultParticipantIds.length === 0
+        ) {
+            return
+        }
+
+        form.setValue("participantIds", defaultParticipantIds, {
+            shouldDirty: false,
+            shouldTouch: false,
+        })
+    }, [defaultParticipantIds, event, form])
+
+    useEffect(() => {
+        if (!activeCalendar?.id || activeCalendar.id === "demo") {
+            return
+        }
+
+        let cancelled = false
+        const targetCalendarId = activeCalendar.id
+        const supabase = createBrowserSupabase()
+
+        void getCalendarMemberDirectory(supabase, targetCalendarId).then(
+            (members) => {
+                if (cancelled) {
+                    return
+                }
+
+                setMemberDirectoryState({
+                    calendarId: targetCalendarId,
+                    members,
+                })
+            }
+        )
+
+        return () => {
+            cancelled = true
+        }
+    }, [activeCalendar?.id])
+
+    const memberDirectory =
+        !activeCalendar?.id ||
+        activeCalendar.id === "demo" ||
+        memberDirectoryState.calendarId !== activeCalendar.id
+            ? EMPTY_MEMBER_DIRECTORY
+            : memberDirectoryState.members
+
+    useEffect(() => {
+        eventCategories.forEach((category) => {
+            if (category.options.color) {
+                draftCategoryColorsRef.current.set(
+                    category.name.trim(),
+                    category.options.color
+                )
+            }
+        })
+    }, [eventCategories])
+
+    useEffect(() => {
         return () => {
             if (timer.current) {
                 clearTimeout(timer.current)
             }
-
-            if (searchTimer.current) {
-                clearTimeout(searchTimer.current)
-            }
         }
     }, [])
 
+    const watchedCategoryNames = useWatch({
+        control: form.control,
+        name: "categoryNames",
+    })
+    const watchedParticipantIds = useWatch({
+        control: form.control,
+        name: "participantIds",
+    })
+    const watchedStatus = useWatch({
+        control: form.control,
+        name: "status",
+    })
+    const selectedCategories = useMemo<CategoryOption[]>(
+        () =>
+            normalizeNames(watchedCategoryNames ?? []).map((categoryName) => {
+                const matchedCategory =
+                    eventCategories.find(
+                        (category) => category.name.trim() === categoryName
+                    ) ?? null
+
+                return matchedCategory
+                    ? {
+                          value: matchedCategory.name,
+                          label: matchedCategory.name,
+                          color: matchedCategory.options.color,
+                          data: matchedCategory,
+                      }
+                    : {
+                          value: categoryName,
+                          label: categoryName,
+                          color: getDraftCategoryColor(categoryName),
+                          isCreate: true,
+                      }
+            }),
+        [eventCategories, getDraftCategoryColor, watchedCategoryNames]
+    )
+    const categoryItems = useMemo<CategoryOption[]>(
+        () =>
+            eventCategories.map((category) => ({
+                value: category.name,
+                label: category.name,
+                color: category.options.color,
+                data: category,
+            })),
+        [eventCategories]
+    )
+    const selectedParticipants = useMemo<ParticipantOption[]>(() => {
+        const memberMap = new Map(
+            memberDirectory.map((member) => [member.userId, member])
+        )
+
+        return normalizeIds(watchedParticipantIds ?? []).flatMap(
+            (participantId) => {
+                const member = memberMap.get(participantId)
+                const sourceParticipant = event?.participants.find(
+                    (participant) => participant.userId === participantId
+                )
+
+                if (member) {
+                    return [
+                        {
+                            value: member.userId,
+                            label: member.name ?? member.email ?? member.userId,
+                            searchText:
+                                `${member.name ?? ""} ${member.email ?? ""} ${member.userId}`.trim(),
+                            data: {
+                                id: member.id,
+                                userId: member.userId,
+                                name: member.name,
+                                email: member.email,
+                                avatarUrl: member.avatarUrl,
+                            },
+                        },
+                    ]
+                }
+
+                if (sourceParticipant) {
+                    return [
+                        {
+                            value: sourceParticipant.userId,
+                            label:
+                                sourceParticipant.user.name ??
+                                sourceParticipant.user.email ??
+                                sourceParticipant.userId,
+                            searchText:
+                                `${sourceParticipant.user.name ?? ""} ${sourceParticipant.user.email ?? ""} ${sourceParticipant.userId}`.trim(),
+                            data: {
+                                id: sourceParticipant.id,
+                                userId: sourceParticipant.userId,
+                                name: sourceParticipant.user.name,
+                                email: sourceParticipant.user.email,
+                                avatarUrl: sourceParticipant.user.avatarUrl,
+                            },
+                        },
+                    ]
+                }
+
+                if (participantId === user?.id) {
+                    return [
+                        {
+                            value: participantId,
+                            label: user.name ?? user.email ?? participantId,
+                            searchText:
+                                `${user.name ?? ""} ${user.email ?? ""} ${participantId}`.trim(),
+                            data: {
+                                id: `local:${participantId}`,
+                                userId: participantId,
+                                name: user.name,
+                                email: user.email,
+                                avatarUrl: user.avatarUrl,
+                            },
+                        },
+                    ]
+                }
+
+                return []
+            }
+        )
+    }, [event?.participants, memberDirectory, user, watchedParticipantIds])
+    const participantItems = useMemo<ParticipantOption[]>(
+        () =>
+            memberDirectory.map((member) => ({
+                value: member.userId,
+                label: member.name ?? member.email ?? member.userId,
+                searchText:
+                    `${member.name ?? ""} ${member.email ?? ""} ${member.userId}`.trim(),
+                data: {
+                    id: member.id,
+                    userId: member.userId,
+                    name: member.name,
+                    email: member.email,
+                    avatarUrl: member.avatarUrl,
+                },
+            })),
+        [memberDirectory]
+    )
+    const categoryOptions = useMemo<CategoryOption[]>(() => {
+        const optionMap = new Map<string, CategoryOption>()
+
+        for (const option of categoryItems) {
+            optionMap.set(option.value, option)
+        }
+
+        for (const option of selectedCategories) {
+            if (!optionMap.has(option.value)) {
+                optionMap.set(option.value, option)
+            }
+        }
+
+        return Array.from(optionMap.values())
+    }, [categoryItems, selectedCategories])
+    const participantOptions = useMemo<ParticipantOption[]>(() => {
+        const optionMap = new Map<string, ParticipantOption>()
+
+        for (const option of participantItems) {
+            optionMap.set(option.value, option)
+        }
+
+        for (const option of selectedParticipants) {
+            if (!optionMap.has(option.value)) {
+                optionMap.set(option.value, option)
+            }
+        }
+
+        return Array.from(optionMap.values())
+    }, [participantItems, selectedParticipants])
+    const statusValue = watchedStatus ? [watchedStatus] : []
+
     return (
         <form
+            data-modal={modal ? "true" : "false"}
             className="flex flex-col gap-6"
             onSubmit={(e) => e.preventDefault()}
         >
@@ -370,59 +789,21 @@ export function EventForm({
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
                             {/* <FieldLabel>제목</FieldLabel> */}
-                            <Combobox
-                                items={items}
-                                open={open}
-                                onOpenChange={(next) => {
-                                    if (items.length > 0) {
-                                        setOpen(next)
+                            <input
+                                {...field}
+                                placeholder="새 일정"
+                                autoFocus
+                                onChange={(e) => {
+                                    if (disabled) {
+                                        return
                                     }
-                                }}
-                                onValueChange={(item: string | null) => {
-                                    if (!item) return false
 
-                                    form.setValue("title", item)
-                                    setOpen(false)
+                                    field.onChange(e.target.value)
                                     autoSave()
                                 }}
-                            >
-                                <ComboboxInput
-                                    {...field}
-                                    placeholder="새 일정"
-                                    autoFocus={true}
-                                    onChange={(e) => {
-                                        const value = e.target.value
-
-                                        if (disabled) {
-                                            return
-                                        }
-
-                                        field.onChange(value)
-                                        autoSave()
-                                        handleSearch(value)
-
-                                        if (!value.trim()) {
-                                            setItems([])
-                                            setOpen(false)
-                                            return
-                                        }
-                                    }}
-                                    className="*ring-0! h-auto border-0! bg-transparent! font-bold opacity-100! shadow-none! ring-0! outline-0! *:h-auto *:rounded-md *:p-0 *:text-primary! *:opacity-100! *:not-focus:hover:bg-muted/60 *:data-[slot=input-group-addon]:hidden *:md:text-4xl"
-                                    disabled={disabled}
-                                />
-                                <ComboboxContent className="min-w-full">
-                                    <ComboboxList>
-                                        {(item) => (
-                                            <ComboboxItem
-                                                key={item}
-                                                value={item}
-                                            >
-                                                {item}
-                                            </ComboboxItem>
-                                        )}
-                                    </ComboboxList>
-                                </ComboboxContent>
-                            </Combobox>
+                                className="h-auto w-full border-0 bg-transparent p-0 font-bold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl"
+                                disabled={disabled}
+                            />
                             {/* <Input
                                 {...field}
                                 autoFocus={true}
@@ -508,10 +889,168 @@ export function EventForm({
                     />
 
                     {/* 참가자 */}
-                    <Field className="md:flex-row md:gap-3">
+                    <Controller
+                        name="participantIds"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                            <Field
+                                className="md:flex-row md:gap-3"
+                                data-invalid={fieldState.invalid}
+                            >
+                                <FieldLabel className="flex h-8.5 items-center md:w-32.5">
+                                    <UsersIcon className="size-4" />
+                                    참가자
+                                </FieldLabel>
+
+                                <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
+                                    <EventChipsCombobox
+                                        disabled={disabled}
+                                        options={participantOptions}
+                                        value={normalizeIds(field.value ?? [])}
+                                        emptyText="표시할 멤버가 없습니다."
+                                        onValueChange={(values) => {
+                                            const nextParticipantIds =
+                                                normalizeIds(values)
+
+                                            field.onChange(nextParticipantIds)
+                                            saveNow({
+                                                ...form.getValues(),
+                                                participantIds:
+                                                    nextParticipantIds,
+                                            })
+                                        }}
+                                        invalid={fieldState.invalid}
+                                        placeholder="멤버 선택"
+                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
+                                        renderChipContent={(participant) => (
+                                            <>
+                                                <HoverCard
+                                                    openDelay={10}
+                                                    closeDelay={100}
+                                                >
+                                                    <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                                        <Avatar className="size-4.5">
+                                                            <AvatarImage
+                                                                src={
+                                                                    participant
+                                                                        .data
+                                                                        ?.avatarUrl ??
+                                                                    undefined
+                                                                }
+                                                                alt={
+                                                                    participant
+                                                                        .data
+                                                                        ?.name ??
+                                                                    "참가자"
+                                                                }
+                                                            />
+                                                            <AvatarFallback className="text-xs">
+                                                                {participant.data?.name?.[0]?.toUpperCase() ??
+                                                                    "?"}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        {participant.label}
+                                                    </HoverCardTrigger>
+                                                    <HoverCardContent
+                                                        className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
+                                                        align="start"
+                                                        alignOffset={-4}
+                                                        sideOffset={7}
+                                                    >
+                                                        <Avatar className="shrink-0">
+                                                            <AvatarImage
+                                                                src={
+                                                                    participant
+                                                                        .data
+                                                                        ?.avatarUrl ||
+                                                                    undefined
+                                                                }
+                                                                alt={
+                                                                    participant
+                                                                        .data
+                                                                        ?.name ||
+                                                                    "사용자"
+                                                                }
+                                                            />
+                                                            <AvatarFallback className="text-sm">
+                                                                {participant.data?.name?.[0]?.toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
+                                                            <div className="flex flex-1 items-center gap-1">
+                                                                <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
+                                                                    {
+                                                                        participant
+                                                                            .data
+                                                                            ?.name
+                                                                    }
+                                                                </span>
+                                                                {user?.id ===
+                                                                    participant
+                                                                        ?.data
+                                                                        ?.userId && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="shrink-0 px-1.75 leading-normal"
+                                                                    >
+                                                                        나
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="truncate text-xs text-muted-foreground">
+                                                                {
+                                                                    participant
+                                                                        ?.data
+                                                                        ?.email
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </HoverCardContent>
+                                                </HoverCard>
+                                            </>
+                                        )}
+                                        renderItemContent={(participant) => (
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <Avatar className="size-6">
+                                                    <AvatarImage
+                                                        src={
+                                                            participant.data
+                                                                ?.avatarUrl ??
+                                                            undefined
+                                                        }
+                                                        alt={
+                                                            participant.data
+                                                                ?.name ?? "멤버"
+                                                        }
+                                                    />
+                                                    <AvatarFallback className="text-xs">
+                                                        {participant.data?.name?.[0]?.toUpperCase() ??
+                                                            "?"}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <div className="truncate">
+                                                        {participant.data
+                                                            ?.name ??
+                                                            "이름 없음"}
+                                                    </div>
+                                                    <div className="truncate text-xs text-muted-foreground">
+                                                        {participant.data
+                                                            ?.email ??
+                                                            participant.value}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    />
+                                </div>
+                            </Field>
+                        )}
+                    />
+
+                    {/* <Field className="md:flex-row md:gap-3">
                         <FieldLabel className="flex h-8.5 items-center md:w-32.5">
-                            <UsersIcon className="size-4" />
-                            참가자
+                            작성자
                         </FieldLabel>
 
                         <div className="flex w-full flex-wrap justify-start gap-1.5 px-1 md:flex-1">
@@ -574,111 +1113,198 @@ export function EventForm({
                                 </HoverCardContent>
                             </HoverCard>
                         </div>
-                    </Field>
+                    </Field> */}
 
                     <CollapsibleContent>
-                        {/* 상태 */}
-                        <Controller
-                            name="status"
-                            control={form.control}
-                            render={({ field, fieldState }) => (
-                                <Field
-                                    className="h-8.5 md:flex-row md:gap-3"
-                                    data-invalid={fieldState.invalid}
-                                >
-                                    <FieldLabel className="flex items-center md:w-32.5">
-                                        <CircleCheckBigIcon className="size-4" />
-                                        상태
-                                    </FieldLabel>
+                        <div className="flex flex-col gap-3">
+                            <Controller
+                                name="categoryNames"
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                    <Field
+                                        className="h-8.5 md:flex-row md:gap-3"
+                                        data-invalid={fieldState.invalid}
+                                    >
+                                        <FieldLabel className="flex items-center md:w-32.5">
+                                            <TagsIcon className="size-4" />
+                                            카테고리
+                                        </FieldLabel>
 
-                                    <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
-                                        <Combobox
-                                            open={statusOpen}
-                                            onOpenChange={setStatusOpen}
-                                            disabled={disabled}
-                                            multiple
-                                            autoHighlight
-                                            items={statusItems}
-                                            value={[field.value]}
-                                            onValueChange={(values) => {
-                                                const last =
-                                                    values[values.length - 1]!
+                                        <div className="flex w-full flex-col gap-2 md:flex-1">
+                                            <EventChipsCombobox
+                                                disabled={disabled}
+                                                options={categoryOptions}
+                                                value={normalizeNames(
+                                                    field.value ?? []
+                                                )}
+                                                emptyText="카테고리를 입력해 생성할 수 있습니다."
+                                                onValueChange={(values) => {
+                                                    const nextCategoryNames =
+                                                        normalizeNames(values)
 
-                                                field.onChange(last)
-                                                setStatusOpen(false)
-                                                chipsInputRef.current?.blur()
-                                                autoSave()
-                                            }}
-                                        >
-                                            <ComboboxChips
-                                                {...field}
-                                                ref={anchor}
-                                                className="w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent!"
-                                            >
-                                                <ComboboxValue>
-                                                    {(values) => (
-                                                        <Fragment>
-                                                            {values.map(
-                                                                (
-                                                                    value: string
-                                                                ) => {
-                                                                    const item =
-                                                                        statusItems.find(
-                                                                            (
-                                                                                s
-                                                                            ) =>
-                                                                                s.value ===
-                                                                                value
-                                                                        )
+                                                    field.onChange(
+                                                        nextCategoryNames
+                                                    )
 
-                                                                    return (
-                                                                        <ComboboxChip
-                                                                            className="flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm dark:bg-input/50 [&_button]:hidden"
-                                                                            key={
-                                                                                value
-                                                                            }
-                                                                        >
-                                                                            <span className="size-2 rounded-full bg-primary"></span>
-                                                                            {item?.label ??
-                                                                                value}
-                                                                        </ComboboxChip>
-                                                                    )
-                                                                }
+                                                    console.log(
+                                                        nextCategoryNames
+                                                    )
+                                                    saveNow({
+                                                        ...form.getValues(),
+                                                        categoryNames:
+                                                            nextCategoryNames,
+                                                    })
+                                                }}
+                                                invalid={fieldState.invalid}
+                                                placeholder="카테고리 추가"
+                                                chipClassName={(category) =>
+                                                    getCalendarCategoryLabelClassName(
+                                                        category.color,
+                                                        "h-6.5 gap-0 [&_button]:hover:bg-transparent leading-normal"
+                                                    )
+                                                }
+                                                renderChipContent={(
+                                                    category
+                                                ) => (
+                                                    <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
+                                                        {category.label}
+                                                    </span>
+                                                )}
+                                                renderItemContent={(
+                                                    category
+                                                ) => (
+                                                    <span className="inline-flex items-center gap-2">
+                                                        <span
+                                                            className={getCalendarCategoryLabelClassName(
+                                                                category.color,
+                                                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
                                                             )}
-                                                            <ComboboxChipsInput
-                                                                ref={
-                                                                    chipsInputRef
-                                                                }
-                                                                className="cursor-pointer focus:cursor-text"
-                                                            />
-                                                        </Fragment>
-                                                    )}
-                                                </ComboboxValue>
-                                            </ComboboxChips>
-                                            <ComboboxContent
-                                                anchor={anchor}
-                                                className="dark:bg-muted"
-                                            >
-                                                <ComboboxEmpty>
-                                                    No items found.
-                                                </ComboboxEmpty>
-                                                <ComboboxList>
-                                                    {(status) => (
-                                                        <ComboboxItem
-                                                            className="py-1.5 dark:hover:bg-input/50"
-                                                            key={status.value}
-                                                            value={status.value}
                                                         >
-                                                            {status.label}
-                                                        </ComboboxItem>
-                                                    )}
-                                                </ComboboxList>
-                                            </ComboboxContent>
-                                        </Combobox>
-                                    </div>
-                                </Field>
-                            )}
-                        />
+                                                            {category.label}
+                                                        </span>
+                                                        {category.isCreate
+                                                            ? "새 카테고리 생성"
+                                                            : null}
+                                                    </span>
+                                                )}
+                                                createOptionFromQuery={(
+                                                    query
+                                                ) =>
+                                                    query
+                                                        ? {
+                                                              value: query,
+                                                              label: query,
+                                                              color: getDraftCategoryColor(
+                                                                  query
+                                                              ),
+                                                              isCreate: true,
+                                                          }
+                                                        : null
+                                                }
+                                            />
+                                            {fieldState.invalid && (
+                                                <FieldError
+                                                    errors={[fieldState.error]}
+                                                />
+                                            )}
+                                        </div>
+                                    </Field>
+                                )}
+                            />
+
+                            {/* 상태 */}
+                            <Controller
+                                name="status"
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                    <Field
+                                        className="h-8.5 md:flex-row md:gap-3"
+                                        data-invalid={fieldState.invalid}
+                                    >
+                                        <FieldLabel className="flex items-center md:w-32.5">
+                                            <CircleCheckBigIcon className="size-4" />
+                                            상태
+                                        </FieldLabel>
+
+                                        <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
+                                            <EventChipsCombobox
+                                                disabled={disabled}
+                                                options={statusItems.map(
+                                                    (status) => ({
+                                                        value: status.value,
+                                                        label: status.label,
+                                                    })
+                                                )}
+                                                value={statusValue}
+                                                emptyText="No items found."
+                                                onValueChange={(values) => {
+                                                    const last =
+                                                        values[
+                                                            values.length - 1
+                                                        ]
+
+                                                    if (!last) {
+                                                        return
+                                                    }
+
+                                                    const nextStatus =
+                                                        last as StatusOption["value"]
+
+                                                    field.onChange(nextStatus)
+                                                    saveNow({
+                                                        ...form.getValues(),
+                                                        status: nextStatus,
+                                                    })
+                                                }}
+                                                closeOnSelect
+                                                showRemove={false}
+                                                renderChipContent={(status) => (
+                                                    <span className="inline-flex items-center gap-1.5">
+                                                        <span
+                                                            className={[
+                                                                statusDotClassNameMap[
+                                                                    status.value as StatusOption["value"]
+                                                                ],
+                                                                "size-2 rounded-full",
+                                                            ].join(" ")}
+                                                        />
+                                                        {status.label}
+                                                    </span>
+                                                )}
+                                                renderItemContent={(status) => (
+                                                    <span
+                                                        className={[
+                                                            statusItemClassNameMap[
+                                                                status.value as StatusOption["value"]
+                                                            ],
+                                                            "inline-flex h-6.5 items-center gap-1.5 text-sm",
+                                                        ].join(" ")}
+                                                    >
+                                                        <span
+                                                            className={[
+                                                                statusDotClassNameMap[
+                                                                    status.value as StatusOption["value"]
+                                                                ],
+                                                                "inline-block size-2 rounded-full",
+                                                            ].join(" ")}
+                                                        />
+                                                        {status.label}
+                                                    </span>
+                                                )}
+                                                chipClassName={(status) =>
+                                                    [
+                                                        "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
+                                                        statusLabelClassNameMap[
+                                                            status.value as StatusOption["value"]
+                                                        ],
+                                                    ].join(" ")
+                                                }
+                                            />
+                                        </div>
+                                    </Field>
+                                )}
+                            />
+                        </div>
                     </CollapsibleContent>
 
                     <CollapsibleTrigger className="w-auto self-start" asChild>
@@ -753,18 +1379,33 @@ export function EventForm({
                     control={form.control}
                     render={({ field }) => (
                         <Field>
-                            <ContentEditor
-                                value={field.value}
-                                editable={!disabled}
-                                updatedAt={event?.updatedAt}
-                                updatedById={event?.updatedById}
-                                currentUserId={user?.id ?? null}
-                                onChange={(val) => {
-                                    if (disabled) return
-                                    field.onChange(val)
-                                    autoSave()
-                                }}
-                            />
+                            {modal ? (
+                                <ContentEditor
+                                    value={field.value}
+                                    editable={!disabled}
+                                    updatedAt={event?.updatedAt}
+                                    updatedById={event?.updatedById}
+                                    currentUserId={user?.id ?? null}
+                                    onChange={(val: EditorContent) => {
+                                        if (disabled) return
+                                        field.onChange(val)
+                                        autoSave()
+                                    }}
+                                />
+                            ) : (
+                                <ContentEditorCSR
+                                    value={field.value}
+                                    editable={!disabled}
+                                    updatedAt={event?.updatedAt}
+                                    updatedById={event?.updatedById}
+                                    currentUserId={user?.id ?? null}
+                                    onChange={(val: EditorContent) => {
+                                        if (disabled) return
+                                        field.onChange(val)
+                                        autoSave()
+                                    }}
+                                />
+                            )}
                         </Field>
                     )}
                 />

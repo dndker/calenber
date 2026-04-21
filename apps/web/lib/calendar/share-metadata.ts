@@ -11,6 +11,7 @@ import {
     type CalendarEvent,
 } from "@/store/calendar-store.types"
 import type { Metadata } from "next"
+import type { CalendarEventMetadata } from "./queries"
 
 export const demoCalendarSummary: CalendarSummary = {
     id: "demo",
@@ -21,6 +22,11 @@ export const demoCalendarSummary: CalendarSummary = {
     updatedAt: "",
     createdAt: "",
 }
+
+type CalendarEventShareData =
+    | CalendarEvent
+    | CalendarEventMetadata
+    | null
 
 export function absoluteUrl(path: string) {
     return new URL(path, APP_URL).toString()
@@ -99,7 +105,7 @@ export function getCalendarShareDescription(calendar: CalendarSummary | null) {
 }
 
 export function getEventShareTitle(
-    event: CalendarEvent | null,
+    event: CalendarEventShareData,
     calendar?: CalendarSummary | null
 ) {
     if (!event) {
@@ -138,7 +144,37 @@ export function formatEventDateRange(event: CalendarEvent) {
     )}`
 }
 
-export function getEventExcerpt(event: CalendarEvent) {
+function formatEventDateRangeFromShareData(event: CalendarEventShareData) {
+    if (!event) {
+        return ""
+    }
+
+    const timezone = "timezone" in event ? event.timezone || "Asia/Seoul" : "Asia/Seoul"
+    const start = dayjs(event.start).tz(timezone)
+    const end = dayjs(event.end).tz(timezone)
+
+    if ("allDay" in event && event.allDay) {
+        if (start.isSame(end, "day")) {
+            return start.format("YYYY년 M월 D일")
+        }
+
+        return `${start.format("YYYY년 M월 D일")} - ${end.format(
+            "YYYY년 M월 D일"
+        )}`
+    }
+
+    if (start.isSame(end, "day")) {
+        return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format("HH:mm")}`
+    }
+
+    return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format(
+        "YYYY년 M월 D일 HH:mm"
+    )}`
+}
+
+export function getEventExcerpt(
+    event: Pick<CalendarEvent, "content"> | Pick<CalendarEventMetadata, "content">
+) {
     return truncateText(
         normalizeWhitespace(extractPlainText(event.content)),
         140
@@ -146,7 +182,7 @@ export function getEventExcerpt(event: CalendarEvent) {
 }
 
 export function getEventShareDescription(
-    event: CalendarEvent | null,
+    event: CalendarEventShareData,
     calendar: CalendarSummary | null
 ) {
     if (!event) {
@@ -155,13 +191,14 @@ export function getEventShareDescription(
 
     const summary = [
         calendar && !isPrivateCalendar(calendar) ? calendar.name : null,
-        formatEventDateRange(event),
+        formatEventDateRangeFromShareData(event),
         eventStatusLabel[event.status],
         event.author?.name ? `@${event.author.name}` : null,
     ]
         .filter(Boolean)
         .join(" · ")
-    const excerpt = getEventExcerpt(event)
+    const excerpt =
+        "content" in event && event.content ? getEventExcerpt(event) : ""
 
     return truncateText(
         excerpt ? `${summary}\n${excerpt}` : summary || APP_DESCRIPTION,
@@ -247,7 +284,7 @@ export function buildEventMetadata({
 }: {
     calendar: CalendarSummary | null
     calendarId: string
-    event: CalendarEvent | null
+    event: CalendarEventShareData
     eventId: string
     modal?: boolean
 }) {
@@ -287,7 +324,7 @@ export function getCalendarOgImageData(calendar: CalendarSummary | null) {
 
 export function getEventOgImageData(
     calendar: CalendarSummary | null,
-    event: CalendarEvent | null
+    event: CalendarEventShareData
 ) {
     return {
         badge: "일정",

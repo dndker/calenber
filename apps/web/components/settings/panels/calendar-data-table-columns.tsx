@@ -127,7 +127,8 @@ export function getCalendarDataColumns({
                 const rawValue = String(row.getValue(columnId)).toLowerCase()
                 return rawValue.includes(String(value).toLowerCase())
             },
-            cell: ({ row }) => row.original.title,
+            cell: ({ row }) =>
+                row.original.title === "" ? "새 일정" : row.original.title,
         },
         {
             accessorKey: "author",

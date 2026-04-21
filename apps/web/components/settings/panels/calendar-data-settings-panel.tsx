@@ -4,13 +4,28 @@ import {
     getCalendarDataColumns,
     type CalendarDataRow,
 } from "@/components/settings/panels/calendar-data-table-columns"
-import { DataTable } from "@/components/settings/shared/data-table"
 import {
+    CalendarCategoryTable,
+    type CalendarCategoryTableRow,
+} from "@/components/settings/panels/calendar-category-table"
+import { DataTable } from "@/components/settings/shared/data-table"
+import { type CalendarCategoryColor } from "@/lib/calendar/category-color"
+import {
+    createCalendarEventCategory,
     deleteCalendarEvent,
+    deleteCalendarEventCategory,
     updateCalendarEvent,
+    updateCalendarEventCategory,
 } from "@/lib/calendar/mutations"
-import { canManageCalendar } from "@/lib/calendar/permissions"
-import type { CalendarEventStatus } from "@/store/calendar-store.types"
+import {
+    canManageCalendar,
+    canViewCalendarSettings,
+} from "@/lib/calendar/permissions"
+import type {
+    CalendarEvent,
+    CalendarEventCategory,
+    CalendarEventStatus,
+} from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { Badge } from "@workspace/ui/components/badge"
@@ -45,21 +60,139 @@ import { toast } from "sonner"
 
 type CalendarEventRecord = CalendarDataRow
 
+function sortCategoriesForSettings(categories: CalendarEventCategory[]) {
+    return [...categories].sort((a, b) => {
+        const visibilityCompare =
+            Number(b.options.visibleByDefault) -
+            Number(a.options.visibleByDefault)
+
+        if (visibilityCompare !== 0) {
+            return visibilityCompare
+        }
+
+        const nameCompare = a.name.localeCompare(b.name)
+
+        if (nameCompare !== 0) {
+            return nameCompare
+        }
+
+        return a.id.localeCompare(b.id)
+    })
+}
+
+function replaceCategoryInEvent(
+    event: CalendarEvent,
+    nextCategory: CalendarEventCategory
+) {
+    if (!event.categoryIds.includes(nextCategory.id)) {
+        return event
+    }
+
+    const nextCategories = event.categories.map((category) =>
+        category.id === nextCategory.id ? nextCategory : category
+    )
+
+    return {
+        ...event,
+        categories: nextCategories,
+        category: nextCategories[0] ?? null,
+        categoryId: nextCategories[0]?.id ?? null,
+        categoryIds: nextCategories.map((category) => category.id),
+    }
+}
+
+function removeCategoryFromEvent(event: CalendarEvent, categoryId: string) {
+    if (!event.categoryIds.includes(categoryId)) {
+        return event
+    }
+
+    const nextCategories = event.categories.filter(
+        (category) => category.id !== categoryId
+    )
+
+    return {
+        ...event,
+        categories: nextCategories,
+        category: nextCategories[0] ?? null,
+        categoryId: nextCategories[0]?.id ?? null,
+        categoryIds: nextCategories.map((category) => category.id),
+    }
+}
+
 export function CalendarDataSettingsPanel() {
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
+    const calendarEvents = useCalendarStore((s) => s.events)
+    const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const upsertEventCategorySnapshot = useCalendarStore(
+        (s) => s.upsertEventCategorySnapshot
+    )
+    const removeEventCategorySnapshot = useCalendarStore(
+        (s) => s.removeEventCategorySnapshot
+    )
+    const setEventCategoryDefaultVisibility = useCalendarStore(
+        (s) => s.setEventCategoryDefaultVisibility
+    )
     const [events, setEvents] = useState<CalendarEventRecord[]>([])
     const eventsRef = useRef<CalendarEventRecord[]>([])
     const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [newCategoryName, setNewCategoryName] = useState("")
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+    const [busyCategoryIds, setBusyCategoryIds] = useState<string[]>([])
 
     const canManageEvents = canManageCalendar(activeCalendarMembership)
+    const canViewData = canViewCalendarSettings(activeCalendarMembership)
 
     useEffect(() => {
         eventsRef.current = events
     }, [events])
+
+    const syncCategoryOnEvents = useCallback(
+        (nextCategory: CalendarEventCategory) => {
+            useCalendarStore.setState((state) => ({
+                events: state.events.map((event) =>
+                    replaceCategoryInEvent(event, nextCategory)
+                ),
+                viewEvent: state.viewEvent
+                    ? replaceCategoryInEvent(state.viewEvent, nextCategory)
+                    : null,
+            }))
+        },
+        []
+    )
+
+    const removeCategoryFromEvents = useCallback((categoryId: string) => {
+        useCalendarStore.setState((state) => ({
+            events: state.events.map((event) =>
+                removeCategoryFromEvent(event, categoryId)
+            ),
+            viewEvent: state.viewEvent
+                ? removeCategoryFromEvent(state.viewEvent, categoryId)
+                : null,
+        }))
+    }, [])
+
+    const withBusyCategory = useCallback(
+        async <T,>(categoryId: string, task: () => Promise<T>) => {
+            setBusyCategoryIds((current) =>
+                current.includes(categoryId)
+                    ? current
+                    : [...current, categoryId]
+            )
+
+            try {
+                return await task()
+            } finally {
+                setBusyCategoryIds((current) =>
+                    current.filter((id) => id !== categoryId)
+                )
+            }
+        },
+        []
+    )
 
     const updateEventsStatus = useCallback(
         async (eventIds: string[], nextStatus: CalendarEventStatus) => {
@@ -88,7 +221,7 @@ export function CalendarDataSettingsPanel() {
                     )
                 )
 
-                if (results.some((result) => !result)) {
+                if (results.some((result) => !result.ok)) {
                     throw new Error("Some event statuses failed to update.")
                 }
 
@@ -138,6 +271,248 @@ export function CalendarDataSettingsPanel() {
             }
         },
         [activeCalendar]
+    )
+
+    const renameCategory = useCallback(
+        async (categoryId: string, nextName: string) => {
+            if (!activeCalendar || !canManageEvents) {
+                return false
+            }
+
+            return withBusyCategory(categoryId, async () => {
+                try {
+                    const supabase = createBrowserSupabase()
+                    const updatedCategory = await updateCalendarEventCategory(
+                        supabase,
+                        categoryId,
+                        {
+                            name: nextName,
+                        }
+                    )
+
+                    if (!updatedCategory) {
+                        throw new Error("Category rename failed.")
+                    }
+
+                    upsertEventCategorySnapshot(updatedCategory)
+                    syncCategoryOnEvents(updatedCategory)
+                    return true
+                } catch (error) {
+                    console.error("Failed to rename calendar category:", error)
+                    toast.error("카테고리 이름을 변경하지 못했습니다.")
+                    return false
+                }
+            })
+        },
+        [
+            activeCalendar,
+            canManageEvents,
+            syncCategoryOnEvents,
+            upsertEventCategorySnapshot,
+            withBusyCategory,
+        ]
+    )
+
+    const changeCategoryDefaultVisibility = useCallback(
+        async (category: CalendarEventCategory, visibleByDefault: boolean) => {
+            if (!activeCalendar || !canManageEvents) {
+                return
+            }
+
+            if (category.options.visibleByDefault === visibleByDefault) {
+                return
+            }
+
+            await withBusyCategory(category.id, async () => {
+                try {
+                    const supabase = createBrowserSupabase()
+                    const updatedCategory = await updateCalendarEventCategory(
+                        supabase,
+                        category.id,
+                        {
+                            options: {
+                                ...category.options,
+                                visibleByDefault,
+                            },
+                        }
+                    )
+
+                    if (!updatedCategory) {
+                        throw new Error("Category visibility update failed.")
+                    }
+
+                    upsertEventCategorySnapshot(updatedCategory)
+                    setEventCategoryDefaultVisibility(
+                        updatedCategory.id,
+                        visibleByDefault
+                    )
+                } catch (error) {
+                    console.error(
+                        "Failed to update calendar category visibility:",
+                        error
+                    )
+                    toast.error("기본 체크 상태를 변경하지 못했습니다.")
+                }
+            })
+        },
+        [
+            activeCalendar,
+            canManageEvents,
+            setEventCategoryDefaultVisibility,
+            upsertEventCategorySnapshot,
+            withBusyCategory,
+        ]
+    )
+
+    const changeCategoryColor = useCallback(
+        async (
+            category: CalendarEventCategory,
+            color: CalendarCategoryColor
+        ) => {
+            if (!activeCalendar || !canManageEvents) {
+                return
+            }
+
+            if (category.options.color === color) {
+                return
+            }
+
+            await withBusyCategory(category.id, async () => {
+                try {
+                    const supabase = createBrowserSupabase()
+                    const updatedCategory = await updateCalendarEventCategory(
+                        supabase,
+                        category.id,
+                        {
+                            options: {
+                                ...category.options,
+                                color,
+                            },
+                        }
+                    )
+
+                    if (!updatedCategory) {
+                        throw new Error("Category color update failed.")
+                    }
+
+                    upsertEventCategorySnapshot(updatedCategory)
+                    syncCategoryOnEvents(updatedCategory)
+                } catch (error) {
+                    console.error(
+                        "Failed to update calendar category color:",
+                        error
+                    )
+                    toast.error("카테고리 색상을 변경하지 못했습니다.")
+                }
+            })
+        },
+        [
+            activeCalendar,
+            canManageEvents,
+            syncCategoryOnEvents,
+            upsertEventCategorySnapshot,
+            withBusyCategory,
+        ]
+    )
+
+    const createCategory = useCallback(async () => {
+        if (
+            !activeCalendar ||
+            activeCalendar.id === "demo" ||
+            !canManageEvents
+        ) {
+            return
+        }
+
+        const trimmedName = newCategoryName.trim()
+
+        if (!trimmedName) {
+            return
+        }
+
+        const existingCategory = eventCategories.find(
+            (category) =>
+                category.name.trim().toLowerCase() === trimmedName.toLowerCase()
+        )
+
+        if (existingCategory) {
+            setNewCategoryName("")
+            toast.message("이미 같은 이름의 카테고리가 있습니다.")
+            return
+        }
+
+        setIsCreatingCategory(true)
+
+        try {
+            const supabase = createBrowserSupabase()
+            const createdCategory = await createCalendarEventCategory(
+                supabase,
+                activeCalendar.id,
+                {
+                    name: trimmedName,
+                    options: {
+                        visibleByDefault: true,
+                    },
+                }
+            )
+
+            if (!createdCategory) {
+                throw new Error("Category create failed.")
+            }
+
+            upsertEventCategorySnapshot(createdCategory)
+            setEventCategoryDefaultVisibility(createdCategory.id, true)
+            setNewCategoryName("")
+            toast.success("카테고리를 추가했습니다.")
+        } catch (error) {
+            console.error("Failed to create calendar category:", error)
+            toast.error("카테고리를 추가하지 못했습니다.")
+        } finally {
+            setIsCreatingCategory(false)
+        }
+    }, [
+        activeCalendar,
+        canManageEvents,
+        eventCategories,
+        newCategoryName,
+        setEventCategoryDefaultVisibility,
+        upsertEventCategorySnapshot,
+    ])
+
+    const removeCategory = useCallback(
+        async (category: CalendarEventCategory) => {
+            if (!activeCalendar || !canManageEvents) {
+                return
+            }
+
+            await withBusyCategory(category.id, async () => {
+                try {
+                    const supabase = createBrowserSupabase()
+                    const ok = await deleteCalendarEventCategory(
+                        supabase,
+                        category.id
+                    )
+
+                    if (!ok) {
+                        throw new Error("Category delete failed.")
+                    }
+
+                    removeEventCategorySnapshot(category.id)
+                    removeCategoryFromEvents(category.id)
+                    toast.success("카테고리를 삭제했습니다.")
+                } catch (error) {
+                    console.error("Failed to delete calendar category:", error)
+                    toast.error("카테고리를 삭제하지 못했습니다.")
+                }
+            })
+        },
+        [
+            activeCalendar,
+            canManageEvents,
+            removeCategoryFromEvents,
+            removeEventCategorySnapshot,
+            withBusyCategory,
+        ]
     )
 
     const columns = useMemo(
@@ -207,8 +582,35 @@ export function CalendarDataSettingsPanel() {
             ),
         [authorOptions, selectedAuthors]
     )
+    const categoryUsageCountMap = useMemo(() => {
+        const usageCountMap = new Map<string, number>()
+
+        calendarEvents.forEach((event) => {
+            event.categoryIds.forEach((categoryId) => {
+                usageCountMap.set(
+                    categoryId,
+                    (usageCountMap.get(categoryId) ?? 0) + 1
+                )
+            })
+        })
+
+        return usageCountMap
+    }, [calendarEvents])
+
+    const categoryRows = useMemo<CalendarCategoryTableRow[]>(() => {
+        return sortCategoriesForSettings(eventCategories).map((category) => ({
+            ...category,
+            usageCount: categoryUsageCountMap.get(category.id) ?? 0,
+        }))
+    }, [categoryUsageCountMap, eventCategories])
 
     useEffect(() => {
+        if (!canViewData) {
+            setEvents([])
+            setIsLoading(false)
+            return
+        }
+
         if (!activeCalendar || activeCalendar.id === "demo") {
             setEvents([])
             setIsLoading(false)
@@ -293,7 +695,23 @@ export function CalendarDataSettingsPanel() {
         return () => {
             isCancelled = true
         }
-    }, [activeCalendar, canManageEvents])
+    }, [activeCalendar, canManageEvents, canViewData])
+
+    if (!activeCalendar) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                캘린더를 선택하면 데이터 설정을 확인할 수 있습니다.
+            </div>
+        )
+    }
+
+    if (!canViewData) {
+        return (
+            <div className="text-sm text-muted-foreground">
+                이 캘린더의 데이터 설정은 멤버만 조회할 수 있습니다.
+            </div>
+        )
+    }
 
     return (
         <FieldGroup>
@@ -347,7 +765,7 @@ export function CalendarDataSettingsPanel() {
                                             align="end"
                                             className="w-56"
                                         >
-                                            {selectedAuthors.length > 0 && (
+                                            {selectedAuthors.length > 0 ? (
                                                 <>
                                                     <DropdownMenuItem
                                                         onSelect={() => {
@@ -361,7 +779,7 @@ export function CalendarDataSettingsPanel() {
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                 </>
-                                            )}
+                                            ) : null}
 
                                             {authorOptions.length ? (
                                                 authorOptions.map((author) => (
@@ -398,13 +816,13 @@ export function CalendarDataSettingsPanel() {
                                                             <div className="truncate">
                                                                 {author.label}
                                                             </div>
-                                                            {author.email && (
+                                                            {author.email ? (
                                                                 <div className="truncate text-xs text-muted-foreground">
                                                                     {
                                                                         author.email
                                                                     }
                                                                 </div>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                     </DropdownMenuCheckboxItem>
                                                 ))
@@ -430,7 +848,6 @@ export function CalendarDataSettingsPanel() {
                                                         className="h-6 gap-px"
                                                     >
                                                         {author.label}
-
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
@@ -542,21 +959,7 @@ export function CalendarDataSettingsPanel() {
                                                         table.resetRowSelection()
                                                     }}
                                                 >
-                                                    취소됨
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    className="text-destructive focus:text-destructive"
-                                                    onSelect={() => {
-                                                        void removeEvents(
-                                                            selectedEvents.map(
-                                                                (event) =>
-                                                                    event.id
-                                                            )
-                                                        )
-                                                        table.resetRowSelection()
-                                                    }}
-                                                >
-                                                    선택한 일정 삭제
+                                                    취소
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -565,9 +968,54 @@ export function CalendarDataSettingsPanel() {
                             />
                         )}
                     </Field>
+
+                    <FieldSeparator />
+
+                    <Field className="gap-4">
+                        <FieldContent>
+                            <FieldLabel>카테고리 목록</FieldLabel>
+                            <FieldDescription>
+                                모든 카테고리를 한 화면에서 추가하고, 이름을
+                                바로 수정하고, 사이드바 기본 체크 상태를 설정할
+                                수 있습니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <CalendarCategoryTable
+                            rows={categoryRows}
+                            newCategoryName={newCategoryName}
+                            canManageEvents={canManageEvents}
+                            isCreatingCategory={isCreatingCategory}
+                            isDisabled={
+                                !activeCalendar ||
+                                activeCalendar.id === "demo" ||
+                                !canManageEvents
+                            }
+                            busyCategoryIds={busyCategoryIds}
+                            onNewCategoryNameChange={setNewCategoryName}
+                            onCreateCategory={() => {
+                                void createCategory()
+                            }}
+                            onRenameCategory={renameCategory}
+                            onChangeCategoryColor={(category, color) => {
+                                void changeCategoryColor(category, color)
+                            }}
+                            onChangeCategoryDefaultVisibility={(
+                                category,
+                                visibleByDefault
+                            ) => {
+                                void changeCategoryDefaultVisibility(
+                                    category,
+                                    visibleByDefault
+                                )
+                            }}
+                            onRemoveCategory={(category) => {
+                                void removeCategory(category)
+                            }}
+                        />
+                    </Field>
                 </FieldGroup>
             </FieldSet>
-            <FieldSeparator />
         </FieldGroup>
     )
 }

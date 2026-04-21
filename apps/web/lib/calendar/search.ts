@@ -7,6 +7,7 @@ import type {
 
 export type CalendarSearchFilters = {
     authorIds?: string[]
+    participantIds?: string[]
     statuses?: CalendarEventStatus[]
     categories?: string[]
 } & Record<string, string[] | undefined>
@@ -25,6 +26,11 @@ export type CalendarSearchAvailableFilters = {
     categories: {
         value: string
         label: string
+        count: number
+    }[]
+    participants: {
+        id: string
+        name: string
         count: number
     }[]
 }
@@ -199,8 +205,36 @@ function matchesFilters(event: CalendarEvent, filters: CalendarSearchFilters) {
         }
     }
 
+    if (filters.participantIds?.length) {
+        const participantIds = new Set(
+            event.participants.map((participant) => participant.userId)
+        )
+
+        if (
+            !filters.participantIds.some((participantId) =>
+                participantIds.has(participantId)
+            )
+        ) {
+            return false
+        }
+    }
+
     if (filters.statuses?.length && !filters.statuses.includes(event.status)) {
         return false
+    }
+
+    if (filters.categories?.length) {
+        const categoryNames = new Set(
+            event.categories.map((category) => category.name)
+        )
+
+        if (
+            !filters.categories.some((categoryName) =>
+                categoryNames.has(categoryName)
+            )
+        ) {
+            return false
+        }
     }
 
     return true
@@ -657,6 +691,22 @@ export function getCalendarSearchAvailableFilters(
             count: number
         }
     >()
+    const categoryMap = new Map<
+        string,
+        {
+            value: string
+            label: string
+            count: number
+        }
+    >()
+    const participantMap = new Map<
+        string,
+        {
+            id: string
+            name: string
+            count: number
+        }
+    >()
 
     for (const event of events) {
         if (event.authorId) {
@@ -676,6 +726,26 @@ export function getCalendarSearchAvailableFilters(
             label: eventStatusLabel[event.status],
             count: (currentStatus?.count ?? 0) + 1,
         })
+
+        for (const category of event.categories) {
+            const currentCategory = categoryMap.get(category.name)
+
+            categoryMap.set(category.name, {
+                value: category.name,
+                label: category.name,
+                count: (currentCategory?.count ?? 0) + 1,
+            })
+        }
+
+        for (const participant of event.participants) {
+            const currentParticipant = participantMap.get(participant.userId)
+
+            participantMap.set(participant.userId, {
+                id: participant.userId,
+                name: participant.user.name?.trim() || "이름 없는 사용자",
+                count: (currentParticipant?.count ?? 0) + 1,
+            })
+        }
     }
 
     return {
@@ -685,7 +755,12 @@ export function getCalendarSearchAvailableFilters(
         statuses: Array.from(statusMap.values()).sort((a, b) =>
             a.label.localeCompare(b.label)
         ),
-        categories: [],
+        categories: Array.from(categoryMap.values()).sort((a, b) =>
+            a.label.localeCompare(b.label)
+        ),
+        participants: Array.from(participantMap.values()).sort((a, b) =>
+            a.name.localeCompare(b.name)
+        ),
     }
 }
 

@@ -1,5 +1,6 @@
 import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
+import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     CENTER_INDEX,
@@ -17,8 +18,19 @@ import {
     useSensors,
 } from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 import { EventItem } from "./event-item"
+import {
+    positionCalendarEvents,
+    type PositionedCalendarEvent,
+} from "./event-positioning"
 import { WeekRow } from "./week-row"
 
 export function MonthList({
@@ -32,7 +44,9 @@ export function MonthList({
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
+    const events = useCalendarStore((s) => s.events)
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+    const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
     const newDate = dayjs().tz(calendarTz).startOf("isoWeek").toDate()
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
@@ -184,8 +198,44 @@ export function MonthList({
     }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
 
+    const filteredEvents = useMemo(() => {
+        if (
+            eventFilters.excludedStatuses.length === 0 &&
+            eventFilters.excludedCategoryIds.length === 0
+        ) {
+            return events
+        }
+
+        const excludedStatuses = new Set(eventFilters.excludedStatuses)
+        const excludedCategoryIds = new Set(eventFilters.excludedCategoryIds)
+
+        return events.filter((event) => {
+            if (excludedStatuses.has(event.status)) {
+                return false
+            }
+
+            if (
+                excludedCategoryIds.size === 0 ||
+                event.categoryIds.length === 0
+            ) {
+                return true
+            }
+
+            return event.categoryIds.some(
+                (categoryId) => !excludedCategoryIds.has(categoryId)
+            )
+        })
+    }, [eventFilters, events])
+    const positionedEvents = useMemo(
+        () => positionCalendarEvents(filteredEvents, calendarTz),
+        [calendarTz, filteredEvents]
+    )
+
     const handleDragOver = useCallback(
         ({ over }: { over: { id: string | number } | null }) => {
+            if (useCalendarStore.getState().drag.mode !== "move") {
+                return
+            }
             if (!over) return
 
             const overId = String(over.id)
@@ -212,7 +262,7 @@ export function MonthList({
         [calendarTz]
     )
 
-    const handleDragEnd = useCallback(() => {
+    const finishDragSession = useCallback(() => {
         lastOverIdRef.current = null
 
         if (dragFrameRef.current) {
@@ -242,7 +292,8 @@ export function MonthList({
                 },
             }}
             onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
+            onDragEnd={finishDragSession}
+            onDragCancel={finishDragSession}
         >
             <div
                 style={{
@@ -261,6 +312,7 @@ export function MonthList({
                     return (
                         <WeekRow
                             key={item.key}
+                            events={positionedEvents}
                             start={item.start}
                             size={item.size}
                             weekDate={weekDate}
@@ -285,20 +337,40 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
     calendarTz: string
 }) {
     const dragEventId = useCalendarStore((s) => s.drag.eventId)
+    const dragMode = useCalendarStore((s) => s.drag.mode)
     const dragStart = useCalendarStore((s) => s.drag.start)
+    const dragEnd = useCalendarStore((s) => s.drag.end)
     const draggingEvent = useCalendarStore((s) =>
         s.drag.eventId ? s.events.find((e) => e.id === s.drag.eventId) : null
     )
 
-    if (!dragEventId || !draggingEvent || !dragStart) {
+    if (
+        !dragEventId ||
+        !draggingEvent ||
+        !dragStart ||
+        !dragEnd ||
+        dragMode !== "move"
+    ) {
         return null
     }
 
     const overlayWeek = getWeek(dayjs.tz(dragStart, calendarTz).toDate(), calendarTz)
     const overlayWeekStart = dayjs(overlayWeek[0]!).tz(calendarTz).startOf("day")
-    const { startDay, endDay } = toCalendarRange(draggingEvent, calendarTz)
+    const { startDay, endDay } = toCalendarRange(
+        {
+            ...draggingEvent,
+            start: dragStart,
+            end: dragEnd,
+        },
+        calendarTz
+    )
     const startIndex = Math.max(0, startDay.diff(overlayWeekStart, "day"))
     const endIndex = Math.min(6, endDay.diff(overlayWeekStart, "day"))
+    const continuesFromPrevWeek = startDay.isBefore(overlayWeekStart, "day")
+    const continuesToNextWeek = endDay.isAfter(
+        overlayWeekStart.add(6, "day"),
+        "day"
+    )
 
     return (
         <EventItem
@@ -306,7 +378,11 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
             top={0}
             startIndex={startIndex}
             endIndex={endIndex}
+            continuesFromPrevWeek={continuesFromPrevWeek}
+            continuesToNextWeek={continuesToNextWeek}
             overlay
         />
     )
 })
+
+export type { PositionedCalendarEvent }

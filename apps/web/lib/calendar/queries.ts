@@ -2,6 +2,9 @@ import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
+import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { parseEventContent } from "@/lib/calendar/event-content"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 import type {
     CalendarAccessMode,
     CalendarMemberStatus,
@@ -9,6 +12,17 @@ import type {
 } from "@/lib/calendar/permissions"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { SupabaseClient } from "@supabase/supabase-js"
+
+const CALENDAR_MEMBER_DIRECTORY_CACHE_TTL_MS = 30_000
+
+const calendarMemberDirectoryCache = new Map<
+    string,
+    {
+        fetchedAt: number
+        data: CalendarMemberDirectoryItem[]
+        promise?: Promise<CalendarMemberDirectoryItem[]>
+    }
+>()
 
 export type CalendarSummary = {
     id: string
@@ -38,6 +52,29 @@ export type CalendarMembership = {
     status: CalendarMemberStatus | null
 }
 
+export type CalendarEventMetadata = {
+    id: string
+    title: string
+    content: CalendarEvent["content"]
+    start: number
+    end: number
+    status: CalendarEvent["status"]
+    author: {
+        name: string | null
+    } | null
+}
+
+export type CalendarEventParticipantDirectoryItem = {
+    id: string
+    eventId: string
+    userId: string
+    role: "participant"
+    createdAt: string
+    email: string | null
+    name: string | null
+    avatarUrl: string | null
+}
+
 export type CalendarMemberDirectoryItem = {
     id: string
     userId: string
@@ -47,6 +84,19 @@ export type CalendarMemberDirectoryItem = {
     email: string | null
     name: string | null
     avatarUrl: string | null
+}
+
+export type CalendarEventCategorySummary = {
+    id: string
+    calendarId: string
+    name: string
+    options: {
+        visibleByDefault: boolean
+        color: CalendarEvent["categories"][number]["options"]["color"]
+    }
+    createdById: string | null
+    createdAt: string
+    updatedAt: string
 }
 
 type CalendarRow = {
@@ -89,6 +139,75 @@ type CalendarMemberDirectoryRow = {
     email: string | null
     name: string | null
     avatar_url: string | null
+}
+
+type CalendarEventWithCalendarRow = {
+    id: string
+    title: string
+    content: CalendarEvent["content"] | string | null
+    start_at: string | null
+    end_at: string | null
+    categories: CalendarEvent["categories"] | null
+    category_id: string | null
+    recurrence: CalendarEvent["recurrence"] | null
+    exceptions: CalendarEvent["exceptions"] | null
+    participants: CalendarEvent["participants"] | null
+    status: CalendarEvent["status"] | null
+    created_by: string | null
+    updated_by: string | null
+    is_locked: boolean | null
+    created_at: string
+    updated_at: string | null
+    event_categories: {
+        id: string
+        calendar_id: string
+        name: string
+        options: {
+            visibleByDefault?: boolean
+            color?: CalendarEvent["categories"][number]["options"]["color"]
+        } | null
+        created_by: string | null
+        created_at: string
+        updated_at: string
+    } | null
+    event_participants:
+        | {
+              id: string
+              event_id: string
+              user_id: string
+              role: "participant"
+              created_at: string
+              users: {
+                  email: string | null
+                  raw_user_meta_data: {
+                      name?: string | null
+                      avatar_url?: string | null
+                  } | null
+              } | null
+          }[]
+        | null
+    calendars: {
+        id: string
+        name: string
+        avatar_url: string | null
+        access_mode: CalendarAccessMode
+        event_layout: CalendarEventLayout
+        updated_at: string
+        created_at: string
+    } | null
+}
+
+type CalendarEventCategoryRow = {
+    id: string
+    calendar_id: string
+    name: string
+    options: {
+        visibleByDefault?: boolean
+        color?: CalendarEvent["categories"][number]["options"]["color"]
+    } | null
+    created_by: string | null
+    created_at: string
+    updated_at: string
 }
 
 export async function getAllCalendars(
@@ -256,34 +375,128 @@ export async function getCalendarEvents(
         return []
     }
 
-    return (data as CalendarEventRecord[]).map(
-        mapCalendarEventRecordToCalendarEvent
+    return (data as CalendarEventRecord[]).map((event) =>
+        normalizeCalendarEventForCalendar(
+            mapCalendarEventRecordToCalendarEvent(event),
+            calendarId
+        )
     )
+}
+
+function normalizeCalendarEventForCalendar(
+    event: CalendarEvent,
+    calendarId: string
+) {
+    if (event.categories.length === 0) {
+        return event
+    }
+
+    const categories = event.categories.map((category) => ({
+        ...category,
+        calendarId,
+    }))
+
+    return {
+        ...event,
+        categories,
+        category: categories[0] ?? null,
+    }
+}
+
+export async function getCalendarEventCategories(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<CalendarEventCategorySummary[]> {
+    const { data, error } = await supabase.rpc("get_calendar_event_categories", {
+        target_calendar_id: calendarId,
+    })
+
+    if (error || !data) {
+        console.error("Failed to load calendar event categories:", error)
+        return []
+    }
+
+    return (data as CalendarEventCategoryRow[]).map((category) => ({
+        id: category.id,
+        calendarId: category.calendar_id,
+        name: category.name,
+        options: {
+            visibleByDefault: category.options?.visibleByDefault !== false,
+            color: normalizeCalendarCategoryColor(category.options?.color),
+        },
+        createdById: category.created_by,
+        createdAt: category.created_at,
+        updatedAt: category.updated_at,
+    }))
 }
 
 export async function getCalendarMemberDirectory(
     supabase: SupabaseClient,
     calendarId: string
 ): Promise<CalendarMemberDirectoryItem[]> {
-    const { data, error } = await supabase.rpc("get_calendar_member_directory", {
-        target_calendar_id: calendarId,
-    })
+    const cached = calendarMemberDirectoryCache.get(calendarId)
+    const now = Date.now()
 
-    if (error || !data) {
-        console.error("Failed to load calendar members:", error)
-        return []
+    if (
+        cached &&
+        cached.data.length > 0 &&
+        now - cached.fetchedAt < CALENDAR_MEMBER_DIRECTORY_CACHE_TTL_MS
+    ) {
+        return cached.data
     }
 
-    return (data as CalendarMemberDirectoryRow[]).map((member) => ({
-        id: member.id,
-        userId: member.user_id,
-        role: member.role,
-        status: member.status,
-        createdAt: member.created_at,
-        email: member.email,
-        name: member.name,
-        avatarUrl: member.avatar_url,
-    }))
+    if (cached?.promise) {
+        return cached.promise
+    }
+
+    const request = (async () => {
+        const { data, error } = await supabase.rpc(
+            "get_calendar_member_directory",
+            {
+                target_calendar_id: calendarId,
+            }
+        )
+
+            if (error || !data) {
+                console.error("Failed to load calendar members:", error)
+                return []
+            }
+
+            const members = (data as CalendarMemberDirectoryRow[]).map((member) => ({
+                id: member.id,
+                userId: member.user_id,
+                role: member.role,
+                status: member.status,
+                createdAt: member.created_at,
+                email: member.email,
+                name: member.name,
+                avatarUrl: member.avatar_url,
+            }))
+
+            calendarMemberDirectoryCache.set(calendarId, {
+                data: members,
+                fetchedAt: Date.now(),
+            })
+
+            return members
+        })().finally(() => {
+            const nextCached = calendarMemberDirectoryCache.get(calendarId)
+
+            if (nextCached?.promise) {
+                calendarMemberDirectoryCache.set(calendarId, {
+                    data: nextCached.data,
+                    fetchedAt: nextCached.fetchedAt,
+                })
+            }
+        })
+
+    calendarMemberDirectoryCache.set(calendarId, {
+        data: cached?.data ?? [],
+        fetchedAt: cached?.fetchedAt ?? 0,
+        promise: request,
+    })
+
+    return request
 }
 
 export async function getEventById(
@@ -314,9 +527,116 @@ export async function getEventById(
         return null
     }
 
-    const event = mapCalendarEventRecordToCalendarEvent(
-        data[0] as CalendarEventRecord
+    const event = normalizeCalendarEventForCalendar(
+        mapCalendarEventRecordToCalendarEvent(data[0] as CalendarEventRecord),
+        (data[0] as CalendarEventRecord).calendar_id
     )
 
     return event
+}
+
+export async function getEventMetadataByCalendarId(
+    supabase: SupabaseClient,
+    calendarId: string,
+    eventId: string,
+    options?: {
+        silentMissing?: boolean
+    }
+): Promise<{
+    calendar: CalendarSummary | null
+    event: CalendarEventMetadata | null
+}> {
+    const { data, error } = await supabase
+        .from("events")
+        .select(
+            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
+        )
+        .eq("id", eventId)
+        .eq("calendar_id", calendarId)
+        .maybeSingle()
+
+    if (error) {
+        if (options?.silentMissing && error.code === "42501") {
+            return {
+                calendar: null,
+                event: null,
+            }
+        }
+
+        console.error("Failed to load event metadata:", error)
+        return {
+            calendar: null,
+            event: null,
+        }
+    }
+
+    if (!data) {
+        if (!options?.silentMissing) {
+            console.warn("Calendar event metadata not found:", eventId)
+        }
+
+        return {
+            calendar: null,
+            event: null,
+        }
+    }
+
+    const row = data as unknown as CalendarEventWithCalendarRow
+    const start = row.start_at
+        ? new Date(row.start_at).valueOf()
+        : Date.now()
+    const end = row.end_at ? new Date(row.end_at).valueOf() : start
+    const calendarRow = row.calendars
+
+    return {
+        calendar: calendarRow
+            ? {
+                  id: calendarRow.id,
+                  name: calendarRow.name,
+                  avatarUrl: calendarRow.avatar_url,
+                  accessMode: calendarRow.access_mode,
+                  eventLayout: calendarRow.event_layout,
+                  updatedAt: calendarRow.updated_at,
+                  createdAt: calendarRow.created_at,
+              }
+            : null,
+        event: {
+            id: row.id,
+            title: row.title,
+            content: parseEventContent(row.content),
+            start,
+            end,
+            status: row.status ?? "scheduled",
+            author: null,
+        },
+    }
+}
+
+export async function getEventPageDataByCalendarId(
+    supabase: SupabaseClient,
+    calendarId: string,
+    eventId: string,
+    options?: {
+        silentMissing?: boolean
+    }
+): Promise<{
+    calendar: CalendarSummary | null
+    event: CalendarEvent | null
+}> {
+    const [calendar, event] = await Promise.all([
+        getCalendarById(supabase, calendarId),
+        getEventById(supabase, eventId, options),
+    ])
+
+    if (!calendar || !event) {
+        return {
+            calendar: calendar ?? null,
+            event: null,
+        }
+    }
+
+    return {
+        calendar,
+        event,
+    }
 }

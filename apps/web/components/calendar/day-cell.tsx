@@ -8,8 +8,10 @@ import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.typ
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
+import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
+import { PlusIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useRef } from "react"
 import { DayCellMemberHoverCard } from "./day-cell-member-hover-card"
 
@@ -80,6 +82,7 @@ export const DayCell = memo(
 
         const isHover = useCalendarStore((s) => {
             if (!s.drag.eventId) return false
+            if (s.drag.mode !== "move") return false
             return dayValue >= s.drag.start && dayValue <= s.drag.end
         })
 
@@ -148,7 +151,7 @@ export const DayCell = memo(
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 className={cn(
-                    "relative flex flex-col p-3 text-sm font-medium select-none",
+                    "group/day relative flex flex-col overflow-hidden p-3 text-sm font-medium select-none",
                     isCurrentMonth
                         ? "bg-background text-foreground"
                         : "bg-background/80 text-muted-foreground/60",
@@ -158,11 +161,23 @@ export const DayCell = memo(
                 )}
             >
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
-                    {day.getDate() === 1 && (
-                        <span className="text-sm text-muted-foreground/80">
-                            {dayjs.tz(day, calendarTz).format("M월")}
-                        </span>
-                    )}
+                    <div className="flex items-center">
+                        <>
+                            <Button
+                                size="icon"
+                                variant="outline"
+                                className="hidden size-8 text-muted-foreground group-hover/day:flex"
+                                onClick={handleDoubleClick}
+                            >
+                                <PlusIcon />
+                            </Button>
+                            {day.getDate() === 1 && (
+                                <span className="text-sm text-muted-foreground/80 group-hover/day:hidden">
+                                    {dayjs.tz(day, calendarTz).format("M월")}
+                                </span>
+                            )}
+                        </>
+                    </div>
 
                     <DayCellMemberHoverCard
                         cellMembers={cellMembers}

@@ -1,13 +1,13 @@
 import { CalendarPageContent } from "@/components/calendar/calendar-page-content"
 import {
-    getCalendarById,
-    getEventById,
-} from "@/lib/calendar/queries"
+    getServerCalendarById,
+    getServerEventMetadataByCalendarId,
+} from "@/lib/calendar/server-queries"
 import {
+    buildCalendarMetadata,
     buildEventMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
-import { createServerSupabase } from "@/lib/supabase/server"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -19,43 +19,41 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     const [{ calendarId }, { e }] = await Promise.all([params, searchParams])
 
-    if (!e) {
-        return {}
+    if (e) {
+        const { calendar, event } =
+            calendarId === "demo"
+                ? {
+                      calendar: demoCalendarSummary,
+                      event: null,
+                  }
+                : await getServerEventMetadataByCalendarId(calendarId, e, true)
+
+        return buildEventMetadata({
+            calendar,
+            calendarId,
+            event,
+            eventId: e,
+            modal: true,
+        })
     }
 
-    const supabase = await createServerSupabase()
-    const [calendar, event] = await Promise.all([
+    const calendar =
         calendarId === "demo"
-            ? Promise.resolve(demoCalendarSummary)
-            : getCalendarById(supabase, calendarId),
-        getEventById(supabase, e, { silentMissing: true }),
-    ])
+            ? demoCalendarSummary
+            : await getServerCalendarById(calendarId)
 
-    return buildEventMetadata({
+    return buildCalendarMetadata({
         calendar,
         calendarId,
-        event,
-        eventId: e,
-        modal: true,
     })
 }
 
 export default async function Page({
     params,
-    searchParams,
 }: {
     params: Promise<{ calendarId: string }>
-    searchParams: Promise<{ e?: string }>
 }) {
-    const [, { e }] = await Promise.all([params, searchParams])
-    let initialEvent = null
+    await params
 
-    if (e) {
-        const supabase = await createServerSupabase()
-        initialEvent = await getEventById(supabase, e, {
-            silentMissing: true,
-        })
-    }
-
-    return <CalendarPageContent eventId={e} initialEvent={initialEvent} />
+    return <CalendarPageContent />
 }

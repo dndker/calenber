@@ -1,7 +1,9 @@
 - 글로벌로 설치된 bun 사용 환경 검색 필요없음
+- PATH 확인 및 추측 없이 bun 패키지 매니져로 타입 체크
 - 기존 supabase/migration 안에 있는 sql파일 수정 금지
 - 시니어급 수준으로 작업
 - 최적화를 가장 우선순으로 두고 속도가 느려지지 않게 작업하기
 - 리액트 훅 에러 검증 필수 (useEffect)
 - 리액트 setState 패턴 오류 체크 필수
 - useEffect 사용시 Error: Calling setState synchronously within an effect can trigger cascading renders 이 에러 무조건 체크
+- next/font/google에러 무시하고 진행

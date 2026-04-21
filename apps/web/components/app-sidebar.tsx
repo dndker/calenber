@@ -2,10 +2,12 @@
 
 import * as React from "react"
 
-import { Calendars } from "@/components/calendars"
+import { CalendarFilter } from "@/components/calendar-filter"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
+import { eventStatus, eventStatusLabel } from "@/store/calendar-store.types"
+import { shallow } from "@/store/createSSRStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -19,44 +21,15 @@ import {
     SidebarRail,
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
-import { Settings, Trash2 } from "lucide-react"
+import { Settings } from "lucide-react"
 
-// This is sample data.
-const data = {
+const fallbackUser = {
     user: {
         id: "1",
         name: "woong",
         email: "example@gmail.com",
         avatarUrl: "/icons/square/ios/144.png",
-        calendars: [
-            {
-                name: "플랫폼디자인팀",
-                plan: "Enterprise",
-            },
-            {
-                name: "서비스퍼블팀",
-                plan: "Startup",
-            },
-            {
-                name: "디자인실",
-                plan: "Free",
-            },
-        ],
     },
-    calendars: [
-        {
-            name: "My Calendars",
-            items: ["Personal", "Work", "Family"],
-        },
-        {
-            name: "Favorites",
-            items: ["Holidays", "Birthdays"],
-        },
-        {
-            name: "Other",
-            items: ["Travel", "Reminders", "Deadlines"],
-        },
-    ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -65,26 +38,101 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
+    const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
+    const toggleEventStatusFilter = useCalendarStore(
+        (s) => s.toggleEventStatusFilter
+    )
+    const toggleEventCategoryFilter = useCalendarStore(
+        (s) => s.toggleEventCategoryFilter
+    )
+
+    const excludedStatusSet = React.useMemo(
+        () => new Set(eventFilters.excludedStatuses),
+        [eventFilters.excludedStatuses]
+    )
+    const excludedCategoryIdSet = React.useMemo(
+        () => new Set(eventFilters.excludedCategoryIds),
+        [eventFilters.excludedCategoryIds]
+    )
+
+    const filterGroups = React.useMemo(
+        () => [
+            {
+                id: "status",
+                name: "상태",
+                items: eventStatus.map((status) => ({
+                    id: status,
+                    label: eventStatusLabel[status],
+                    checked: !excludedStatusSet.has(status),
+                })),
+            },
+            {
+                id: "category",
+                name: "카테고리",
+                items:
+                    eventCategories.length > 0
+                        ? eventCategories.map((category) => ({
+                              id: category.id,
+                              label: category.name,
+                              color: category.options.color,
+                              checked: !excludedCategoryIdSet.has(category.id),
+                          }))
+                        : [
+                              //   {
+                              //       id: "empty-category",
+                              //       label: "등록된 카테고리가 없습니다.",
+                              //       checked: false,
+                              //       disabled: false,
+                              //   },
+                          ],
+            },
+        ],
+        [eventCategories, excludedCategoryIdSet, excludedStatusSet]
+    )
+
+    const handleFilterItemCheckedChange = React.useCallback(
+        (groupId: string, itemId: string) => {
+            if (groupId === "status") {
+                toggleEventStatusFilter(itemId as (typeof eventStatus)[number])
+                return
+            }
+
+            if (groupId === "category") {
+                toggleEventCategoryFilter(itemId)
+            }
+        },
+        [toggleEventCategoryFilter, toggleEventStatusFilter]
+    )
 
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser user={user ? { ...data.user, ...user } : data.user} />
+                <NavUser
+                    user={
+                        user
+                            ? { ...fallbackUser.user, ...user }
+                            : fallbackUser.user
+                    }
+                />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />
                 <SidebarSeparator className="mx-0" />
-                <Calendars calendars={data.calendars} />
+                <CalendarFilter
+                    groups={filterGroups}
+                    onItemCheckedChange={handleFilterItemCheckedChange}
+                />
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         {activeCalendarMembership.role === "owner" ? (
                             <>
-                                <SidebarMenuButton>
+                                {/* <SidebarMenuButton>
                                     <Trash2 />
                                     <span>휴지통</span>
-                                </SidebarMenuButton>
+                                </SidebarMenuButton> */}
                                 <SidebarMenuButton
                                     onClick={() =>
                                         openSettings("calendar_general")

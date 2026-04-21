@@ -1,7 +1,7 @@
 "use client"
 
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import type { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
-import { getCalendarEventModalPath } from "@/lib/calendar/routes"
 import {
     buildCalendarEventSearchDocuments,
     buildCalendarMemberSearchDocuments,
@@ -36,10 +36,9 @@ import {
 } from "@workspace/ui/components/command"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { SearchIcon } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
     Fragment,
-    startTransition,
     useDeferredValue,
     useEffect,
     useMemo,
@@ -178,6 +177,7 @@ function buildMemberCandidates({
 }
 
 export function CalendarSearchDialog() {
+    const pathname = usePathname()
     const router = useRouter()
     const user = useAuthStore((state) => state.user)
     const activeCalendar = useCalendarStore((state) => state.activeCalendar)
@@ -185,6 +185,8 @@ export function CalendarSearchDialog() {
         (state) => state.activeCalendarMembership
     )
     const events = useCalendarStore((state) => state.events)
+    const setActiveEventId = useCalendarStore((state) => state.setActiveEventId)
+    const setViewEvent = useCalendarStore((state) => state.setViewEvent)
     const workspacePresence = useCalendarStore(
         (state) => state.workspacePresence
     )
@@ -444,10 +446,14 @@ export function CalendarSearchDialog() {
         }
 
         setOpen(false)
-
-        startTransition(() => {
-            router.push(getCalendarEventModalPath(activeCalendar.id, eventId))
-        })
+        setActiveEventId(eventId)
+        setViewEvent(events.find((event) => event.id === eventId) ?? null)
+        router.push(
+            getCalendarModalOpenPath({
+                pathname,
+                eventId,
+            })
+        )
     }
 
     const handleMemberSelect = (member: CalendarSearchMemberResult) => {

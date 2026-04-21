@@ -42,6 +42,46 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --category-blue-default: oklch(0.62 0.19 255);
+    --category-blue-muted: oklch(0.93 0.05 255);
+    --category-blue-strong: oklch(0.55 0.17 255);
+    --category-blue-soft: oklch(0.9 0.05 255);
+    --category-green-default: oklch(0.68 0.18 150);
+    --category-green-muted: oklch(0.93 0.05 150);
+    --category-green-strong: oklch(0.57 0.14 150);
+    --category-green-soft: oklch(0.91 0.05 150);
+    --category-sky-default: oklch(0.72 0.15 230);
+    --category-sky-muted: oklch(0.97 0.025 230);
+    --category-sky-strong: oklch(0.6 0.12 230);
+    --category-sky-soft: oklch(0.91 0.04 230);
+    --category-purple-default: oklch(0.63 0.2 305);
+    --category-purple-muted: oklch(0.97 0.03 305);
+    --category-purple-strong: oklch(0.56 0.16 305);
+    --category-purple-soft: oklch(0.91 0.05 305);
+    --category-red-default: oklch(0.64 0.21 24);
+    --category-red-muted: oklch(0.93 0.055 24);
+    --category-red-strong: oklch(0.57 0.18 24);
+    --category-red-soft: oklch(0.91 0.05 24);
+    --category-yellow-default: oklch(0.78 0.16 92);
+    --category-yellow-muted: oklch(0.98 0.03 92);
+    --category-yellow-strong: oklch(0.58 0.12 92);
+    --category-yellow-soft: oklch(0.93 0.05 92);
+    --category-gray-default: oklch(0.63 0.01 255);
+    --category-gray-muted: oklch(0.97 0.002 255);
+    --category-gray-strong: oklch(0.5 0.01 255);
+    --category-gray-soft: oklch(0.88 0.005 255);
+    --category-olive-default: oklch(0.62 0.09 118);
+    --category-olive-muted: oklch(0.95 0.018 118);
+    --category-olive-strong: oklch(0.5 0.075 118);
+    --category-olive-soft: oklch(0.88 0.025 118);
+    --category-pink-default: oklch(0.72 0.2 354);
+    --category-pink-muted: oklch(0.975 0.03 354);
+    --category-pink-strong: oklch(0.6 0.17 354);
+    --category-pink-soft: oklch(0.91 0.05 354);
+    --category-mauve-default: oklch(0.5 0.08 338);
+    --category-mauve-muted: oklch(0.95 0.02 338);
+    --category-mauve-strong: oklch(0.42 0.07 338);
+    --category-mauve-soft: oklch(0.84 0.025 338);
 }
 
 .dark {
@@ -76,6 +116,46 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --category-blue-default: oklch(0.5 0.14 255);
+    --category-blue-muted: oklch(0.28 0.05 255);
+    --category-blue-strong: oklch(0.82 0.08 255);
+    --category-blue-soft: oklch(0.38 0.07 255);
+    --category-green-default: oklch(0.5 0.13 150);
+    --category-green-muted: oklch(0.28 0.045 150);
+    --category-green-strong: oklch(0.84 0.07 150);
+    --category-green-soft: oklch(0.37 0.06 150);
+    --category-sky-default: oklch(0.54 0.11 230);
+    --category-sky-muted: oklch(0.29 0.035 230);
+    --category-sky-strong: oklch(0.85 0.06 230);
+    --category-sky-soft: oklch(0.38 0.05 230);
+    --category-purple-default: oklch(0.49 0.15 305);
+    --category-purple-muted: oklch(0.28 0.045 305);
+    --category-purple-strong: oklch(0.84 0.08 305);
+    --category-purple-soft: oklch(0.37 0.065 305);
+    --category-red-default: oklch(0.5 0.16 24);
+    --category-red-muted: oklch(0.28 0.05 24);
+    --category-red-strong: oklch(0.84 0.08 24);
+    --category-red-soft: oklch(0.37 0.07 24);
+    --category-yellow-default: oklch(0.58 0.12 92);
+    --category-yellow-muted: oklch(0.31 0.04 92);
+    --category-yellow-strong: oklch(0.8 0.06 92);
+    --category-yellow-soft: oklch(0.4 0.05 92);
+    --category-gray-default: oklch(0.48 0.008 255);
+    --category-gray-muted: oklch(0.27 0.003 255);
+    --category-gray-strong: oklch(0.83 0.008 255);
+    --category-gray-soft: oklch(0.36 0.005 255);
+    --category-olive-default: oklch(0.48 0.07 118);
+    --category-olive-muted: oklch(0.29 0.025 118);
+    --category-olive-strong: oklch(0.81 0.045 118);
+    --category-olive-soft: oklch(0.36 0.035 118);
+    --category-pink-default: oklch(0.56 0.16 354);
+    --category-pink-muted: oklch(0.3 0.05 354);
+    --category-pink-strong: oklch(0.86 0.07 354);
+    --category-pink-soft: oklch(0.39 0.07 354);
+    --category-mauve-default: oklch(0.4 0.055 338);
+    --category-mauve-muted: oklch(0.28 0.03 338);
+    --category-mauve-strong: oklch(0.74 0.035 338);
+    --category-mauve-soft: oklch(0.33 0.03 338);
 }
 
 @theme inline {
@@ -117,6 +197,46 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-category-blue-default: var(--category-blue-default);
+    --color-category-blue-muted: var(--category-blue-muted);
+    --color-category-blue-strong: var(--category-blue-strong);
+    --color-category-blue-soft: var(--category-blue-soft);
+    --color-category-green-default: var(--category-green-default);
+    --color-category-green-muted: var(--category-green-muted);
+    --color-category-green-strong: var(--category-green-strong);
+    --color-category-green-soft: var(--category-green-soft);
+    --color-category-sky-default: var(--category-sky-default);
+    --color-category-sky-muted: var(--category-sky-muted);
+    --color-category-sky-strong: var(--category-sky-strong);
+    --color-category-sky-soft: var(--category-sky-soft);
+    --color-category-purple-default: var(--category-purple-default);
+    --color-category-purple-muted: var(--category-purple-muted);
+    --color-category-purple-strong: var(--category-purple-strong);
+    --color-category-purple-soft: var(--category-purple-soft);
+    --color-category-red-default: var(--category-red-default);
+    --color-category-red-muted: var(--category-red-muted);
+    --color-category-red-strong: var(--category-red-strong);
+    --color-category-red-soft: var(--category-red-soft);
+    --color-category-yellow-default: var(--category-yellow-default);
+    --color-category-yellow-muted: var(--category-yellow-muted);
+    --color-category-yellow-strong: var(--category-yellow-strong);
+    --color-category-yellow-soft: var(--category-yellow-soft);
+    --color-category-gray-default: var(--category-gray-default);
+    --color-category-gray-muted: var(--category-gray-muted);
+    --color-category-gray-strong: var(--category-gray-strong);
+    --color-category-gray-soft: var(--category-gray-soft);
+    --color-category-olive-default: var(--category-olive-default);
+    --color-category-olive-muted: var(--category-olive-muted);
+    --color-category-olive-strong: var(--category-olive-strong);
+    --color-category-olive-soft: var(--category-olive-soft);
+    --color-category-pink-default: var(--category-pink-default);
+    --color-category-pink-muted: var(--category-pink-muted);
+    --color-category-pink-strong: var(--category-pink-strong);
+    --color-category-pink-soft: var(--category-pink-soft);
+    --color-category-mauve-default: var(--category-mauve-default);
+    --color-category-mauve-muted: var(--category-mauve-muted);
+    --color-category-mauve-strong: var(--category-mauve-strong);
+    --color-category-mauve-soft: var(--category-mauve-soft);
     --font-sans: var(--font-sans);
     --font-heading: var(--font-heading);
 }
@@ -150,6 +270,166 @@
 }
 
 @layer utilities {
+    .cb-label-blue {
+        @apply bg-category-blue-muted text-category-blue-strong;
+    }
+
+    .cb-label-green {
+        @apply bg-category-green-muted text-category-green-strong;
+    }
+
+    .cb-label-sky {
+        @apply bg-category-sky-muted text-category-sky-strong;
+    }
+
+    .cb-label-purple {
+        @apply bg-category-purple-muted text-category-purple-strong;
+    }
+
+    .cb-label-red {
+        @apply bg-category-red-muted text-category-red-strong;
+    }
+
+    .cb-label-yellow {
+        @apply bg-category-yellow-muted text-category-yellow-strong;
+    }
+
+    .cb-label-gray {
+        @apply bg-category-gray-muted text-category-gray-strong;
+    }
+
+    .cb-label-olive {
+        @apply bg-category-olive-muted text-category-olive-strong;
+    }
+
+    .cb-label-pink {
+        @apply bg-category-pink-muted text-category-pink-strong;
+    }
+
+    .cb-label-mauve {
+        @apply bg-category-mauve-muted text-category-mauve-strong;
+    }
+
+    .cb-dot-blue {
+        @apply bg-category-blue-default;
+    }
+
+    .cb-dot-green {
+        @apply bg-category-green-default;
+    }
+
+    .cb-dot-sky {
+        @apply bg-category-sky-default;
+    }
+
+    .cb-dot-purple {
+        @apply bg-category-purple-default;
+    }
+
+    .cb-dot-red {
+        @apply bg-category-red-default;
+    }
+
+    .cb-dot-yellow {
+        @apply bg-category-yellow-default;
+    }
+
+    .cb-dot-gray {
+        @apply bg-category-gray-default;
+    }
+
+    .cb-dot-olive {
+        @apply bg-category-olive-default;
+    }
+
+    .cb-dot-pink {
+        @apply bg-category-pink-default;
+    }
+
+    .cb-dot-mauve {
+        @apply bg-category-mauve-default;
+    }
+
+    .cb-checkbox-blue {
+        @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:border-category-blue-default/60 not-data-checked:hover:bg-category-blue-soft/55 data-checked:border-category-blue-default data-checked:bg-category-blue-default data-checked:text-white disabled:border-category-blue-soft/70 disabled:bg-category-blue-muted/60 disabled:text-category-blue-strong/70 dark:border-category-blue-soft dark:bg-category-blue-muted dark:text-category-blue-strong dark:data-checked:border-category-blue-default dark:data-checked:bg-category-blue-default dark:data-checked:text-white dark:disabled:border-category-blue-soft/70 dark:disabled:bg-category-blue-muted/60 dark:disabled:text-category-blue-strong/70;
+    }
+
+    .cb-checkbox-green {
+        @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:border-category-green-default/60 not-data-checked:hover:bg-category-green-soft/55 data-checked:border-category-green-default data-checked:bg-category-green-default data-checked:text-white disabled:border-category-green-soft/70 disabled:bg-category-green-muted/60 disabled:text-category-green-strong/70 dark:border-category-green-soft dark:bg-category-green-muted dark:text-category-green-strong dark:data-checked:border-category-green-default dark:data-checked:bg-category-green-default dark:data-checked:text-white dark:disabled:border-category-green-soft/70 dark:disabled:bg-category-green-muted/60 dark:disabled:text-category-green-strong/70;
+    }
+
+    .cb-checkbox-sky {
+        @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:border-category-sky-default/60 not-data-checked:hover:bg-category-sky-soft/55 data-checked:border-category-sky-default data-checked:bg-category-sky-default data-checked:text-white disabled:border-category-sky-soft/70 disabled:bg-category-sky-muted/60 disabled:text-category-sky-strong/70 dark:border-category-sky-soft dark:bg-category-sky-muted dark:text-category-sky-strong dark:data-checked:border-category-sky-default dark:data-checked:bg-category-sky-default dark:data-checked:text-white dark:disabled:border-category-sky-soft/70 dark:disabled:bg-category-sky-muted/60 dark:disabled:text-category-sky-strong/70;
+    }
+
+    .cb-checkbox-purple {
+        @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:border-category-purple-default/60 not-data-checked:hover:bg-category-purple-soft/55 data-checked:border-category-purple-default data-checked:bg-category-purple-default data-checked:text-white disabled:border-category-purple-soft/70 disabled:bg-category-purple-muted/60 disabled:text-category-purple-strong/70 dark:border-category-purple-soft dark:bg-category-purple-muted dark:text-category-purple-strong dark:data-checked:border-category-purple-default dark:data-checked:bg-category-purple-default dark:data-checked:text-white dark:disabled:border-category-purple-soft/70 dark:disabled:bg-category-purple-muted/60 dark:disabled:text-category-purple-strong/70;
+    }
+
+    .cb-checkbox-red {
+        @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:border-category-red-default/60 not-data-checked:hover:bg-category-red-soft/55 data-checked:border-category-red-default data-checked:bg-category-red-default data-checked:text-white disabled:border-category-red-soft/70 disabled:bg-category-red-muted/60 disabled:text-category-red-strong/70 dark:border-category-red-soft dark:bg-category-red-muted dark:text-category-red-strong dark:data-checked:border-category-red-default dark:data-checked:bg-category-red-default dark:data-checked:text-white dark:disabled:border-category-red-soft/70 dark:disabled:bg-category-red-muted/60 dark:disabled:text-category-red-strong/70;
+    }
+
+    .cb-checkbox-yellow {
+        @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:border-category-yellow-default/60 not-data-checked:hover:bg-category-yellow-soft/55 data-checked:border-category-yellow-default data-checked:bg-category-yellow-default data-checked:text-white disabled:border-category-yellow-soft/70 disabled:bg-category-yellow-muted/60 disabled:text-category-yellow-strong/70 dark:border-category-yellow-soft dark:bg-category-yellow-muted dark:text-category-yellow-strong dark:data-checked:border-category-yellow-default dark:data-checked:bg-category-yellow-default dark:data-checked:text-white dark:disabled:border-category-yellow-soft/70 dark:disabled:bg-category-yellow-muted/60 dark:disabled:text-category-yellow-strong/70;
+    }
+
+    .cb-checkbox-gray {
+        @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:border-category-gray-default/60 not-data-checked:hover:bg-category-gray-soft/55 data-checked:border-category-gray-default data-checked:bg-category-gray-default data-checked:text-white disabled:border-category-gray-soft/70 disabled:bg-category-gray-muted/60 disabled:text-category-gray-strong/70 dark:border-category-gray-soft dark:bg-category-gray-muted dark:text-category-gray-strong dark:data-checked:border-category-gray-default dark:data-checked:bg-category-gray-default dark:data-checked:text-white dark:disabled:border-category-gray-soft/70 dark:disabled:bg-category-gray-muted/60 dark:disabled:text-category-gray-strong/70;
+    }
+
+    .cb-checkbox-olive {
+        @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:border-category-olive-default/60 not-data-checked:hover:bg-category-olive-soft/55 data-checked:border-category-olive-default data-checked:bg-category-olive-default data-checked:text-white disabled:border-category-olive-soft/70 disabled:bg-category-olive-muted/60 disabled:text-category-olive-strong/70 dark:border-category-olive-soft dark:bg-category-olive-muted dark:text-category-olive-strong dark:data-checked:border-category-olive-default dark:data-checked:bg-category-olive-default dark:data-checked:text-white dark:disabled:border-category-olive-soft/70 dark:disabled:bg-category-olive-muted/60 dark:disabled:text-category-olive-strong/70;
+    }
+
+    .cb-checkbox-pink {
+        @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:border-category-pink-default/60 not-data-checked:hover:bg-category-pink-soft/55 data-checked:border-category-pink-default data-checked:bg-category-pink-default data-checked:text-white disabled:border-category-pink-soft/70 disabled:bg-category-pink-muted/60 disabled:text-category-pink-strong/70 dark:border-category-pink-soft dark:bg-category-pink-muted dark:text-category-pink-strong dark:data-checked:border-category-pink-default dark:data-checked:bg-category-pink-default dark:data-checked:text-white dark:disabled:border-category-pink-soft/70 dark:disabled:bg-category-pink-muted/60 dark:disabled:text-category-pink-strong/70;
+    }
+
+    .cb-checkbox-mauve {
+        @apply border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong hover:border-category-mauve-default/60 not-data-checked:hover:bg-category-mauve-soft/55 data-checked:border-category-mauve-default data-checked:bg-category-mauve-default data-checked:text-white disabled:border-category-mauve-soft/70 disabled:bg-category-mauve-muted/60 disabled:text-category-mauve-strong/70 dark:border-category-mauve-soft dark:bg-category-mauve-muted dark:text-category-mauve-strong dark:data-checked:border-category-mauve-default dark:data-checked:bg-category-mauve-default dark:data-checked:text-white dark:disabled:border-category-mauve-soft/70 dark:disabled:bg-category-mauve-muted/60 dark:disabled:text-category-mauve-strong/70;
+    }
+
+    .cb-event-blue {
+        @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:bg-category-blue-soft;
+    }
+
+    .cb-event-green {
+        @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:bg-category-green-soft;
+    }
+
+    .cb-event-sky {
+        @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:bg-category-sky-soft;
+    }
+
+    .cb-event-purple {
+        @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:bg-category-purple-soft;
+    }
+
+    .cb-event-red {
+        @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:bg-category-red-soft;
+    }
+
+    .cb-event-yellow {
+        @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:bg-category-yellow-soft;
+    }
+
+    .cb-event-gray {
+        @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:bg-category-gray-soft;
+    }
+
+    .cb-event-olive {
+        @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:bg-category-olive-soft;
+    }
+
+    .cb-event-pink {
+        @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:bg-category-pink-soft;
+    }
+
+    .cb-event-mauve {
+        @apply border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong hover:bg-category-mauve-soft;
+    }
+
     .pointer-events-all {
         pointer-events: all;
     }

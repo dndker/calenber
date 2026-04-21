@@ -8,13 +8,13 @@ import {
     warmCalendarEventHistory,
     type CalendarEventHistoryItem,
 } from "@/lib/calendar/event-history"
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
     canToggleCalendarEventLock,
 } from "@/lib/calendar/permissions"
 import {
     getCalendarBasePath,
-    getCalendarEventModalPath,
     getCalendarEventPagePath,
 } from "@/lib/calendar/routes"
 import type { CalendarEvent } from "@/store/calendar-store.types"
@@ -77,6 +77,8 @@ export const EventHeader = memo(function EventHeader({
     const user = useAuthStore((s) => s.user)
 
     const activeEventId = useCalendarStore((s) => s.activeEventId)
+    const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+    const setViewEvent = useCalendarStore((s) => s.setViewEvent)
 
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const { copyEventLink } = useCopyCalendarEventLink()
@@ -237,11 +239,26 @@ export const EventHeader = memo(function EventHeader({
     const handleEventControls = (eventId?: string) => {
         if (!calendarId || !eventId) return false
 
-        let eventPath = getCalendarEventPagePath(calendarId, eventId)
         if (modal) {
-            eventPath = getCalendarEventModalPath(calendarId, eventId)
+            const targetEvent =
+                prevEvent?.id === eventId
+                    ? prevEvent
+                    : nextEvent?.id === eventId
+                      ? nextEvent
+                      : null
+
+            setActiveEventId(eventId)
+            setViewEvent(targetEvent)
+            router.push(
+                getCalendarModalOpenPath({
+                    pathname: basePath,
+                    eventId,
+                })
+            )
+            return
         }
-        router.push(eventPath)
+
+        router.push(getCalendarEventPagePath(calendarId, eventId))
     }
 
     return (
@@ -276,11 +293,13 @@ export const EventHeader = memo(function EventHeader({
                                         )
                                     )
                                 } else {
+                                    setActiveEventId(eventId)
+                                    setViewEvent(event)
                                     router.push(
-                                        getCalendarEventModalPath(
-                                            calendarId,
-                                            eventId
-                                        )
+                                        getCalendarModalOpenPath({
+                                            pathname: basePath,
+                                            eventId,
+                                        })
                                     )
                                 }
                             }}

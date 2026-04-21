@@ -2,9 +2,12 @@
 
 import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
 import { useMediaQuery } from "@/hooks/use-media-query"
-import { getCalendarBasePath } from "@/lib/calendar/routes"
+import {
+    getCalendarModalClosePath,
+    getCalendarModalEventId,
+} from "@/lib/calendar/modal-route"
 import type { CalendarEvent } from "@/store/calendar-store.types"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
@@ -22,40 +25,43 @@ import { useCalendarStore } from "@/store/useCalendarStore"
 import { EventHeader } from "./event-header"
 
 export const EventModal = React.memo(function EventModal({
-    e,
     initialEvent,
 }: {
-    e?: string
     initialEvent?: CalendarEvent | null
 }) {
-    const router = useRouter()
     const pathname = usePathname()
+    const router = useRouter()
+    const searchParams = useSearchParams()
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const setActiveEventId = useCalendarStore((state) => state.setActiveEventId)
-    const basePath = getCalendarBasePath(pathname)
-    const [dismissedEventId, setDismissedEventId] = React.useState<
-        string | null
-    >(null)
+    const setViewEvent = useCalendarStore((state) => state.setViewEvent)
+    const activeEventId = useCalendarStore((state) => state.activeEventId)
     const [portalContainer, setPortalContainer] =
         React.useState<HTMLElement | null>(null)
+    const urlEventId = React.useMemo(
+        () => getCalendarModalEventId(searchParams),
+        [searchParams]
+    )
+    const eventId = activeEventId ?? urlEventId
+    const basePath = getCalendarModalClosePath(pathname)
 
-    const eventId = e && e !== dismissedEventId ? e : undefined
     const open = Boolean(eventId)
 
     React.useEffect(() => {
-        if (!e) {
-            setDismissedEventId(null)
-        }
-    }, [e])
+        if (!urlEventId) {
+            if (!activeEventId) {
+                return
+            }
 
-    React.useEffect(() => {
-        if (!eventId) {
             setActiveEventId(undefined)
+            setViewEvent(null)
             return
         }
 
-        setActiveEventId(eventId)
-    }, [eventId, setActiveEventId])
+        if (activeEventId !== urlEventId) {
+            setActiveEventId(urlEventId)
+        }
+    }, [activeEventId, setActiveEventId, setViewEvent, urlEventId])
 
     const { event, isMissing } = useCalendarEventDetail({
         eventId,
@@ -64,15 +70,22 @@ export const EventModal = React.memo(function EventModal({
     })
 
     React.useEffect(() => {
+        if (!event || event.id !== eventId) {
+            return
+        }
+
+        setViewEvent(event)
+    }, [event, eventId, setViewEvent])
+
+    React.useEffect(() => {
         if (!eventId || !isMissing) {
             return
         }
 
-        setDismissedEventId(eventId)
         setActiveEventId(undefined)
-        window.history.replaceState(window.history.state, "", basePath)
+        setViewEvent(null)
         router.replace(basePath, { scroll: false })
-    }, [basePath, eventId, isMissing, router, setActiveEventId])
+    }, [basePath, eventId, isMissing, router, setActiveEventId, setViewEvent])
 
     const handleClose = React.useCallback(() => {
         if (!eventId) {
@@ -88,18 +101,16 @@ export const EventModal = React.memo(function EventModal({
             },
         })
 
-        setDismissedEventId(eventId)
         setActiveEventId(undefined)
-        window.history.replaceState(window.history.state, "", basePath)
+        setViewEvent(null)
         router.replace(basePath, { scroll: false })
-    }, [basePath, eventId, router, setActiveEventId])
+    }, [basePath, eventId, router, setActiveEventId, setViewEvent])
 
     const handleDeleteEvent = useEventDeleteAction({
         eventId,
         onSuccess: () => {
-            setDismissedEventId(null)
             setActiveEventId(undefined)
-            window.history.replaceState(window.history.state, "", basePath)
+            setViewEvent(null)
             router.replace(basePath, { scroll: false })
         },
     })
