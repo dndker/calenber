@@ -15,18 +15,20 @@ export function EventPageContent({
     // useCalendarWorkspaceRealtime()
 
     useEffect(() => {
-        useCalendarStore.setState({ activeEventId: eventId })
-
-        if (initialEvent) {
-            useCalendarStore.getState().upsertEventSnapshot(initialEvent)
-        }
+        const store = useCalendarStore.getState()
+        store.setActiveEventId(eventId)
+        store.setViewEvent(initialEvent ?? null)
 
         return () => {
-            const currentActiveEventId =
-                useCalendarStore.getState().activeEventId
+            const currentStore = useCalendarStore.getState()
+            const currentActiveEventId = currentStore.activeEventId
 
             if (currentActiveEventId === eventId) {
-                useCalendarStore.setState({ activeEventId: undefined })
+                currentStore.setActiveEventId(undefined)
+            }
+
+            if (currentStore.viewEvent?.id === eventId) {
+                currentStore.setViewEvent(null)
             }
         }
     }, [eventId, initialEvent])

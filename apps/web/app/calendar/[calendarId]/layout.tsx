@@ -3,11 +3,12 @@ import { CalendarLayoutContent } from "@/components/calendar/calendar-layout-con
 import { SettingsModalProvider } from "@/components/settings/settings-modal-provider"
 import { getServerUser } from "@/lib/auth/get-server-user"
 import {
-    getCalendarById,
+    getCalendarEventCategories,
     getCalendarEvents,
     getCalendarMembership,
     getMyCalendars,
 } from "@/lib/calendar/queries"
+import { getServerCalendarById } from "@/lib/calendar/server-queries"
 import {
     buildCalendarMetadata,
     demoCalendarSummary,
@@ -35,8 +36,7 @@ export async function generateMetadata({
         })
     }
 
-    const supabase = await createServerSupabase()
-    const calendar = await getCalendarById(supabase, calendarId)
+    const calendar = await getServerCalendarById(calendarId)
 
     return buildCalendarMetadata({
         calendar,
@@ -64,18 +64,27 @@ export default async function CalendarLayout({
         status: null,
     }
 
-    const [myCalendars, activeCalendar, activeCalendarMembership, events] =
+    const [
+        myCalendars,
+        activeCalendar,
+        activeCalendarMembership,
+        events,
+        eventCategories,
+    ] =
         await Promise.all([
             user ? getMyCalendars(supabase, user.id) : Promise.resolve([]),
             isDemo
                 ? Promise.resolve(demoCalendarSummary)
-                : getCalendarById(supabase, calendarId),
+                : getServerCalendarById(calendarId),
             isDemo
                 ? Promise.resolve(guestMembership)
                 : getCalendarMembership(supabase, calendarId, user?.id ?? null),
             isDemo
                 ? Promise.resolve(generateMockEvents(calendarTimezone))
                 : getCalendarEvents(supabase, calendarId),
+            isDemo
+                ? Promise.resolve([])
+                : getCalendarEventCategories(supabase, calendarId),
         ])
 
     if (!isDemo && !activeCalendar) {
@@ -86,6 +95,9 @@ export default async function CalendarLayout({
     const selectedDate = now.startOf("day").valueOf()
     const viewport = now.startOf("month").add(12, "hour").valueOf()
     const viewportMini = viewport
+    const initialExcludedCategoryIds = eventCategories
+        .filter((category) => category.options.visibleByDefault === false)
+        .map((category) => category.id)
 
     return (
         <CalendarStoreProvider
@@ -94,8 +106,17 @@ export default async function CalendarLayout({
                 activeCalendar,
                 activeCalendarMembership,
                 events,
+                eventCategories: eventCategories.map((category) => ({
+                    ...category,
+                    createdAt: new Date(category.createdAt).valueOf(),
+                    updatedAt: new Date(category.updatedAt).valueOf(),
+                })),
                 eventLayout: activeCalendar?.eventLayout ?? "compact",
                 calendarTimezone,
+                eventFilters: {
+                    excludedStatuses: ["completed", "cancelled"],
+                    excludedCategoryIds: initialExcludedCategoryIds,
+                },
                 selectedDate,
                 viewport,
                 viewportMini,

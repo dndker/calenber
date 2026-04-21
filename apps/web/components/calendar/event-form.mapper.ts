@@ -16,11 +16,25 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
         allDay: values.allDay,
 
         timezone: values.timezone,
-        color: values.color,
+        categoryIds: [],
+        categories: values.categoryNames.map((name) => ({
+            id: "",
+            calendarId: "",
+            name: name.trim(),
+            options: {
+                visibleByDefault: true,
+            },
+            createdById: null,
+            createdAt: now,
+            updatedAt: now,
+        })),
+        categoryId: null,
+        category: null,
 
         recurrence: values.recurrence,
 
         exceptions: values.exceptions,
+        participants: [],
 
         status: "scheduled",
         authorId: null,
@@ -44,7 +58,21 @@ export function mapToEvent(values: EventFormValues): Partial<CalendarEvent> {
         allDay: values.allDay,
 
         timezone: values.timezone,
-        color: values.color,
+        categoryIds: [],
+        categories: values.categoryNames.map((name) => ({
+            id: "",
+            calendarId: "",
+            name: name.trim(),
+            options: {
+                visibleByDefault: true,
+            },
+            createdById: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+        })),
+        category: null,
+        categoryId: null,
+        participants: [],
 
         recurrence: values.recurrence,
         exceptions: values.exceptions,

@@ -18,6 +18,9 @@ export function useCalendarEventDetail({
     const storeEvent = useCalendarStore((state) =>
         eventId ? state.events.find((event) => event.id === eventId) : undefined
     )
+    const viewEvent = useCalendarStore((state) =>
+        eventId && state.viewEvent?.id === eventId ? state.viewEvent : null
+    )
     const [remoteState, setRemoteState] = useState<{
         eventId?: string
         event: CalendarEvent | null
@@ -30,13 +33,21 @@ export function useCalendarEventDetail({
 
     const resolvedInitialEvent =
         initialEvent && initialEvent.id === eventId ? initialEvent : null
+    const resolvedViewEvent = viewEvent && viewEvent.id === eventId ? viewEvent : null
     const resolvedRemoteEvent =
         remoteState.eventId === eventId ? remoteState.event : null
-    const shouldFetch = Boolean(eventId && !storeEvent && !resolvedInitialEvent)
+    const shouldFetch = Boolean(
+        eventId && !storeEvent && !resolvedViewEvent && !resolvedInitialEvent
+    )
 
     const event = useMemo(
-        () => storeEvent ?? resolvedInitialEvent ?? resolvedRemoteEvent ?? null,
-        [resolvedInitialEvent, resolvedRemoteEvent, storeEvent]
+        () =>
+            storeEvent ??
+            resolvedViewEvent ??
+            resolvedInitialEvent ??
+            resolvedRemoteEvent ??
+            null,
+        [resolvedInitialEvent, resolvedRemoteEvent, resolvedViewEvent, storeEvent]
     )
 
     useEffect(() => {

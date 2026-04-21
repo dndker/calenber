@@ -17,10 +17,16 @@ import { toast } from "sonner"
 import type {
     CalendarDragState,
     CalendarEvent,
+    CalendarEventFilterState,
     CalendarStoreState,
 } from "./calendar-store.types"
 import { createSSRStore } from "./createSSRStore"
 import { useAuthStore } from "./useAuthStore"
+
+const defaultExcludedStatuses: CalendarEventFilterState["excludedStatuses"] = [
+    "completed",
+    "cancelled",
+]
 
 function getPersistableCalendarId() {
     const calendarId = useCalendarStore.getState().activeCalendar?.id
@@ -61,12 +67,19 @@ async function persistUpdatedEvent(
     }
 
     const supabase = createBrowserSupabase()
-    const result = await updateCalendarEventQuery(supabase, eventId, patch, options)
+    const result = await updateCalendarEventQuery(
+        supabase,
+        eventId,
+        patch,
+        options
+    )
 
     if (!result.ok) {
         if (result.status === "conflict" && result.event) {
             useCalendarStore.getState().upsertEventSnapshot(result.event)
-            toast.warning("다른 멤버의 수정과 충돌해 최신 내용으로 갱신했습니다.")
+            toast.warning(
+                "다른 멤버의 수정과 충돌해 최신 내용으로 갱신했습니다."
+            )
             return
         }
 
@@ -75,6 +88,14 @@ async function persistUpdatedEvent(
     }
 
     if (result.event) {
+        if (result.event.categories.length > 0) {
+            const store = useCalendarStore.getState()
+
+            result.event.categories.forEach((category) => {
+                store.upsertEventCategorySnapshot(category)
+            })
+        }
+
         const currentEvent = useCalendarStore
             .getState()
             .events.find((event) => event.id === result.event?.id)
@@ -112,6 +133,72 @@ function sortCalendarEvents(events: CalendarEvent[]) {
 
         return a.id.localeCompare(b.id)
     })
+}
+
+function sortEventCategories(
+    categories: CalendarStoreState["eventCategories"]
+) {
+    return [...categories].sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name)
+
+        if (nameCompare !== 0) {
+            return nameCompare
+        }
+
+        return a.id.localeCompare(b.id)
+    })
+}
+
+function toggleStringFilterItem(items: string[], value: string) {
+    return items.includes(value)
+        ? items.filter((item) => item !== value)
+        : [...items, value]
+}
+
+function pruneEventFilters(
+    filters: CalendarEventFilterState,
+    categories: CalendarStoreState["eventCategories"]
+) {
+    if (filters.excludedCategoryIds.length === 0) {
+        return filters
+    }
+
+    const availableCategoryIds = new Set(categories.map((category) => category.id))
+    const excludedCategoryIds = filters.excludedCategoryIds.filter((categoryId) =>
+        availableCategoryIds.has(categoryId)
+    )
+
+    if (excludedCategoryIds.length === filters.excludedCategoryIds.length) {
+        return filters
+    }
+
+    return {
+        ...filters,
+        excludedCategoryIds,
+    }
+}
+
+function deriveEventCategories(
+    categories: CalendarEvent["categories"] | undefined,
+    fallbackCategories: CalendarStoreState["eventCategories"] = []
+) {
+    const nextCategories = categories ?? []
+    const categoryIds = nextCategories.map((category) => category.id)
+    const primaryCategoryId = categoryIds[0] ?? null
+    const primaryCategory =
+        nextCategories[0] ??
+        (primaryCategoryId
+            ? (fallbackCategories.find(
+                  (category) => category.id === primaryCategoryId
+              ) ?? null)
+            : null)
+
+    return {
+        categoryIds,
+        categories: nextCategories,
+        categoryId: primaryCategoryId,
+        category: primaryCategory,
+    }
 }
 
 function isSameWorkspaceCursor(
@@ -176,6 +263,7 @@ export const useCalendarStore = createSSRStore<
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
     activeEventId: undefined,
+    viewEvent: null,
     eventLayout: "compact",
 
     // 캘린더 레이아웃
@@ -186,6 +274,11 @@ export const useCalendarStore = createSSRStore<
     isWorkspacePresenceLoading: false,
     workspaceCursor: null,
     workspacePresence: [],
+    eventCategories: [],
+    eventFilters: {
+        excludedStatuses: defaultExcludedStatuses,
+        excludedCategoryIds: [],
+    },
 
     setMyCalendars: (myCalendars) => set({ myCalendars }),
     setActiveCalendar: (activeCalendar) => set({ activeCalendar }),
@@ -241,6 +334,11 @@ export const useCalendarStore = createSSRStore<
             isWorkspacePresenceLoading: false,
             workspaceCursor: null,
             workspacePresence: [],
+            eventCategories: [],
+            eventFilters: {
+                excludedStatuses: defaultExcludedStatuses,
+                excludedCategoryIds: [],
+            },
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
         set((s) => ({
@@ -270,6 +368,118 @@ export const useCalendarStore = createSSRStore<
                 ? state
                 : { workspacePresence }
         ),
+    setEventCategories: (eventCategories) =>
+        set((state) => {
+            const sortedCategories = sortEventCategories(eventCategories)
+
+            return {
+                eventCategories: sortedCategories,
+                eventFilters: pruneEventFilters(
+                    state.eventFilters,
+                    sortedCategories
+                ),
+            }
+        }),
+    toggleEventStatusFilter: (status) =>
+        set((state) => ({
+            eventFilters: {
+                ...state.eventFilters,
+                excludedStatuses: toggleStringFilterItem(
+                    state.eventFilters.excludedStatuses,
+                    status
+                ) as CalendarEventFilterState["excludedStatuses"],
+            },
+        })),
+    toggleEventCategoryFilter: (categoryId) =>
+        set((state) => ({
+            eventFilters: {
+                ...state.eventFilters,
+                excludedCategoryIds: toggleStringFilterItem(
+                    state.eventFilters.excludedCategoryIds,
+                    categoryId
+                ),
+            },
+        })),
+    resetEventFilters: () =>
+        set((state) => {
+            if (
+                state.eventFilters.excludedStatuses.length ===
+                    defaultExcludedStatuses.length &&
+                state.eventFilters.excludedStatuses.every(
+                    (status, index) =>
+                        status === defaultExcludedStatuses[index]
+                ) &&
+                state.eventFilters.excludedCategoryIds.length === 0
+            ) {
+                return state
+            }
+
+            return {
+                eventFilters: {
+                    excludedStatuses: defaultExcludedStatuses,
+                    excludedCategoryIds: [],
+                },
+            }
+        }),
+    upsertEventCategorySnapshot: (category) =>
+        set((state) => {
+            const nextCategories = state.eventCategories.some(
+                (item) => item.id === category.id
+            )
+                ? state.eventCategories.map((item) =>
+                      item.id === category.id ? { ...item, ...category } : item
+                  )
+                : [...state.eventCategories, category]
+
+            return {
+                eventCategories: sortEventCategories(nextCategories),
+            }
+        }),
+    removeEventCategorySnapshot: (categoryId) =>
+        set((state) => ({
+            eventCategories: state.eventCategories.filter(
+                (category) => category.id !== categoryId
+            ),
+            eventFilters: {
+                ...state.eventFilters,
+                excludedCategoryIds: state.eventFilters.excludedCategoryIds.filter(
+                    (id) => id !== categoryId
+                ),
+            },
+        })),
+    setEventCategoryDefaultVisibility: (categoryId, visibleByDefault) =>
+        set((state) => {
+            const nextCategories = state.eventCategories.map((category) =>
+                category.id === categoryId
+                    ? {
+                          ...category,
+                          options: {
+                              ...category.options,
+                              visibleByDefault,
+                          },
+                      }
+                    : category
+            )
+
+            const nextExcludedCategoryIds = visibleByDefault
+                ? state.eventFilters.excludedCategoryIds.filter(
+                      (id) => id !== categoryId
+                  )
+                : Array.from(
+                      new Set([
+                          ...state.eventFilters.excludedCategoryIds,
+                          categoryId,
+                      ])
+                  )
+
+            return {
+                eventCategories: sortEventCategories(nextCategories),
+                eventFilters: {
+                    ...state.eventFilters,
+                    excludedCategoryIds: nextExcludedCategoryIds,
+                },
+            }
+        }),
 
     setIsCalendarLoading: (value) =>
         set({
@@ -279,6 +489,14 @@ export const useCalendarStore = createSSRStore<
         set({
             activeEventId: eventId,
         }),
+    setViewEvent: (viewEvent) =>
+        set((state) =>
+            state.viewEvent === viewEvent
+                ? state
+                : {
+                      viewEvent,
+                  }
+        ),
     setEventLayout: (layout) =>
         set({
             eventLayout: layout,
@@ -366,6 +584,20 @@ export const useCalendarStore = createSSRStore<
         const event: CalendarEvent = {
             id: crypto.randomUUID(),
             ...data,
+            ...deriveEventCategories(data.categories, get().eventCategories),
+            categoryIds:
+                data.categoryIds ??
+                data.categories?.map((category) => category.id) ??
+                [],
+            categories: data.categories ?? [],
+            categoryId:
+                data.categoryId ??
+                data.category?.id ??
+                data.categoryIds?.[0] ??
+                data.categories?.[0]?.id ??
+                null,
+            category: data.category ?? data.categories?.[0] ?? null,
+            participants: data.participants ?? [],
             status: data.status ?? "scheduled",
             authorId: data.authorId ?? currentUserId,
             author: data.author ?? {
@@ -430,6 +662,52 @@ export const useCalendarStore = createSSRStore<
                         ? {
                               ...e,
                               ...patch,
+                              categoryIds:
+                                  patch.categoryIds !== undefined
+                                      ? patch.categoryIds
+                                      : patch.categories !== undefined
+                                        ? patch.categories
+                                              .map((category) => category.id)
+                                              .filter(Boolean)
+                                        : e.categoryIds,
+                              categories:
+                                  patch.categories !== undefined
+                                      ? patch.categories
+                                      : patch.categoryIds !== undefined
+                                        ? s.eventCategories.filter((category) =>
+                                              patch.categoryIds?.includes(
+                                                  category.id
+                                              )
+                                          )
+                                        : e.categories,
+                              categoryId:
+                                  patch.categoryId !== undefined
+                                      ? patch.categoryId
+                                      : patch.category !== undefined
+                                        ? patch.category?.id || null
+                                        : patch.categoryIds !== undefined
+                                          ? (patch.categoryIds[0] ?? null)
+                                          : patch.categories !== undefined
+                                            ? patch.categories[0]?.id || null
+                                            : e.categoryId,
+                              category:
+                                  patch.category !== undefined
+                                      ? patch.category
+                                      : patch.categories !== undefined
+                                        ? (patch.categories[0] ?? null)
+                                        : patch.categoryIds !== undefined
+                                          ? (s.eventCategories.find(
+                                                (category) =>
+                                                    category.id ===
+                                                    patch.categoryIds?.[0]
+                                            ) ?? null)
+                                          : patch.categoryId !== undefined
+                                            ? (s.eventCategories.find(
+                                                  (category) =>
+                                                      category.id ===
+                                                      patch.categoryId
+                                              ) ?? null)
+                                            : e.category,
                               updatedAt: Date.now(),
                               updatedById: currentUserId,
                               updatedBy: {

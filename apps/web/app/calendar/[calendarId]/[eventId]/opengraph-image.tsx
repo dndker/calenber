@@ -1,17 +1,15 @@
 import {
-    getCalendarById,
-    getEventById,
-} from "@/lib/calendar/queries"
-import {
     createCalendarOgImage,
     ogImageContentType,
     ogImageSize,
 } from "@/lib/calendar/og-image"
 import {
+    getServerEventMetadataByCalendarId,
+} from "@/lib/calendar/server-queries"
+import {
     demoCalendarSummary,
     getEventOgImageData,
 } from "@/lib/calendar/share-metadata"
-import { createServerSupabase } from "@/lib/supabase/server"
 
 export const size = ogImageSize
 export const contentType = ogImageContentType
@@ -22,13 +20,13 @@ export default async function OpenGraphImage({
     params: Promise<{ calendarId: string; eventId: string }>
 }) {
     const { calendarId, eventId } = await params
-    const supabase = await createServerSupabase()
-    const [calendar, event] = await Promise.all([
+    const { calendar, event } =
         calendarId === "demo"
-            ? Promise.resolve(demoCalendarSummary)
-            : getCalendarById(supabase, calendarId),
-        getEventById(supabase, eventId, { silentMissing: true }),
-    ])
+            ? {
+                  calendar: demoCalendarSummary,
+                  event: null,
+              }
+            : await getServerEventMetadataByCalendarId(calendarId, eventId, true)
 
     return await createCalendarOgImage(getEventOgImageData(calendar, event))
 }

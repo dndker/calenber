@@ -6,6 +6,11 @@ import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
 import {
+    getCalendarShareTitle,
+    getEventShareTitle,
+} from "@/lib/calendar/share-metadata"
+import { APP_NAME } from "@/lib/app-config"
+import {
     defaultContent,
     type CalendarEvent,
 } from "@/store/calendar-store.types"
@@ -60,7 +65,11 @@ export function EventPage({
                 start: Date.now(),
                 end: Date.now(),
                 timezone: "Asia/Seoul",
-                color: "blue",
+                categoryIds: [],
+                categories: [],
+                categoryId: null,
+                category: null,
+                participants: [],
                 status: "scheduled",
                 authorId: user?.id ?? null,
                 author: user
@@ -132,6 +141,20 @@ export function EventPage({
         activeCalendar?.id === "demo" ||
         canEditCalendarEvent(event, activeCalendarMembership, user?.id)
 
+    useEffect(() => {
+        const nextTitle = getEventShareTitle(event, activeCalendar)
+        document.title =
+            nextTitle === APP_NAME ? APP_NAME : `${nextTitle} - ${APP_NAME}`
+
+        return () => {
+            const calendarTitle = getCalendarShareTitle(activeCalendar)
+            document.title =
+                calendarTitle === APP_NAME
+                    ? APP_NAME
+                    : `${calendarTitle} - ${APP_NAME}`
+        }
+    }, [activeCalendar, event])
+
     return (
         <div
             className="cb-event-page flex flex-col gap-4"
@@ -150,6 +173,7 @@ export function EventPage({
             )}
 
             <EventForm
+                key={event.id}
                 modal={modal}
                 event={event}
                 disabled={!canEdit}

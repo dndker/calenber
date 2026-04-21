@@ -1,10 +1,11 @@
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
 } from "@/lib/calendar/permissions"
-import { getCalendarBasePath } from "@/lib/calendar/routes"
+import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -21,16 +22,48 @@ import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { CheckIcon, LockIcon } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
-import { memo, startTransition, useEffect, useMemo, useRef } from "react"
+import { memo, useEffect, useRef } from "react"
 
-export function getEventPosition(startIndex: number, endIndex: number) {
+function areStringArraysEqual(a: string[], b: string[]) {
+    if (a === b) {
+        return true
+    }
+
+    if (a.length !== b.length) {
+        return false
+    }
+
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) {
+            return false
+        }
+    }
+
+    return true
+}
+
+export function getEventPosition(
+    startIndex: number,
+    endIndex: number,
+    continuesFromPrevWeek = false,
+    continuesToNextWeek = false
+) {
     const span = endIndex - startIndex + 1
 
     const GAP = 4
+    const COLUMN_GAP = 1
+    const TOTAL_COLUMN_GAPS = COLUMN_GAP * 6
+    const leftGap = continuesFromPrevWeek ? 0 : GAP
+    const rightGap = continuesToNextWeek ? 0 : GAP
+    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / 7`
+    const left = startIndex
+        ? `calc(${startIndex} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
+        : `${leftGap}px`
+    const width = `calc(${span} * ${dayWidth} + ${(span - 1) * COLUMN_GAP}px - ${leftGap + rightGap}px)`
 
     return {
-        left: `calc(${(startIndex / 7) * 100}% + ${GAP}px)`,
-        width: `calc(${(span / 7) * 100}% - ${GAP * 2}px)`,
+        left,
+        width,
     }
 }
 
@@ -40,20 +73,34 @@ export const EventItem = memo(
         top,
         startIndex,
         endIndex,
+        continuesFromPrevWeek = false,
+        continuesToNextWeek = false,
         dragOffsetStart = 0,
         laneCount = 1,
+        displayLaneCount,
         overlay = false,
+        inline = false,
+        interactive = true,
+        onDragStateChange,
+        onOpen,
     }: {
         event: CalendarEvent
         top: number
         startIndex: number
         endIndex: number
+        continuesFromPrevWeek?: boolean
+        continuesToNextWeek?: boolean
         dragOffsetStart?: number
         laneCount?: number
+        displayLaneCount?: number
         overlay?: boolean
+        inline?: boolean
+        interactive?: boolean
+        onDragStateChange?: (isDragging: boolean) => void
+        onOpen?: () => void
     }) {
-        const router = useRouter()
         const pathname = usePathname()
+        const router = useRouter()
 
         const user = useAuthStore((s) => s.user)
         const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -61,14 +108,26 @@ export const EventItem = memo(
             (s) => s.activeCalendarMembership
         )
         const eventLayout = useCalendarStore((s) => s.eventLayout)
+        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+        const setViewEvent = useCalendarStore((s) => s.setViewEvent)
         const startDrag = useCalendarStore((s) => s.startDrag)
+        const moveDrag = useCalendarStore((s) => s.moveDrag)
+        const endDrag = useCalendarStore((s) => s.endDrag)
         const dragIndexRef = useRef(0)
+        const resizeCleanupRef = useRef<(() => void) | null>(null)
+        const suppressClickRef = useRef(false)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
             id: event.id,
+            disabled: !interactive,
         })
 
-        const pos = getEventPosition(startIndex, endIndex)
+        const pos = getEventPosition(
+            startIndex,
+            endIndex,
+            continuesFromPrevWeek,
+            continuesToNextWeek
+        )
         const canEdit =
             activeCalendar?.id === "demo" ||
             canEditCalendarEvent(event, activeCalendarMembership, user?.id)
@@ -103,17 +162,98 @@ export const EventItem = memo(
             if (!canEdit) {
                 return
             }
-            // startDrag(event, "resize-start", event.start)
-            // listeners?.onPointerDown?.(e)
+            beginResize(e, "resize-start")
         }
 
         const handleResizeEnd = (e: React.PointerEvent) => {
             if (!canEdit) {
                 return
             }
-            // startDrag(event, "resize-end", event.end)
-            // listeners?.onPointerDown?.(e)
+            beginResize(e, "resize-end")
         }
+
+        const beginResize = (
+            e: React.PointerEvent,
+            mode: "resize-start" | "resize-end"
+        ) => {
+            e.preventDefault()
+            e.stopPropagation()
+
+            resizeCleanupRef.current?.()
+            suppressClickRef.current = true
+
+            const pointerId = e.pointerId
+            const handleElement = e.currentTarget as HTMLDivElement
+            const updateFromPointer = (clientX: number, clientY: number) => {
+                const target = document
+                    .elementFromPoint(clientX, clientY)
+                    ?.closest("[data-date]") as HTMLElement | null
+
+                const date = target?.dataset.date
+                if (!date) {
+                    return
+                }
+
+                moveDrag(dayjs.tz(date, calendarTz).startOf("day").valueOf())
+            }
+
+            startDrag(
+                event,
+                mode,
+                mode === "resize-start" ? event.start : event.end
+            )
+            updateFromPointer(e.clientX, e.clientY)
+
+            const handlePointerMove = (event: PointerEvent) => {
+                updateFromPointer(event.clientX, event.clientY)
+            }
+
+            const handlePointerUp = (event: PointerEvent) => {
+                if (event.pointerId !== pointerId) {
+                    return
+                }
+
+                resizeCleanupRef.current?.()
+                endDrag()
+                window.setTimeout(() => {
+                    suppressClickRef.current = false
+                }, 0)
+            }
+
+            const handleWindowBlur = () => {
+                resizeCleanupRef.current?.()
+                endDrag()
+                suppressClickRef.current = false
+            }
+
+            const cleanup = () => {
+                window.removeEventListener("pointermove", handlePointerMove)
+                window.removeEventListener("pointerup", handlePointerUp)
+                window.removeEventListener("pointercancel", handlePointerUp)
+                window.removeEventListener("blur", handleWindowBlur)
+                if (handleElement.hasPointerCapture(pointerId)) {
+                    handleElement.releasePointerCapture(pointerId)
+                }
+                resizeCleanupRef.current = null
+            }
+
+            handleElement.setPointerCapture(pointerId)
+            window.addEventListener("pointermove", handlePointerMove)
+            window.addEventListener("pointerup", handlePointerUp)
+            window.addEventListener("pointercancel", handlePointerUp)
+            window.addEventListener("blur", handleWindowBlur)
+            resizeCleanupRef.current = cleanup
+        }
+
+        useEffect(() => {
+            onDragStateChange?.(isDragging)
+        }, [isDragging, onDragStateChange])
+
+        useEffect(() => {
+            return () => {
+                resizeCleanupRef.current?.()
+            }
+        }, [])
 
         useEffect(() => {
             if (!isDragging) return
@@ -124,25 +264,47 @@ export const EventItem = memo(
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
 
-        const mergedListeners = canEdit
+        const mergedListeners = interactive && canEdit
             ? {
                   ...listeners,
                   onPointerDown: handleMoveStart,
               }
             : undefined
 
+        const resolvedDisplayLaneCount = displayLaneCount ?? laneCount
         const useSplitLayout =
-            !overlay && eventLayout === "split" && laneCount > 0
+            !overlay && eventLayout === "split" && resolvedDisplayLaneCount > 0
         const itemTop = useSplitLayout
-            ? `calc(${(top / laneCount) * 100}% + 2px)`
+            ? `calc(${(top / resolvedDisplayLaneCount) * 100}% + 2px)`
             : `${top * 32}px`
         const itemHeight = useSplitLayout
-            ? `calc(${100 / laneCount}% - 4px)`
-            : "28px"
-
-        const isCompleted = useMemo(() => event.status === "completed", [event])
+            ? `calc(${100 / resolvedDisplayLaneCount}% - 4px)`
+            : "30px"
 
         const eventMembers = useEventMembers(event.id, user?.id)
+        const isCompleted = event.status === "completed"
+        const eventRadiusClass = cn(
+            continuesFromPrevWeek
+                ? "rounded-l-none border-l-0"
+                : "rounded-l-md",
+            continuesToNextWeek ? "rounded-r-none border-r-0" : "rounded-r-md"
+        )
+
+        const wrapperStyle = inline
+            ? {
+                  position: "relative" as const,
+                  width: "100%",
+                  height: "30px",
+                  zIndex: isDragging ? 10 : 1,
+              }
+            : {
+                  ...pos,
+                  width: overlay ? "100%" : pos?.width,
+                  top: itemTop,
+                  left: overlay ? "0" : pos?.left,
+                  height: overlay ? "100%" : itemHeight,
+                  zIndex: isDragging ? 10 : 1,
+              }
 
         return (
             <ContextMenu>
@@ -159,46 +321,53 @@ export const EventItem = memo(
                                     overlay && canEdit,
                             }
                         )}
-                        style={{
-                            ...pos,
-                            width: overlay ? "100%" : pos?.width,
-                            top: itemTop,
-                            left: overlay ? "0" : pos?.left,
-                            height: overlay ? "100%" : itemHeight,
-                            zIndex: isDragging ? 100 : 1,
-                            // background: event.color,
-                        }}
+                        style={wrapperStyle}
                     >
-                        <div
-                            onPointerDown={handleResizeStart}
-                            className={cn(
-                                "pointer-events-auto absolute top-0 left-0 z-100 h-full w-1 rounded-s-md bg-transparent hover:bg-border/65 dark:hover:bg-border",
-                                canEdit && "cursor-ew-resize"
-                            )}
-                        />
+                        {!inline && (
+                            <div
+                                onPointerDown={handleResizeStart}
+                                className={cn(
+                                    "pointer-events-auto absolute top-0 left-0 z-10 h-full w-1 bg-transparent hover:bg-border/65 dark:hover:bg-border",
+                                    !interactive && "pointer-events-none",
+                                    !continuesFromPrevWeek && "rounded-s-md",
+                                    canEdit && "cursor-ew-resize"
+                                )}
+                            />
+                        )}
                         <Button
                             ref={!canEdit ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden rounded px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                !interactive && "pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
                                     : "py-1",
+                                inline &&
+                                    canEdit &&
+                                    "cursor-grab active:cursor-grabbing",
                                 eventLayout === "split" &&
-                                    "items-center justify-center",
+                                    "items-center justify-center text-center",
                                 isCompleted &&
                                     "text-muted-foreground line-through",
-                                eventMembers.length > 0 && "shadow-lg/7"
+                                eventMembers.length > 0 && "shadow-lg/7",
+                                eventRadiusClass
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
                             onClick={() => {
+                                if (!interactive || suppressClickRef.current) {
+                                    return
+                                }
+                                onOpen?.()
                                 setActiveEventId(event.id)
-                                startTransition(() => {
-                                    router.push(
-                                        `${getCalendarBasePath(pathname)}?e=${encodeURIComponent(event.id)}`
-                                    )
-                                })
+                                setViewEvent(event)
+                                router.push(
+                                    getCalendarModalOpenPath({
+                                        pathname,
+                                        eventId: event.id,
+                                    })
+                                )
                             }}
                         >
                             {event.isLocked && !isCompleted && (
@@ -207,17 +376,21 @@ export const EventItem = memo(
                             {isCompleted && (
                                 <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
-                            <span className="flex-1 truncate overflow-hidden">
+                            <span className="flex-initial truncate overflow-hidden">
                                 {event.title === "" ? "새 일정" : event.title}
                             </span>
                         </Button>
-                        <div
-                            onPointerDown={handleResizeEnd}
-                            className={cn(
-                                "pointer-events-auto absolute top-0 right-0 z-100 h-full w-1 rounded-e-md bg-transparent hover:bg-border",
-                                canEdit && "hover:cursor-ew-resize"
-                            )}
-                        />
+                        {!inline && (
+                            <div
+                                onPointerDown={handleResizeEnd}
+                                className={cn(
+                                    "pointer-events-auto absolute top-0 right-0 z-10 h-full w-1 bg-transparent hover:bg-border",
+                                    !interactive && "pointer-events-none",
+                                    !continuesToNextWeek && "rounded-e-md",
+                                    canEdit && "hover:cursor-ew-resize"
+                                )}
+                            />
+                        )}
                     </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-48">
@@ -242,14 +415,24 @@ export const EventItem = memo(
             prev.event.start === next.event.start &&
             prev.event.end === next.event.end &&
             prev.event.title === next.event.title &&
-            prev.event.color === next.event.color &&
+            areStringArraysEqual(
+                prev.event.categoryIds,
+                next.event.categoryIds
+            ) &&
             prev.event.status === next.event.status &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&
             prev.endIndex === next.endIndex &&
+            prev.continuesFromPrevWeek === next.continuesFromPrevWeek &&
+            prev.continuesToNextWeek === next.continuesToNextWeek &&
             prev.dragOffsetStart === next.dragOffsetStart &&
             prev.laneCount === next.laneCount &&
-            prev.overlay === next.overlay
+            prev.displayLaneCount === next.displayLaneCount &&
+            prev.overlay === next.overlay &&
+            prev.inline === next.inline &&
+            prev.interactive === next.interactive &&
+            prev.onDragStateChange === next.onDragStateChange &&
+            prev.onOpen === next.onOpen
         )
     }
 )

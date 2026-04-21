@@ -2,17 +2,20 @@ import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
 import { memo } from "react"
+import type { PositionedCalendarEvent } from "./event-positioning"
 import { DayCell } from "./day-cell"
 import { EventRow } from "./event-row"
 
 export const WeekRow = memo(
     ({
+        events,
         start,
-        size,
+        size = 200,
         weekDate,
         currentMonthKey,
         skeleton = false,
     }: {
+        events: PositionedCalendarEvent[]
         start?: number
         skeleton?: boolean
         size?: number
@@ -45,12 +48,13 @@ export const WeekRow = memo(
                         key={day.toISOString()}
                         day={day}
                         isCurrentMonth={
-                            getMonthKey(day, calendarTimezone) === currentMonthKey
+                            getMonthKey(day, calendarTimezone) ===
+                            currentMonthKey
                         }
                     />
                 ))}
 
-                <EventRow week={week} />
+                <EventRow events={events} week={week} size={size} />
             </div>
         )
     }

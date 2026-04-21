@@ -44,10 +44,11 @@ export function generateMockEvents(timezone?: string): CalendarEvent[] {
             allDay: isAllDay,
 
             timezone: "Asia/Seoul",
-
-            color: ["#3b82f6", "#22c55e", "#f97316", "#a855f7", "#ef4444"][
-                i % 5
-            ]!,
+            categoryIds: [],
+            categories: [],
+            categoryId: null,
+            category: null,
+            participants: [],
 
             status: "scheduled",
             authorId: null,

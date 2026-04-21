@@ -25,7 +25,7 @@ import * as Popover from "@workspace/ui/components/popover"
 import * as Select from "@workspace/ui/components/select"
 import * as Tooltip from "@workspace/ui/components/tooltip"
 import { useTheme } from "next-themes"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useServerTheme } from "../provider/theme-context"
 import { Mention } from "./mention"
 
@@ -74,15 +74,15 @@ export default function ContentEditor({
     updatedById,
     currentUserId,
 }: Props) {
-    const [isMounted, setIsMounted] = useState(false)
+    // const [isMounted, setIsMounted] = useState(false)
 
-    useEffect(() => {
-        setIsMounted(true)
-    }, [])
+    // useEffect(() => {
+    //     setIsMounted(true)
+    // }, [])
 
-    if (!isMounted) {
-        return null
-    }
+    // if (!isMounted) {
+    //     return null
+    // }
 
     return (
         <ContentEditorClient
@@ -157,7 +157,8 @@ function ContentEditorClient({
         const nextSerializedContent = JSON.stringify(value)
         const currentSerializedContent = JSON.stringify(editor.document)
         const isSameContent = nextSerializedContent === currentSerializedContent
-        const isSameAuthor = updatedById != null && updatedById === currentUserId
+        const isSameAuthor =
+            updatedById != null && updatedById === currentUserId
         const isAlreadyApplied =
             lastAppliedContentRef.current === nextSerializedContent &&
             lastAppliedUpdatedAtRef.current === (updatedAt ?? null)

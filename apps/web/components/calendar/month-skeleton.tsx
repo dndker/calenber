@@ -22,9 +22,11 @@ export function MonthSkeleton() {
                 return (
                     <WeekRow
                         key={i}
+                        events={[]}
                         weekDate={weekDate}
                         currentMonthKey={monthKey}
                         skeleton
+                        // size={item.size}
                     />
                 )
             })}

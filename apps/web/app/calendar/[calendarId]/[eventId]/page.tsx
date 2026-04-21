@@ -1,13 +1,11 @@
 import { EventPageContent } from "@/components/calendar/event-page-content"
 import {
-    getCalendarById,
-    getEventById,
-} from "@/lib/calendar/queries"
+    getServerEventPageDataByCalendarId,
+} from "@/lib/calendar/server-queries"
 import {
     buildEventMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
-import { createServerSupabase } from "@/lib/supabase/server"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -16,13 +14,13 @@ export async function generateMetadata({
     params: Promise<{ calendarId: string; eventId: string }>
 }): Promise<Metadata> {
     const { calendarId, eventId } = await params
-    const supabase = await createServerSupabase()
-    const [calendar, event] = await Promise.all([
+    const { calendar, event } =
         calendarId === "demo"
-            ? Promise.resolve(demoCalendarSummary)
-            : getCalendarById(supabase, calendarId),
-        getEventById(supabase, eventId, { silentMissing: true }),
-    ])
+            ? {
+                  calendar: demoCalendarSummary,
+                  event: null,
+              }
+            : await getServerEventPageDataByCalendarId(calendarId, eventId, true)
 
     return buildEventMetadata({
         calendar,
@@ -37,13 +35,13 @@ export default async function Page({
 }: {
     params: Promise<{ calendarId: string; eventId: string }>
 }) {
-    const { eventId } = await params
-    const supabase = await createServerSupabase()
-    const initialEvent = await getEventById(supabase, eventId, {
-        silentMissing: true,
-    })
+    const { calendarId, eventId } = await params
+    const { event } =
+        calendarId === "demo"
+            ? {
+                  event: null,
+              }
+            : await getServerEventPageDataByCalendarId(calendarId, eventId, true)
 
-    return (
-        <EventPageContent eventId={eventId} initialEvent={initialEvent} />
-    )
+    return <EventPageContent eventId={eventId} initialEvent={event} />
 }
