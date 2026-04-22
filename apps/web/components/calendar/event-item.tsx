@@ -1,6 +1,7 @@
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { getCalendarCategoryDotClassName } from "@/lib/calendar/category-color"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
@@ -22,7 +23,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import { CheckIcon, LockIcon, XIcon } from "lucide-react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { memo, useEffect, useRef } from "react"
 
 function areStringArraysEqual(a: string[], b: string[]) {
@@ -101,7 +102,6 @@ export const EventItem = memo(
         onOpen?: () => void
     }) {
         const pathname = usePathname()
-        const router = useRouter()
 
         const user = useAuthStore((s) => s.user)
         const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -368,7 +368,7 @@ export const EventItem = memo(
                                 onOpen?.()
                                 setActiveEventId(event.id)
                                 setViewEvent(event)
-                                router.push(
+                                navigateCalendarModal(
                                     getCalendarModalOpenPath({
                                         pathname,
                                         eventId: event.id,

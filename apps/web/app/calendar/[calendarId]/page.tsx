@@ -1,6 +1,6 @@
 import { CalendarPageContent } from "@/components/calendar/calendar-page-content"
 import {
-    getServerCalendarById,
+    getServerCalendarInitialData,
     getServerEventMetadataByCalendarId,
 } from "@/lib/calendar/server-queries"
 import {
@@ -40,7 +40,7 @@ export async function generateMetadata({
     const calendar =
         calendarId === "demo"
             ? demoCalendarSummary
-            : await getServerCalendarById(calendarId)
+            : (await getServerCalendarInitialData(calendarId)).calendar
 
     return buildCalendarMetadata({
         calendar,
