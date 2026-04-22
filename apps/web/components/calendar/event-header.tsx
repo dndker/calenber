@@ -8,6 +8,7 @@ import {
     warmCalendarEventHistory,
     type CalendarEventHistoryItem,
 } from "@/lib/calendar/event-history"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
@@ -249,7 +250,7 @@ export const EventHeader = memo(function EventHeader({
 
             setActiveEventId(eventId)
             setViewEvent(targetEvent)
-            router.push(
+            navigateCalendarModal(
                 getCalendarModalOpenPath({
                     pathname: basePath,
                     eventId,
@@ -295,7 +296,7 @@ export const EventHeader = memo(function EventHeader({
                                 } else {
                                     setActiveEventId(eventId)
                                     setViewEvent(event)
-                                    router.push(
+                                    navigateCalendarModal(
                                         getCalendarModalOpenPath({
                                             pathname: basePath,
                                             eventId,

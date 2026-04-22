@@ -99,6 +99,14 @@ export type CalendarEventCategorySummary = {
     updatedAt: string
 }
 
+export type CalendarInitialData = {
+    calendar: CalendarSummary | null
+    membership: CalendarMembership
+    myCalendars: MyCalendarItem[]
+    eventCategories: CalendarEventCategorySummary[]
+    events: CalendarEvent[]
+}
+
 type CalendarRow = {
     id: string
     name: string
@@ -208,6 +216,50 @@ type CalendarEventCategoryRow = {
     created_by: string | null
     created_at: string
     updated_at: string
+}
+
+type CalendarInitialDataPayload = {
+    calendar: CalendarSummary | null
+    membership: CalendarMembership | null
+    myCalendars: MyCalendarItem[] | null
+    eventCategories: CalendarEventCategorySummary[] | null
+    events: CalendarEventRecord[] | null
+}
+
+function normalizeCalendarMembership(
+    membership: CalendarMembership | null | undefined
+): CalendarMembership {
+    return {
+        isMember: membership?.isMember === true,
+        role: membership?.role ?? null,
+        status: membership?.status ?? null,
+    }
+}
+
+function normalizeCalendarEventCategorySummary(
+    category: CalendarEventCategorySummary | CalendarEventCategoryRow
+): CalendarEventCategorySummary {
+    const calendarId =
+        "calendarId" in category ? category.calendarId : category.calendar_id
+    const createdById =
+        "createdById" in category ? category.createdById : category.created_by
+    const createdAt =
+        "createdAt" in category ? category.createdAt : category.created_at
+    const updatedAt =
+        "updatedAt" in category ? category.updatedAt : category.updated_at
+
+    return {
+        id: category.id,
+        calendarId,
+        name: category.name,
+        options: {
+            visibleByDefault: category.options?.visibleByDefault !== false,
+            color: normalizeCalendarCategoryColor(category.options?.color),
+        },
+        createdById,
+        createdAt,
+        updatedAt,
+    }
 }
 
 export async function getAllCalendars(
@@ -323,6 +375,47 @@ export async function getCalendarById(
     }
 }
 
+export async function getCalendarInitialData(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<CalendarInitialData> {
+    const { data, error } = await supabase.rpc("get_calendar_initial_data", {
+        target_calendar_id: calendarId,
+    })
+
+    if (error || !data) {
+        console.error("Failed to load calendar initial data:", error)
+        return {
+            calendar: null,
+            membership: {
+                isMember: false,
+                role: null,
+                status: null,
+            },
+            myCalendars: [],
+            eventCategories: [],
+            events: [],
+        }
+    }
+
+    const payload = data as CalendarInitialDataPayload
+
+    return {
+        calendar: payload.calendar ?? null,
+        membership: normalizeCalendarMembership(payload.membership),
+        myCalendars: payload.myCalendars ?? [],
+        eventCategories: (payload.eventCategories ?? []).map(
+            normalizeCalendarEventCategorySummary
+        ),
+        events: (payload.events ?? []).map((event) =>
+            normalizeCalendarEventForCalendar(
+                mapCalendarEventRecordToCalendarEvent(event),
+                calendarId
+            )
+        ),
+    }
+}
+
 export async function getCalendarMembership(
     supabase: SupabaseClient,
     calendarId: string,
@@ -416,18 +509,9 @@ export async function getCalendarEventCategories(
         return []
     }
 
-    return (data as CalendarEventCategoryRow[]).map((category) => ({
-        id: category.id,
-        calendarId: category.calendar_id,
-        name: category.name,
-        options: {
-            visibleByDefault: category.options?.visibleByDefault !== false,
-            color: normalizeCalendarCategoryColor(category.options?.color),
-        },
-        createdById: category.created_by,
-        createdAt: category.created_at,
-        updatedAt: category.updated_at,
-    }))
+    return (data as CalendarEventCategoryRow[]).map(
+        normalizeCalendarEventCategorySummary
+    )
 }
 
 export async function getCalendarMemberDirectory(

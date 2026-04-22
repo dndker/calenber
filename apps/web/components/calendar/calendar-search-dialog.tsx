@@ -1,5 +1,6 @@
 "use client"
 
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import type { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
 import {
@@ -36,7 +37,7 @@ import {
 } from "@workspace/ui/components/command"
 import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { SearchIcon } from "lucide-react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import {
     Fragment,
     useDeferredValue,
@@ -178,7 +179,6 @@ function buildMemberCandidates({
 
 export function CalendarSearchDialog() {
     const pathname = usePathname()
-    const router = useRouter()
     const user = useAuthStore((state) => state.user)
     const activeCalendar = useCalendarStore((state) => state.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
@@ -448,7 +448,7 @@ export function CalendarSearchDialog() {
         setOpen(false)
         setActiveEventId(eventId)
         setViewEvent(events.find((event) => event.id === eventId) ?? null)
-        router.push(
+        navigateCalendarModal(
             getCalendarModalOpenPath({
                 pathname,
                 eventId,

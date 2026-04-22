@@ -2,12 +2,13 @@
 
 import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import {
     getCalendarModalClosePath,
     getCalendarModalEventId,
 } from "@/lib/calendar/modal-route"
 import type { CalendarEvent } from "@/store/calendar-store.types"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import * as React from "react"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
@@ -30,7 +31,6 @@ export const EventModal = React.memo(function EventModal({
     initialEvent?: CalendarEvent | null
 }) {
     const pathname = usePathname()
-    const router = useRouter()
     const searchParams = useSearchParams()
     const isDesktop = useMediaQuery("(min-width: 768px)")
     const setActiveEventId = useCalendarStore((state) => state.setActiveEventId)
@@ -84,8 +84,8 @@ export const EventModal = React.memo(function EventModal({
 
         setActiveEventId(undefined)
         setViewEvent(null)
-        router.replace(basePath, { scroll: false })
-    }, [basePath, eventId, isMissing, router, setActiveEventId, setViewEvent])
+        navigateCalendarModal(basePath, { replace: true })
+    }, [basePath, eventId, isMissing, setActiveEventId, setViewEvent])
 
     const handleClose = React.useCallback(() => {
         if (!eventId) {
@@ -103,15 +103,15 @@ export const EventModal = React.memo(function EventModal({
 
         setActiveEventId(undefined)
         setViewEvent(null)
-        router.replace(basePath, { scroll: false })
-    }, [basePath, eventId, router, setActiveEventId, setViewEvent])
+        navigateCalendarModal(basePath, { replace: true })
+    }, [basePath, eventId, setActiveEventId, setViewEvent])
 
     const handleDeleteEvent = useEventDeleteAction({
         eventId,
         onSuccess: () => {
             setActiveEventId(undefined)
             setViewEvent(null)
-            router.replace(basePath, { scroll: false })
+            navigateCalendarModal(basePath, { replace: true })
         },
     })
 

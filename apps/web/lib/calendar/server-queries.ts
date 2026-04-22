@@ -1,9 +1,12 @@
+import { getServerUser } from "@/lib/auth/get-server-user"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { cache } from "react"
 import {
     getCalendarById,
+    getCalendarInitialData,
     getEventMetadataByCalendarId,
     getEventPageDataByCalendarId,
+    getMyCalendars,
 } from "./queries"
 
 export const getServerCalendarById = cache(async (calendarId: string) => {
@@ -21,6 +24,26 @@ export const getServerEventMetadataByCalendarId = cache(
         })
     }
 )
+
+export const getServerCalendarInitialData = cache(
+    async (calendarId: string) => {
+        const supabase = await createServerSupabase()
+
+        return getCalendarInitialData(supabase, calendarId)
+    }
+)
+
+export const getServerMyCalendars = cache(async () => {
+    const user = await getServerUser()
+
+    if (!user) {
+        return []
+    }
+
+    const supabase = await createServerSupabase()
+
+    return getMyCalendars(supabase, user.id)
+})
 
 export const getServerEventPageDataByCalendarId = cache(
     async (calendarId: string, eventId: string, silentMissing = false) => {

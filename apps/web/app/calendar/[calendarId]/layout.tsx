@@ -1,21 +1,16 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CalendarLayoutContent } from "@/components/calendar/calendar-layout-content"
 import { SettingsModalProvider } from "@/components/settings/settings-modal-provider"
-import { getServerUser } from "@/lib/auth/get-server-user"
 import {
-    getCalendarEventCategories,
-    getCalendarEvents,
-    getCalendarMembership,
-    getMyCalendars,
-} from "@/lib/calendar/queries"
-import { getServerCalendarById } from "@/lib/calendar/server-queries"
+    getServerCalendarInitialData,
+    getServerMyCalendars,
+} from "@/lib/calendar/server-queries"
 import {
     buildCalendarMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
 import dayjs from "@/lib/dayjs"
 import { generateMockEvents, getDemoEventCategories } from "@/lib/mock-event"
-import { createServerSupabase } from "@/lib/supabase/server"
 import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 import type { Metadata } from "next"
@@ -36,7 +31,7 @@ export async function generateMetadata({
         })
     }
 
-    const calendar = await getServerCalendarById(calendarId)
+    const { calendar } = await getServerCalendarInitialData(calendarId)
 
     return buildCalendarMetadata({
         calendar,
@@ -53,42 +48,35 @@ export default async function CalendarLayout({
 }) {
     const { calendarId } = await params
     const cookieStore = await cookies()
-    const supabase = await createServerSupabase()
-    const user = await getServerUser()
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
     const isDemo = calendarId === "demo"
-    const guestMembership = {
-        isMember: false,
-        role: null,
-        status: null,
-    }
     const demoEventCategories = isDemo ? getDemoEventCategories() : []
-
-    const [
-        myCalendars,
-        activeCalendar,
-        activeCalendarMembership,
-        events,
-        eventCategories,
-    ] =
-        await Promise.all([
-            user ? getMyCalendars(supabase, user.id) : Promise.resolve([]),
-            isDemo
-                ? Promise.resolve(demoCalendarSummary)
-                : getServerCalendarById(calendarId),
-            isDemo
-                ? Promise.resolve(guestMembership)
-                : getCalendarMembership(supabase, calendarId, user?.id ?? null),
-            isDemo
-                ? Promise.resolve(
-                      generateMockEvents(calendarTimezone, demoEventCategories)
-                  )
-                : getCalendarEvents(supabase, calendarId),
-            isDemo
-                ? Promise.resolve(demoEventCategories)
-                : getCalendarEventCategories(supabase, calendarId),
-        ])
+    const [initialData, myCalendars] = await Promise.all([
+        isDemo ? Promise.resolve(null) : getServerCalendarInitialData(calendarId),
+        isDemo ? getServerMyCalendars() : Promise.resolve([]),
+    ])
+    const activeCalendar = isDemo
+        ? demoCalendarSummary
+        : initialData?.calendar ?? null
+    const activeCalendarMembership = isDemo
+        ? {
+              isMember: false,
+              role: null,
+              status: null,
+          }
+        : initialData?.membership ?? {
+              isMember: false,
+              role: null,
+              status: null,
+          }
+    const events = isDemo
+        ? generateMockEvents(calendarTimezone, demoEventCategories)
+        : initialData?.events ?? []
+    const eventCategories = isDemo
+        ? demoEventCategories
+        : initialData?.eventCategories ?? []
+    const resolvedMyCalendars = isDemo ? myCalendars : initialData?.myCalendars ?? []
 
     if (!isDemo && !activeCalendar) {
         redirect("/calendar/demo")
@@ -105,7 +93,7 @@ export default async function CalendarLayout({
     return (
         <CalendarStoreProvider
             initialState={{
-                myCalendars,
+                myCalendars: resolvedMyCalendars,
                 activeCalendar,
                 activeCalendarMembership,
                 events,
