@@ -11,6 +11,15 @@ import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
 } from "@/lib/calendar/permissions"
+import {
+    collectCalendarEventDateKeysInRange,
+    getCalendarEventRenderId,
+    getCalendarEventSourceId,
+    getCalendarVisibleEventRange,
+    shiftCalendarDateKeys,
+    shiftCalendarEventForDrag,
+    toCalendarEventSource,
+} from "@/lib/calendar/recurrence"
 import type { MyCalendarItem } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
@@ -20,6 +29,7 @@ import type {
     CalendarEvent,
     CalendarEventCategory,
     CalendarEventFilterState,
+    CalendarEventPatch,
     CalendarStoreState,
 } from "./calendar-store.types"
 import { createSSRStore } from "./createSSRStore"
@@ -57,7 +67,7 @@ async function persistCreatedEvent(event: CalendarEvent) {
 
 async function persistUpdatedEvent(
     eventId: string,
-    patch: Partial<CalendarEvent>,
+    patch: CalendarEventPatch,
     options?: {
         expectedUpdatedAt?: number
     }
@@ -333,6 +343,7 @@ export const useCalendarStore = createSSRStore<
         excludedStatuses: defaultExcludedStatuses,
         excludedCategoryIds: [],
     },
+    hoveredSeriesEventId: null,
 
     setMyCalendars: (myCalendars) =>
         set({
@@ -411,6 +422,7 @@ export const useCalendarStore = createSSRStore<
                 excludedStatuses: defaultExcludedStatuses,
                 excludedCategoryIds: [],
             },
+            hoveredSeriesEventId: null,
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
         set((s) => {
@@ -503,6 +515,16 @@ export const useCalendarStore = createSSRStore<
                     excludedStatuses: defaultExcludedStatuses,
                     excludedCategoryIds: [],
                 },
+            }
+        }),
+    setHoveredSeriesEventId: (eventId) =>
+        set((state) => {
+            if (state.hoveredSeriesEventId === eventId) {
+                return state
+            }
+
+            return {
+                hoveredSeriesEventId: eventId,
             }
         }),
     upsertEventCategorySnapshot: (category) =>
@@ -651,14 +673,19 @@ export const useCalendarStore = createSSRStore<
 
     drag: {
         eventId: null,
+        renderId: null,
         mode: null,
         originStart: 0,
         originEnd: 0,
+        sourceOriginStart: 0,
+        sourceOriginEnd: 0,
         start: 0,
         end: 0,
         offset: 0,
-        isStartEdge: false,
-        isEndEdge: false,
+        segmentOffset: 0,
+        previewEvent: null,
+        baseHoveredDateKeys: [],
+        hoveredDateKeys: [],
     },
 
     setEvents: (events) => set({ events: sortCalendarEvents(events) }),
@@ -792,7 +819,7 @@ export const useCalendarStore = createSSRStore<
         return event.id
     },
 
-    updateEvent: (id, patch, options) => {
+    updateEvent: (id, patch: CalendarEventPatch, options) => {
         const state = get()
         const currentUser = useAuthStore.getState().user
         const currentUserId = currentUser?.id ?? null
@@ -867,6 +894,10 @@ export const useCalendarStore = createSSRStore<
                                                       patch.categoryId
                                               ) ?? null)
                                             : e.category,
+                              recurrence:
+                                  patch.recurrence !== undefined
+                                      ? patch.recurrence ?? undefined
+                                      : e.recurrence,
                               updatedAt: Date.now(),
                               updatedById: currentUserId,
                               updatedBy: {
@@ -916,22 +947,45 @@ export const useCalendarStore = createSSRStore<
         return true
     },
 
-    startDrag(event, mode, offset) {
+    startDrag(event, mode, offset, options) {
+        const { calendarTimezone, viewport } = get()
+        const sourceEventId = getCalendarEventSourceId(event)
+        const sourceStart = event.recurrenceInstance?.sourceStart ?? event.start
+        const sourceEnd = event.recurrenceInstance?.sourceEnd ?? event.end
+        const sourceEvent = toCalendarEventSource(event)
+        const visibleRange = getCalendarVisibleEventRange(
+            viewport || Date.now(),
+            calendarTimezone
+        )
+        const baseHoveredDateKeys =
+            collectCalendarEventDateKeysInRange(sourceEvent, {
+                rangeStart: visibleRange.start,
+                rangeEnd: visibleRange.end,
+                calendarTz: calendarTimezone,
+            })
+
         set({
             drag: {
-                eventId: event.id,
+                eventId: sourceEventId,
+                renderId: getCalendarEventRenderId(event),
                 mode,
                 originStart: event.start,
                 originEnd: event.end,
+                sourceOriginStart: sourceStart,
+                sourceOriginEnd: sourceEnd,
                 start: event.start,
                 end: event.end,
                 offset,
+                segmentOffset: options?.segmentOffset ?? 0,
+                previewEvent: event,
+                baseHoveredDateKeys,
+                hoveredDateKeys: mode === "move" ? baseHoveredDateKeys : [],
             },
         })
     },
 
     moveDrag(date) {
-        const { drag } = get()
+        const { drag, calendarTimezone } = get()
         if (!drag.eventId) return
 
         const normalized = dayjs(date).startOf("day")
@@ -944,6 +998,10 @@ export const useCalendarStore = createSSRStore<
             const newStart = normalized.subtract(drag.offset, "day")
             const nextStart = newStart.valueOf()
             const nextEnd = newStart.add(duration, "day").valueOf()
+            const dayDelta = newStart.diff(
+                dayjs(drag.originStart).startOf("day"),
+                "day"
+            )
 
             if (drag.start === nextStart && drag.end === nextEnd) {
                 return
@@ -954,6 +1012,11 @@ export const useCalendarStore = createSSRStore<
                     ...drag,
                     start: nextStart,
                     end: nextEnd,
+                    hoveredDateKeys: shiftCalendarDateKeys(
+                        drag.baseHoveredDateKeys,
+                        dayDelta,
+                        calendarTimezone
+                    ),
                 },
             })
         }
@@ -976,24 +1039,44 @@ export const useCalendarStore = createSSRStore<
     },
 
     endDrag() {
-        const { drag, updateEvent } = get()
+        const { drag, updateEvent, calendarTimezone } = get()
         if (!drag.eventId) return
 
-        const ok = updateEvent(drag.eventId, {
-            start: drag.start,
-            end: drag.end,
-        })
+        const dayDelta = dayjs(drag.start)
+            .startOf("day")
+            .diff(dayjs(drag.originStart).startOf("day"), "day")
+        const patch: CalendarEventPatch = {
+            start: drag.sourceOriginStart + (drag.start - drag.originStart),
+            end: drag.sourceOriginEnd + (drag.end - drag.originEnd),
+        }
+
+        if (drag.previewEvent?.recurrence?.type === "weekly") {
+            patch.recurrence = shiftCalendarEventForDrag(
+                toCalendarEventSource(drag.previewEvent),
+                dayDelta,
+                calendarTimezone
+            ).recurrence
+        }
+
+        const ok = updateEvent(drag.eventId, patch)
 
         if (!ok) {
             set({
                 drag: {
                     eventId: null,
+                    renderId: null,
                     mode: null,
                     originStart: 0,
                     originEnd: 0,
+                    sourceOriginStart: 0,
+                    sourceOriginEnd: 0,
                     start: 0,
                     end: 0,
                     offset: 0,
+                    segmentOffset: 0,
+                    previewEvent: null,
+                    baseHoveredDateKeys: [],
+                    hoveredDateKeys: [],
                 },
             })
             return
@@ -1002,12 +1085,19 @@ export const useCalendarStore = createSSRStore<
         set({
             drag: {
                 eventId: null,
+                renderId: null,
                 mode: null,
                 originStart: 0,
                 originEnd: 0,
+                sourceOriginStart: 0,
+                sourceOriginEnd: 0,
                 start: 0,
                 end: 0,
                 offset: 0,
+                segmentOffset: 0,
+                previewEvent: null,
+                baseHoveredDateKeys: [],
+                hoveredDateKeys: [],
             },
         })
     },

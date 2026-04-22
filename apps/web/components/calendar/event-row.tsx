@@ -1,6 +1,7 @@
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import { toCalendarDay, toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
+import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -43,13 +44,11 @@ export const EventRow = memo(function EventRow({
 }) {
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const eventLayout = useCalendarStore((s) => s.eventLayout)
-    const dragEventId = useCalendarStore((s) => s.drag.eventId)
+    const dragRenderId = useCalendarStore((s) => s.drag.renderId)
     const dragMode = useCalendarStore((s) => s.drag.mode)
     const dragStart = useCalendarStore((s) => s.drag.start)
     const dragEnd = useCalendarStore((s) => s.drag.end)
-    const draggingEvent = useCalendarStore((s) =>
-        s.drag.eventId ? s.events.find((event) => event.id === s.drag.eventId) : null
-    )
+    const draggingEvent = useCalendarStore((s) => s.drag.previewEvent)
 
     const weekStart = useMemo(
         () => toCalendarDay(week[0]!, calendarTz),
@@ -111,7 +110,9 @@ export const EventRow = memo(function EventRow({
                     return b.span - a.span
                 }
 
-                return a.event.id.localeCompare(b.event.id)
+                return getCalendarEventRenderId(a.event).localeCompare(
+                    getCalendarEventRenderId(b.event)
+                )
             })
 
         const result: PositionedSegment[] = []
@@ -229,7 +230,7 @@ export const EventRow = memo(function EventRow({
             if (
                 dragMode &&
                 dragMode !== "move" &&
-                dragEventId === segment.event.id
+                dragRenderId === getCalendarEventRenderId(segment.event)
             ) {
                 return
             }
@@ -252,11 +253,11 @@ export const EventRow = memo(function EventRow({
             visibleSegments: nextVisible,
             overflowByDay: nextOverflowByDay,
         }
-    }, [dragEventId, dragMode, segments, visibleLaneLimit])
+    }, [dragMode, dragRenderId, segments, visibleLaneLimit])
 
     const resizePreviewSegment = useMemo(() => {
         if (
-            !dragEventId ||
+            !dragRenderId ||
             !draggingEvent ||
             !dragStart ||
             !dragEnd ||
@@ -289,7 +290,7 @@ export const EventRow = memo(function EventRow({
         const endIndex =
             dayjs(segmentEndExclusive).diff(dayjs(weekStart), "day") - 1
         const baseSegment = segments.find(
-            (segment) => segment.event.id === dragEventId
+            (segment) => getCalendarEventRenderId(segment.event) === dragRenderId
         )
 
         return {
@@ -305,8 +306,8 @@ export const EventRow = memo(function EventRow({
     }, [
         calendarTz,
         dragEnd,
-        dragEventId,
         dragMode,
+        dragRenderId,
         dragStart,
         draggingEvent,
         segments,
@@ -328,7 +329,7 @@ export const EventRow = memo(function EventRow({
                     dragOffsetStart,
                 }) => (
                     <EventItem
-                        key={`${event.id}-${startIndex}-${endIndex}`}
+                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                         event={event}
                         top={lane}
                         startIndex={startIndex}
@@ -343,7 +344,9 @@ export const EventRow = memo(function EventRow({
             )}
             {resizePreviewSegment && (
                 <EventItem
-                    key={`resize-preview-${resizePreviewSegment.event.id}-${resizePreviewSegment.startIndex}-${resizePreviewSegment.endIndex}`}
+                    key={`resize-preview-${getCalendarEventRenderId(
+                        resizePreviewSegment.event
+                    )}-${resizePreviewSegment.startIndex}-${resizePreviewSegment.endIndex}`}
                     event={resizePreviewSegment.event}
                     top={resizePreviewSegment.lane}
                     startIndex={resizePreviewSegment.startIndex}
@@ -456,7 +459,7 @@ const OverflowButton = memo(function OverflowButton({
                                     dragOffsetStart,
                                 }) => (
                                     <div
-                                        key={`${event.id}-${startIndex}-${endIndex}`}
+                                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                                         className="relative"
                                     >
                                         <EventItem

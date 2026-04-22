@@ -337,6 +337,7 @@ export function EventFormPropertyRow({
                                 </span>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
+                                alignOffset={-28}
                                 align="start"
                                 className={cn(
                                     activePanel

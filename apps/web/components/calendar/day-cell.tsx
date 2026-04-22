@@ -4,7 +4,6 @@ import { useOpenEvent } from "@/hooks/use-open-event"
 import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
-import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
@@ -29,9 +28,6 @@ export const DayCell = memo(
         const endSelectionStore = useCalendarStore((s) => s.endSelection)
         const selection = useCalendarStore((s) => s.selection)
         const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
-        const workspacePresence = useCalendarStore(
-            (s): CalendarWorkspacePresenceMember[] => s.workspacePresence
-        )
         const user = useAuthStore((s) => s.user)
 
         const isDraggingRef = useRef(false)
@@ -87,6 +83,9 @@ export const DayCell = memo(
         const isHover = useCalendarStore((s) => {
             if (!s.drag.eventId) return false
             if (s.drag.mode !== "move") return false
+            if (s.drag.hoveredDateKeys.length > 0) {
+                return s.drag.hoveredDateKeys.includes(cellDate)
+            }
             return dayValue >= s.drag.start && dayValue <= s.drag.end
         })
 

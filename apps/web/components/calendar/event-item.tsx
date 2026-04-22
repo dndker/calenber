@@ -1,12 +1,20 @@
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
-import { getCalendarCategoryEventClassName } from "@/lib/calendar/category-color"
+import {
+    getCalendarCategoryEventClassName,
+    getCalendarCategoryEventHoverClassName,
+} from "@/lib/calendar/category-color"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
 } from "@/lib/calendar/permissions"
+import {
+    getCalendarEventRenderId,
+    getCalendarEventSourceId,
+    toCalendarEventSource,
+} from "@/lib/calendar/recurrence"
 import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -102,6 +110,7 @@ export const EventItem = memo(
         onOpen?: () => void
     }) {
         const pathname = usePathname()
+        const sourceEventId = getCalendarEventSourceId(event)
 
         const user = useAuthStore((s) => s.user)
         const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -112,16 +121,28 @@ export const EventItem = memo(
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
         const setViewEvent = useCalendarStore((s) => s.setViewEvent)
+        const isSeriesHover = useCalendarStore(
+            (s) => s.hoveredSeriesEventId === sourceEventId
+        )
+        const setHoveredSeriesEventId = useCalendarStore(
+            (s) => s.setHoveredSeriesEventId
+        )
         const startDrag = useCalendarStore((s) => s.startDrag)
         const moveDrag = useCalendarStore((s) => s.moveDrag)
         const endDrag = useCalendarStore((s) => s.endDrag)
+        const sourceEvent = useCalendarStore(
+            (s) =>
+                s.events.find((candidate) => candidate.id === sourceEventId) ??
+                null
+        )
         const dragIndexRef = useRef(0)
         const resizeCleanupRef = useRef<(() => void) | null>(null)
         const suppressClickRef = useRef(false)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
-            id: event.id,
-            disabled: !interactive,
+            id: getCalendarEventRenderId(event),
+            disabled: !interactive || overlay,
         })
+        const resolvedSourceEvent = sourceEvent ?? toCalendarEventSource(event)
 
         const pos = getEventPosition(
             startIndex,
@@ -131,12 +152,20 @@ export const EventItem = memo(
         )
         const canEdit =
             activeCalendar?.id === "demo" ||
-            canEditCalendarEvent(event, activeCalendarMembership, user?.id)
+            canEditCalendarEvent(
+                resolvedSourceEvent,
+                activeCalendarMembership,
+                user?.id
+            )
         const canDelete =
             activeCalendar?.id === "demo" ||
-            canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
+            canDeleteCalendarEvent(
+                resolvedSourceEvent,
+                activeCalendarMembership,
+                user?.id
+            )
         const handleDeleteEvent = useEventDeleteAction({
-            eventId: event.id,
+            eventId: sourceEventId,
         })
 
         const handleMoveStart = (e: React.PointerEvent) => {
@@ -201,7 +230,10 @@ export const EventItem = memo(
             startDrag(
                 event,
                 mode,
-                mode === "resize-start" ? event.start : event.end
+                mode === "resize-start" ? event.start : event.end,
+                {
+                    segmentOffset: dragOffsetStart,
+                }
             )
             updateFromPointer(e.clientX, e.clientY)
 
@@ -260,7 +292,9 @@ export const EventItem = memo(
             if (!isDragging) return
             if (!canEdit) return
 
-            startDrag(event, "move", dragIndexRef.current)
+            startDrag(event, "move", dragIndexRef.current, {
+                segmentOffset: dragOffsetStart,
+            })
 
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [isDragging])
@@ -283,11 +317,19 @@ export const EventItem = memo(
             ? `calc(${100 / resolvedDisplayLaneCount}% - 4px)`
             : "30px"
 
-        const eventMembers = useEventMembers(event.id, user?.id)
+        const eventMembers = useEventMembers(sourceEventId, user?.id)
         const isCompleted = event.status === "completed"
         const isCancelled = event.status === "cancelled"
         const primaryCategoryColor =
             event.categories[0]?.options.color ?? event.category?.options.color
+        const resolvedSeriesHoverClassName =
+            isSeriesHover && !isDragging
+                ? primaryCategoryColor
+                    ? getCalendarCategoryEventHoverClassName(
+                          primaryCategoryColor
+                      )
+                    : "bg-muted text-foreground dark:bg-input/50"
+                : undefined
         const eventRadiusClass = cn(
             continuesFromPrevWeek
                 ? "rounded-l-none border-l-0"
@@ -322,6 +364,7 @@ export const EventItem = memo(
                             {
                                 "event-drag-row opacity-50":
                                     isDragging && !event.isLocked,
+                                "pointer-events-none": isDragging && !overlay,
                                 "cursor-grab! active:cursor-grabbing!":
                                     overlay && canEdit,
                             }
@@ -361,21 +404,36 @@ export const EventItem = memo(
                                 primaryCategoryColor &&
                                     getCalendarCategoryEventClassName(
                                         primaryCategoryColor
-                                    )
+                                    ),
+                                resolvedSeriesHoverClassName
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
+                            onPointerEnter={() => {
+                                if (overlay || isDragging) {
+                                    return
+                                }
+
+                                setHoveredSeriesEventId(sourceEventId)
+                            }}
+                            onPointerLeave={() => {
+                                if (overlay) {
+                                    return
+                                }
+
+                                setHoveredSeriesEventId(null)
+                            }}
                             onClick={() => {
                                 if (!interactive || suppressClickRef.current) {
                                     return
                                 }
                                 onOpen?.()
-                                setActiveEventId(event.id)
-                                setViewEvent(event)
+                                setActiveEventId(sourceEventId)
+                                setViewEvent(resolvedSourceEvent)
                                 navigateCalendarModal(
                                     getCalendarModalOpenPath({
                                         pathname,
-                                        eventId: event.id,
+                                        eventId: sourceEventId,
                                     })
                                 )
                             }}
@@ -432,6 +490,12 @@ export const EventItem = memo(
                 next.event.categories[0]?.options.color &&
             prev.event.category?.options.color ===
                 next.event.category?.options.color &&
+            prev.event.recurrenceInstance?.key ===
+                next.event.recurrenceInstance?.key &&
+            prev.event.recurrenceInstance?.sourceStart ===
+                next.event.recurrenceInstance?.sourceStart &&
+            prev.event.recurrenceInstance?.sourceEnd ===
+                next.event.recurrenceInstance?.sourceEnd &&
             areStringArraysEqual(
                 prev.event.categoryIds,
                 next.event.categoryIds

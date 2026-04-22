@@ -22,7 +22,7 @@ import {
 } from "react"
 
 const comboboxChipsClass =
-    "w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent!"
+    "w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent! px-1.5"
 
 const comboboxChipClass =
     "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm dark:bg-input/50"
@@ -269,7 +269,7 @@ export function EventChipsCombobox<TData = unknown>({
                                 onKeyDown={handleInputKeyDown}
                                 className={
                                     inputClassName ??
-                                    "cursor-pointer text-sm focus:cursor-text"
+                                    "cursor-pointer px-0 text-sm focus:cursor-text"
                                 }
                                 placeholder={
                                     value.length === 0 ? placeholder : ""

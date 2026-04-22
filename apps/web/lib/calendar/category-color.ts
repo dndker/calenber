@@ -97,6 +97,18 @@ export function getCalendarCategoryEventClassName(
     )
 }
 
+export function getCalendarCategoryEventHoverClassName(
+    color: string | null | undefined,
+    className?: string
+) {
+    const normalizedColor = normalizeCalendarCategoryColor(color)
+
+    return cn(
+        normalizedColor ? `cb-event-hover-${normalizedColor}` : undefined,
+        className
+    )
+}
+
 export function getCalendarCategoryCheckboxClassName(
     color: string | null | undefined,
     className?: string

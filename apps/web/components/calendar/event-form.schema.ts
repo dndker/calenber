@@ -5,9 +5,9 @@ export const recurrenceSchema = z
     .object({
         type: z.enum(["daily", "weekly", "monthly", "yearly"]),
         interval: z.number().min(1, "반복 간격은 1 이상이어야 합니다"),
-        byWeekday: z.array(z.number()).optional(),
+        byWeekday: z.array(z.number().int().min(0).max(6)).optional(),
         until: z.string().datetime().optional(),
-        count: z.number().optional(),
+        count: z.number().int().min(1).optional(),
     })
     .refine(
         (data) => !(data.until && data.count),

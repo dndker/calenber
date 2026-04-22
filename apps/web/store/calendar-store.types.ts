@@ -46,6 +46,15 @@ export type CalendarEventRecurrence = {
     count?: number
 }
 
+export type CalendarEventRecurrenceInstance = {
+    key: string
+    sourceEventId: string
+    sourceStart: number
+    sourceEnd: number
+    occurrenceStart: number
+    occurrenceEnd: number
+}
+
 export type CalendarEventCategory = {
     id: string
     calendarId: string
@@ -115,6 +124,7 @@ export type CalendarEvent = {
     categoryId: string | null
     category: CalendarEventCategory | null
     recurrence?: CalendarEventRecurrence
+    recurrenceInstance?: CalendarEventRecurrenceInstance
     exceptions?: string[]
     participants: CalendarEventParticipant[]
     status: CalendarEventStatus
@@ -137,7 +147,7 @@ export type CalendarEventDraft = Omit<
     | "updatedById"
     | "updatedBy"
     | "isLocked"
-> &
+    > &
     Partial<
         Pick<
             CalendarEvent,
@@ -152,6 +162,10 @@ export type CalendarEventDraft = Omit<
         >
     >
 
+export type CalendarEventPatch = Omit<Partial<CalendarEvent>, "recurrence"> & {
+    recurrence?: CalendarEventRecurrence | null
+}
+
 export type CalendarWorkspacePresenceMember = {
     id: string
     userId: string | null
@@ -165,12 +179,19 @@ export type DragMode = "move" | "resize-start" | "resize-end"
 
 export type DragState = {
     eventId: string | null
+    renderId: string | null
     mode: DragMode | null
     originStart: number
     originEnd: number
+    sourceOriginStart: number
+    sourceOriginEnd: number
     start: number
     end: number
     offset: number
+    segmentOffset: number
+    previewEvent: CalendarEvent | null
+    baseHoveredDateKeys: string[]
+    hoveredDateKeys: string[]
 }
 
 export type SelectionState = {
@@ -198,6 +219,7 @@ export type CalendarStoreState = {
     workspacePresence: CalendarWorkspacePresenceMember[]
     eventCategories: CalendarEventCategory[]
     eventFilters: CalendarEventFilterState
+    hoveredSeriesEventId: string | null
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
     setActiveCalendarMembership: (membership: CalendarMembership) => void
@@ -215,6 +237,7 @@ export type CalendarStoreState = {
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
     toggleEventCategoryFilter: (categoryId: string) => void
     resetEventFilters: () => void
+    setHoveredSeriesEventId: (eventId: string | null) => void
     upsertEventCategorySnapshot: (category: CalendarEventCategory) => void
     removeEventCategorySnapshot: (categoryId: string) => void
     setEventCategoryDefaultVisibility: (
@@ -235,7 +258,7 @@ export type CalendarStoreState = {
     createEvent: (data: CalendarEventDraft) => string | null
     updateEvent: (
         id: string,
-        patch: Partial<CalendarEvent>,
+        patch: CalendarEventPatch,
         options?: {
             expectedUpdatedAt?: number
         }
@@ -248,7 +271,10 @@ export type CalendarDragState = {
     startDrag: (
         event: CalendarEvent,
         mode: DragMode,
-        clickedDate: number
+        clickedDate: number,
+        options?: {
+            segmentOffset?: number
+        }
     ) => void
     moveDrag: (date: number) => void
     endDrag: () => void

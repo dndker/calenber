@@ -63,6 +63,7 @@ import {
     type CalendarEvent,
     type CalendarEventCategory,
     type CalendarEventParticipant,
+    type CalendarEventPatch,
     type EditorContent,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -94,6 +95,12 @@ import {
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+    InputGroupText,
+} from "@workspace/ui/components/input-group"
+import {
     Select,
     SelectContent,
     SelectGroup,
@@ -102,6 +109,10 @@ import {
     SelectValue,
 } from "@workspace/ui/components/select"
 import { Separator } from "@workspace/ui/components/separator"
+import {
+    ToggleGroup,
+    ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
 import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -159,6 +170,30 @@ const statusDotClassNameMap: Record<StatusOption["value"], string> = {
     cancelled: getCalendarCategoryDotClassName("red"),
 }
 
+const recurrenceTypeLabelMap = {
+    daily: "매일",
+    weekly: "매주",
+    monthly: "매월",
+    yearly: "매년",
+} as const
+
+const recurrenceIntervalUnitLabelMap = {
+    daily: "일",
+    weekly: "주",
+    monthly: "개월",
+    yearly: "년",
+} as const
+
+const recurrenceWeekdayItems = [
+    { value: 0, label: "일" },
+    { value: 1, label: "월" },
+    { value: 2, label: "화" },
+    { value: 3, label: "수" },
+    { value: 4, label: "목" },
+    { value: 5, label: "금" },
+    { value: 6, label: "토" },
+] as const
+
 const eventFieldIconMap = {
     schedule: CalendarRangeIcon,
     participants: UsersIcon,
@@ -206,6 +241,69 @@ function normalizeIds(values: string[]) {
     return Array.from(new Set(values.filter(Boolean)))
 }
 
+function normalizeRecurrenceWeekdays(
+    weekdays: number[] | undefined,
+    fallbackWeekday: number
+) {
+    const weekdayOrder = new Map<number, number>(
+        recurrenceWeekdayItems.map((item, index) => [item.value, index])
+    )
+    const normalized = Array.from(
+        new Set(
+            (weekdays ?? [fallbackWeekday]).filter(
+                (value) => value >= 0 && value <= 6
+            )
+        )
+    ).sort((a, b) => (weekdayOrder.get(a) ?? 0) - (weekdayOrder.get(b) ?? 0))
+
+    return normalized.length > 0 ? normalized : [fallbackWeekday]
+}
+
+function getRecurrenceEndMode(recurrence: EventFormValues["recurrence"]) {
+    if (!recurrence) {
+        return "never"
+    }
+
+    if (recurrence.until) {
+        return "until"
+    }
+
+    if (recurrence.count) {
+        return "count"
+    }
+
+    return "never"
+}
+
+function formatRecurrenceSummary(
+    recurrence: EventFormValues["recurrence"] | undefined,
+    fallbackWeekday: number
+) {
+    if (!recurrence) {
+        return "반복 안 함"
+    }
+
+    const interval = Math.max(1, recurrence.interval || 1)
+    const baseLabel =
+        interval === 1
+            ? recurrenceTypeLabelMap[recurrence.type]
+            : `${interval}${recurrenceIntervalUnitLabelMap[recurrence.type]}마다`
+
+    if (recurrence.type !== "weekly") {
+        return baseLabel
+    }
+
+    const weekdayLabelMap = new Map<number, string>(
+        recurrenceWeekdayItems.map((item) => [item.value, item.label])
+    )
+    const weekdays = normalizeRecurrenceWeekdays(
+        recurrence.byWeekday,
+        fallbackWeekday
+    ).map((value) => weekdayLabelMap.get(value) ?? String(value))
+
+    return `${baseLabel} · ${weekdays.join(", ")}`
+}
+
 const EMPTY_MEMBER_DIRECTORY: CalendarMemberDirectoryItem[] = []
 
 function getDefaultParticipantIds({
@@ -236,7 +334,7 @@ export function EventForm({
 }: {
     event?: CalendarEvent
     onChange?: (
-        patch: Partial<CalendarEvent>,
+        patch: CalendarEventPatch,
         options?: {
             expectedUpdatedAt?: number
         }
@@ -382,10 +480,10 @@ export function EventForm({
             sourceEvent: CalendarEvent,
             values: EventFormValues,
             categorySource = eventCategories
-        ): Partial<CalendarEvent> => {
+        ): CalendarEventPatch => {
             const normalizedTitle =
                 values.title && values.title.trim() !== "" ? values.title : ""
-            const patch: Partial<CalendarEvent> = {}
+            const patch: CalendarEventPatch = {}
 
             if (!isSameValue(sourceEvent.title, normalizedTitle)) {
                 patch.title = normalizedTitle
@@ -528,7 +626,7 @@ export function EventForm({
             if (
                 !isSameValue(sourceEvent.recurrence, values.recurrence, "json")
             ) {
-                patch.recurrence = values.recurrence
+                patch.recurrence = values.recurrence ?? null
             }
 
             if (
@@ -838,6 +936,14 @@ export function EventForm({
     const watchedStatus = useWatch({
         control: form.control,
         name: "status",
+    })
+    const watchedStart = useWatch({
+        control: form.control,
+        name: "start",
+    })
+    const watchedTimezone = useWatch({
+        control: form.control,
+        name: "timezone",
     })
     const selectedCategories = useMemo<CategoryOption[]>(
         () =>
@@ -1543,91 +1649,457 @@ export function EventForm({
                     key={propertyField.id}
                     name="recurrence"
                     control={form.control}
-                    render={({ field }) => (
-                        <EventFormPropertyRow
-                            fieldId={propertyField.id}
-                            label={propertyField.definition.label}
-                            icon={Icon}
-                            disabled={disabled}
-                            visibility={visibility}
-                            onVisibilityChange={handleVisibilityChange}
-                            propertyMenuItems={propertyMenuItems}
-                        >
-                            <Select
-                                value={field.value?.type ?? "none"}
-                                onValueChange={(value) => {
-                                    const nextRecurrence =
-                                        value === "none"
-                                            ? undefined
-                                            : {
-                                                  type: value as NonNullable<
-                                                      EventFormValues["recurrence"]
-                                                  >["type"],
-                                                  interval:
-                                                      field.value?.interval ??
-                                                      1,
-                                                  byWeekday:
-                                                      value === "weekly"
-                                                          ? (field.value
-                                                                ?.byWeekday ?? [
-                                                                1,
-                                                            ])
-                                                          : undefined,
-                                              }
+                    render={({ field }) => {
+                        const startWeekday = dayjs
+                            .tz(watchedStart ?? new Date(), watchedTimezone)
+                            .day()
+                        const recurrenceValue = field.value
+                        const recurrenceEndMode =
+                            getRecurrenceEndMode(recurrenceValue)
 
-                                    field.onChange(nextRecurrence)
-                                    void saveNow({
-                                        ...form.getValues(),
-                                        recurrence: nextRecurrence,
-                                    })
-                                }}
+                        const updateRecurrence = (
+                            nextRecurrence: EventFormValues["recurrence"]
+                        ) => {
+                            field.onChange(nextRecurrence)
+                            void saveNow({
+                                ...form.getValues(),
+                                recurrence: nextRecurrence,
+                            })
+                        }
+
+                        return (
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
                                 disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
                             >
-                                <SelectTrigger
-                                    className={cn(
-                                        "w-full cursor-pointer border-0 px-1.5 [&_svg]:hidden",
-                                        !field.value && "text-muted-foreground"
-                                    )}
-                                >
-                                    <SelectValue placeholder="반복 설정" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <SelectItem
-                                            value="none"
-                                            className="py-1.5"
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            disabled={disabled}
+                                            className={cn(
+                                                "w-full justify-start px-1.5 [word-spacing:-1px] hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50",
+                                                !recurrenceValue &&
+                                                    "text-muted-foreground"
+                                            )}
                                         >
-                                            반복 없음
-                                        </SelectItem>
-                                        <SelectItem
-                                            value="yearly"
-                                            className="py-1.5"
-                                        >
-                                            매년
-                                        </SelectItem>
-                                        <SelectItem
-                                            value="monthly"
-                                            className="py-1.5"
-                                        >
-                                            매월
-                                        </SelectItem>
-                                        <SelectItem
-                                            value="weekly"
-                                            className="py-1.5"
-                                        >
-                                            매주
-                                        </SelectItem>
-                                        <SelectItem
-                                            value="daily"
-                                            className="py-1.5"
-                                        >
-                                            매일
-                                        </SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </EventFormPropertyRow>
-                    )}
+                                            {formatRecurrenceSummary(
+                                                recurrenceValue,
+                                                startWeekday
+                                            )}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                        align="start"
+                                        className="w-[min(23rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0"
+                                        sideOffset={8}
+                                    >
+                                        <div>
+                                            <ToggleGroup
+                                                type="single"
+                                                size="default"
+                                                defaultValue="top"
+                                                variant="outline"
+                                                className="w-full overflow-hidden rounded-none! [&_button]:flex-1 [&_button]:rounded-l-none! [&_button]:rounded-r-none! [&_button]:border-t-0 [&_button]:py-4.5 [&_button]:tracking-wide [&_button]:[word-spacing:-2px] [&_button]:first:border-l-0! [&_button]:last:border-r-0!"
+                                                value={
+                                                    recurrenceValue?.type ??
+                                                    "none"
+                                                }
+                                                onValueChange={(value) => {
+                                                    const nextRecurrence =
+                                                        value === "none"
+                                                            ? undefined
+                                                            : {
+                                                                  type: value as NonNullable<
+                                                                      EventFormValues["recurrence"]
+                                                                  >["type"],
+                                                                  interval:
+                                                                      recurrenceValue?.interval ??
+                                                                      1,
+                                                                  byWeekday:
+                                                                      value ===
+                                                                      "weekly"
+                                                                          ? normalizeRecurrenceWeekdays(
+                                                                                recurrenceValue?.byWeekday,
+                                                                                startWeekday
+                                                                            )
+                                                                          : undefined,
+                                                                  until: recurrenceValue?.until,
+                                                                  count: recurrenceValue?.count,
+                                                              }
+
+                                                    updateRecurrence(
+                                                        nextRecurrence
+                                                    )
+                                                }}
+                                                disabled={disabled}
+                                            >
+                                                <ToggleGroupItem
+                                                    value="none"
+                                                    aria-label="반복 안 함"
+                                                >
+                                                    반복 안 함
+                                                </ToggleGroupItem>
+                                                <ToggleGroupItem
+                                                    value="daily"
+                                                    aria-label="매일"
+                                                >
+                                                    매일
+                                                </ToggleGroupItem>
+                                                <ToggleGroupItem
+                                                    value="weekly"
+                                                    aria-label="매주"
+                                                >
+                                                    매주
+                                                </ToggleGroupItem>
+                                                <ToggleGroupItem
+                                                    value="monthly"
+                                                    aria-label="매월"
+                                                >
+                                                    매월
+                                                </ToggleGroupItem>
+                                                <ToggleGroupItem
+                                                    value="yearly"
+                                                    aria-label="매년"
+                                                >
+                                                    매년
+                                                </ToggleGroupItem>
+                                            </ToggleGroup>
+                                            {recurrenceValue?.type ===
+                                                "weekly" && (
+                                                <ToggleGroup
+                                                    type="multiple"
+                                                    value={normalizeRecurrenceWeekdays(
+                                                        recurrenceValue.byWeekday,
+                                                        startWeekday
+                                                    ).map(String)}
+                                                    onValueChange={(values) => {
+                                                        updateRecurrence({
+                                                            ...recurrenceValue,
+                                                            byWeekday:
+                                                                normalizeRecurrenceWeekdays(
+                                                                    values.map(
+                                                                        Number
+                                                                    ),
+                                                                    startWeekday
+                                                                ),
+                                                        })
+                                                    }}
+                                                    className="w-full overflow-hidden rounded-none! [&_button]:flex-1 [&_button]:rounded-l-none! [&_button]:rounded-r-none! [&_button]:border-t-0 [&_button]:py-4.5 [&_button]:tracking-wide [&_button]:[word-spacing:-2px] [&_button]:first:border-l-0! [&_button]:last:border-r-0!"
+                                                    disabled={disabled}
+                                                >
+                                                    {recurrenceWeekdayItems.map(
+                                                        (weekday) => (
+                                                            <ToggleGroupItem
+                                                                key={
+                                                                    weekday.value
+                                                                }
+                                                                value={String(
+                                                                    weekday.value
+                                                                )}
+                                                                variant="outline"
+                                                            >
+                                                                {weekday.label}
+                                                            </ToggleGroupItem>
+                                                        )
+                                                    )}
+                                                </ToggleGroup>
+                                            )}
+                                        </div>
+                                        {recurrenceValue && (
+                                            <div className="flex items-center gap-1.5 p-2">
+                                                <InputGroup className="w-26 shrink-0 gap-0">
+                                                    <InputGroupInput
+                                                        type="number"
+                                                        min={1}
+                                                        inputMode="numeric"
+                                                        value={String(
+                                                            recurrenceValue.interval ??
+                                                                1
+                                                        )}
+                                                        disabled={disabled}
+                                                        onChange={(e) => {
+                                                            updateRecurrence({
+                                                                ...recurrenceValue,
+                                                                interval:
+                                                                    Math.max(
+                                                                        1,
+                                                                        Number(
+                                                                            e
+                                                                                .target
+                                                                                .value ||
+                                                                                1
+                                                                        )
+                                                                    ),
+                                                            })
+                                                        }}
+                                                        placeholder="1"
+                                                        className="pr-0! text-right leading-normal"
+                                                    />
+                                                    <InputGroupAddon align="inline-end">
+                                                        <InputGroupText className="leading-normal">
+                                                            {
+                                                                recurrenceIntervalUnitLabelMap[
+                                                                    recurrenceValue
+                                                                        .type
+                                                                ]
+                                                            }
+                                                            마다
+                                                        </InputGroupText>
+                                                    </InputGroupAddon>
+                                                </InputGroup>
+
+                                                <Select
+                                                    value={recurrenceEndMode}
+                                                    onValueChange={(value) => {
+                                                        if (value === "never") {
+                                                            updateRecurrence({
+                                                                ...recurrenceValue,
+                                                                until: undefined,
+                                                                count: undefined,
+                                                            })
+                                                            return
+                                                        }
+
+                                                        if (value === "until") {
+                                                            updateRecurrence({
+                                                                ...recurrenceValue,
+                                                                until:
+                                                                    recurrenceValue.until ??
+                                                                    dayjs
+                                                                        .tz(
+                                                                            watchedStart ??
+                                                                                new Date(),
+                                                                            watchedTimezone
+                                                                        )
+                                                                        .endOf(
+                                                                            "day"
+                                                                        )
+                                                                        .toISOString(),
+                                                                count: undefined,
+                                                            })
+                                                            return
+                                                        }
+
+                                                        updateRecurrence({
+                                                            ...recurrenceValue,
+                                                            count:
+                                                                recurrenceValue.count ??
+                                                                10,
+                                                            until: undefined,
+                                                        })
+                                                    }}
+                                                    disabled={disabled}
+                                                >
+                                                    <SelectTrigger className="hidden h-9 flex-1">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectGroup>
+                                                            <SelectItem value="never">
+                                                                종료 안 함
+                                                            </SelectItem>
+                                                            <SelectItem value="until">
+                                                                날짜 지정
+                                                            </SelectItem>
+                                                            <SelectItem value="count">
+                                                                횟수 지정
+                                                            </SelectItem>
+                                                        </SelectGroup>
+                                                    </SelectContent>
+                                                </Select>
+
+                                                <InputGroup className="flex-1">
+                                                    <InputGroupAddon
+                                                        align="inline-start"
+                                                        className="py-0"
+                                                    >
+                                                        <Select
+                                                            value={
+                                                                recurrenceEndMode
+                                                            }
+                                                            onValueChange={(
+                                                                value
+                                                            ) => {
+                                                                if (
+                                                                    value ===
+                                                                    "never"
+                                                                ) {
+                                                                    updateRecurrence(
+                                                                        {
+                                                                            ...recurrenceValue,
+                                                                            until: undefined,
+                                                                            count: undefined,
+                                                                        }
+                                                                    )
+                                                                    return
+                                                                }
+
+                                                                if (
+                                                                    value ===
+                                                                    "until"
+                                                                ) {
+                                                                    updateRecurrence(
+                                                                        {
+                                                                            ...recurrenceValue,
+                                                                            until:
+                                                                                recurrenceValue.until ??
+                                                                                dayjs
+                                                                                    .tz(
+                                                                                        watchedStart ??
+                                                                                            new Date(),
+                                                                                        watchedTimezone
+                                                                                    )
+                                                                                    .endOf(
+                                                                                        "day"
+                                                                                    )
+                                                                                    .toISOString(),
+                                                                            count: undefined,
+                                                                        }
+                                                                    )
+                                                                    return
+                                                                }
+
+                                                                updateRecurrence(
+                                                                    {
+                                                                        ...recurrenceValue,
+                                                                        count:
+                                                                            recurrenceValue.count ??
+                                                                            10,
+                                                                        until: undefined,
+                                                                    }
+                                                                )
+                                                            }}
+                                                            disabled={disabled}
+                                                        >
+                                                            <SelectTrigger className="h-6.5! border-0 py-0! pl-1.5 hover:bg-muted">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectGroup>
+                                                                    <SelectItem value="never">
+                                                                        종료 안
+                                                                        함
+                                                                    </SelectItem>
+                                                                    <SelectItem value="until">
+                                                                        날짜
+                                                                        지정
+                                                                    </SelectItem>
+                                                                    <SelectItem value="count">
+                                                                        횟수
+                                                                        지정
+                                                                    </SelectItem>
+                                                                </SelectGroup>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </InputGroupAddon>
+
+                                                    {recurrenceEndMode ===
+                                                        "until" && (
+                                                        <>
+                                                            <InputGroupInput
+                                                                className="appearance-none"
+                                                                placeholder="반복 종료"
+                                                                type="date"
+                                                                value={
+                                                                    recurrenceValue.until
+                                                                        ? dayjs
+                                                                              .tz(
+                                                                                  recurrenceValue.until,
+                                                                                  watchedTimezone
+                                                                              )
+                                                                              .format(
+                                                                                  "YYYY-MM-DD"
+                                                                              )
+                                                                        : ""
+                                                                }
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                onChange={(
+                                                                    e
+                                                                ) => {
+                                                                    updateRecurrence(
+                                                                        {
+                                                                            ...recurrenceValue,
+                                                                            until: e
+                                                                                .target
+                                                                                .value
+                                                                                ? dayjs
+                                                                                      .tz(
+                                                                                          `${e.target.value}T23:59:59`,
+                                                                                          watchedTimezone
+                                                                                      )
+                                                                                      .toISOString()
+                                                                                : undefined,
+                                                                            count: undefined,
+                                                                        }
+                                                                    )
+                                                                }}
+                                                            />
+                                                            <InputGroupAddon align="inline-end">
+                                                                <InputGroupText className="leading-normal">
+                                                                    까지
+                                                                </InputGroupText>
+                                                            </InputGroupAddon>
+                                                        </>
+                                                    )}
+                                                    {recurrenceEndMode ===
+                                                        "count" && (
+                                                        <>
+                                                            <InputGroupInput
+                                                                placeholder="반복 종료"
+                                                                type="number"
+                                                                min={1}
+                                                                inputMode="numeric"
+                                                                value={String(
+                                                                    recurrenceValue.count ??
+                                                                        10
+                                                                )}
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                onChange={(
+                                                                    e
+                                                                ) => {
+                                                                    updateRecurrence(
+                                                                        {
+                                                                            ...recurrenceValue,
+                                                                            count: Math.max(
+                                                                                1,
+                                                                                Number(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value ||
+                                                                                        1
+                                                                                )
+                                                                            ),
+                                                                            until: undefined,
+                                                                        }
+                                                                    )
+                                                                }}
+                                                            />
+                                                            <InputGroupAddon align="inline-end">
+                                                                <InputGroupText className="leading-normal">
+                                                                    회
+                                                                </InputGroupText>
+                                                            </InputGroupAddon>
+                                                        </>
+                                                    )}
+                                                </InputGroup>
+                                            </div>
+                                        )}
+                                    </PopoverContent>
+                                </Popover>
+                            </EventFormPropertyRow>
+                        )
+                    }}
                 />
             )
         }

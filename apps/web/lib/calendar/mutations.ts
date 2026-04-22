@@ -10,6 +10,7 @@ import type { CalendarAccessMode } from "@/lib/calendar/permissions"
 import type { CalendarMembership } from "@/lib/calendar/queries"
 import type {
     CalendarEvent,
+    CalendarEventPatch,
     CalendarEventCategory,
 } from "@/store/calendar-store.types"
 import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
@@ -399,7 +400,7 @@ export async function createCalendar(
 export async function updateCalendarEvent(
     supabase: SupabaseClient,
     eventId: string,
-    patch: Partial<CalendarEvent>,
+    patch: CalendarEventPatch,
     options?: {
         expectedUpdatedAt?: number
     }

@@ -434,40 +434,80 @@
         @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:bg-category-blue-soft;
     }
 
+    .cb-event-hover-blue {
+        @apply bg-category-blue-soft;
+    }
+
     .cb-event-green {
         @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:bg-category-green-soft;
+    }
+
+    .cb-event-hover-green {
+        @apply bg-category-green-soft;
     }
 
     .cb-event-sky {
         @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:bg-category-sky-soft;
     }
 
+    .cb-event-hover-sky {
+        @apply bg-category-sky-soft;
+    }
+
     .cb-event-purple {
         @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:bg-category-purple-soft;
+    }
+
+    .cb-event-hover-purple {
+        @apply bg-category-purple-soft;
     }
 
     .cb-event-red {
         @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:bg-category-red-soft;
     }
 
+    .cb-event-hover-red {
+        @apply bg-category-red-soft;
+    }
+
     .cb-event-yellow {
         @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:bg-category-yellow-soft;
+    }
+
+    .cb-event-hover-yellow {
+        @apply bg-category-yellow-soft;
     }
 
     .cb-event-gray {
         @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:bg-category-gray-soft;
     }
 
+    .cb-event-hover-gray {
+        @apply bg-category-gray-soft;
+    }
+
     .cb-event-olive {
         @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:bg-category-olive-soft;
+    }
+
+    .cb-event-hover-olive {
+        @apply bg-category-olive-soft;
     }
 
     .cb-event-pink {
         @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:bg-category-pink-soft;
     }
 
+    .cb-event-hover-pink {
+        @apply bg-category-pink-soft;
+    }
+
     .cb-event-mauve {
         @apply border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong hover:bg-category-mauve-soft;
+    }
+
+    .cb-event-hover-mauve {
+        @apply bg-category-mauve-soft;
     }
 
     .pointer-events-all {
