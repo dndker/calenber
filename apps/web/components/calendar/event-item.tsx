@@ -1,6 +1,6 @@
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
-import { getCalendarCategoryDotClassName } from "@/lib/calendar/category-color"
+import { getCalendarCategoryEventClassName } from "@/lib/calendar/category-color"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
@@ -357,7 +357,11 @@ export const EventItem = memo(
                                     "text-muted-foreground line-through",
                                 eventMembers.length > 0 && "shadow-lg/7",
                                 eventRadiusClass,
-                                primaryCategoryColor && "pl-2.25"
+                                // primaryCategoryColor && "pl-2.25",
+                                primaryCategoryColor &&
+                                    getCalendarCategoryEventClassName(
+                                        primaryCategoryColor
+                                    )
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
@@ -376,16 +380,6 @@ export const EventItem = memo(
                                 )
                             }}
                         >
-                            {primaryCategoryColor ? (
-                                <span
-                                    className={cn(
-                                        getCalendarCategoryDotClassName(
-                                            primaryCategoryColor,
-                                            "absolute top-1/2 left-0.75 z-10 inline-block h-[calc(100%-9px)] w-0.75 -translate-y-1/2 rounded-full"
-                                        )
-                                    )}
-                                />
-                            ) : null}
                             {event.isLocked && !isCompleted && !isCancelled && (
                                 <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}

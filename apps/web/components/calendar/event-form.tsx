@@ -6,6 +6,7 @@ import {
     randomCalendarCategoryColor,
     type CalendarCategoryColor,
 } from "@/lib/calendar/category-color"
+import { createCalendarEventCategory } from "@/lib/calendar/mutations"
 import {
     getCalendarMemberDirectory,
     type CalendarMemberDirectoryItem,
@@ -14,24 +15,32 @@ import dayjs from "@/lib/dayjs"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
-    CalendarIcon,
+    BellIcon,
+    CalendarRangeIcon,
     ChevronDownIcon,
     CircleCheckBigIcon,
+    ClockAlertIcon,
+    EarthIcon,
+    MapPinIcon,
+    Repeat2Icon,
+    Settings2Icon,
     TagsIcon,
     UsersIcon,
 } from "lucide-react"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
+import { EventCategorySettingsPanel } from "./event-category-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
+import {
+    EventFormPropertyRow,
+    type EventFormPropertyMenuItem,
+    type EventFormPropertyVisibility,
+} from "./event-form-property-row"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
+import { TimezoneSelect } from "./timezone-select"
 
 import { Button } from "@workspace/ui/components/button"
-import {
-    Field,
-    FieldError,
-    FieldGroup,
-    FieldLabel,
-} from "@workspace/ui/components/field"
+import { Field, FieldError, FieldGroup } from "@workspace/ui/components/field"
 
 import { CalendarPicker } from "@workspace/ui/components/calendar-picker"
 import {
@@ -40,6 +49,13 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
+import {
+    calendarEventFieldDefinitions,
+    isCalendarEventFieldVisible,
+    moveCalendarEventFieldSettings,
+    setCalendarEventFieldVisibility,
+} from "@/lib/calendar/event-field-settings"
 import {
     defaultContent,
     eventStatus,
@@ -51,6 +67,16 @@ import {
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import {
+    closestCenter,
+    DndContext,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
     Avatar,
     AvatarFallback,
@@ -67,7 +93,16 @@ import {
     HoverCardContent,
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@workspace/ui/components/select"
 import { Separator } from "@workspace/ui/components/separator"
+import { cn } from "@workspace/ui/lib/utils"
 import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
@@ -124,6 +159,18 @@ const statusDotClassNameMap: Record<StatusOption["value"], string> = {
     cancelled: getCalendarCategoryDotClassName("red"),
 }
 
+const eventFieldIconMap = {
+    schedule: CalendarRangeIcon,
+    participants: UsersIcon,
+    categories: TagsIcon,
+    status: CircleCheckBigIcon,
+    recurrence: Repeat2Icon,
+    exceptions: ClockAlertIcon,
+    timezone: EarthIcon,
+    place: MapPinIcon,
+    notification: BellIcon,
+} as const
+
 type CategoryOption = {
     value: string
     label: string
@@ -149,6 +196,10 @@ function normalizeNames(values: string[]) {
     return Array.from(
         new Set(values.map((value) => value.trim()).filter(Boolean))
     )
+}
+
+function normalizeCategoryName(value: string) {
+    return value.trim().toLowerCase()
 }
 
 function normalizeIds(values: string[]) {
@@ -181,6 +232,7 @@ export function EventForm({
     onChange,
     disabled = false,
     modal = false,
+    portalContainer,
 }: {
     event?: CalendarEvent
     onChange?: (
@@ -191,6 +243,7 @@ export function EventForm({
     ) => void
     disabled?: boolean
     modal?: boolean
+    portalContainer?: HTMLElement | null
 }) {
     const user = useAuthStore((a) => a.user)
     const defaultParticipantIds = useMemo(
@@ -231,6 +284,12 @@ export function EventForm({
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const upsertEventCategorySnapshot = useCalendarStore(
+        (s) => s.upsertEventCategorySnapshot
+    )
+    const { eventFieldSettings, saveEventFieldSettings } =
+        useCalendarEventFieldSettings()
+    const [areHiddenFieldsOpen, setAreHiddenFieldsOpen] = useState(false)
     const [memberDirectoryState, setMemberDirectoryState] = useState<{
         calendarId: string | null
         members: CalendarMemberDirectoryItem[]
@@ -264,6 +323,12 @@ export function EventForm({
         draftCategoryColorsRef.current.set(trimmedName, nextColor)
         return nextColor
     }, [])
+    const memberDirectory =
+        !activeCalendar?.id ||
+        activeCalendar.id === "demo" ||
+        memberDirectoryState.calendarId !== activeCalendar.id
+            ? EMPTY_MEMBER_DIRECTORY
+            : memberDirectoryState.members
 
     const resetFormWithEvent = useCallback(
         (targetEvent: CalendarEvent) => {
@@ -312,173 +377,282 @@ export function EventForm({
         return prevValue === nextValue
     }
 
-    const buildPatchFromValues = (
-        sourceEvent: CalendarEvent,
-        values: EventFormValues
-    ): Partial<CalendarEvent> => {
-        const normalizedTitle =
-            values.title && values.title.trim() !== "" ? values.title : ""
-        const patch: Partial<CalendarEvent> = {}
+    const buildPatchFromValues = useCallback(
+        (
+            sourceEvent: CalendarEvent,
+            values: EventFormValues,
+            categorySource = eventCategories
+        ): Partial<CalendarEvent> => {
+            const normalizedTitle =
+                values.title && values.title.trim() !== "" ? values.title : ""
+            const patch: Partial<CalendarEvent> = {}
 
-        if (!isSameValue(sourceEvent.title, normalizedTitle)) {
-            patch.title = normalizedTitle
-        }
+            if (!isSameValue(sourceEvent.title, normalizedTitle)) {
+                patch.title = normalizedTitle
+            }
 
-        if (!isSameValue(sourceEvent.content, values.content, "json")) {
-            patch.content = values.content
-        }
+            if (!isSameValue(sourceEvent.content, values.content, "json")) {
+                patch.content = values.content
+            }
 
-        if (
-            !isSameValue(sourceEvent.start, values.start.getTime(), "primitive")
-        ) {
-            patch.start = values.start.getTime()
-        }
+            if (
+                !isSameValue(
+                    sourceEvent.start,
+                    values.start.getTime(),
+                    "primitive"
+                )
+            ) {
+                patch.start = values.start.getTime()
+            }
 
-        if (!isSameValue(sourceEvent.end, values.end.getTime(), "primitive")) {
-            patch.end = values.end.getTime()
-        }
+            if (
+                !isSameValue(sourceEvent.end, values.end.getTime(), "primitive")
+            ) {
+                patch.end = values.end.getTime()
+            }
 
-        if (!isSameValue(sourceEvent.allDay, values.allDay)) {
-            patch.allDay = values.allDay
-        }
+            if (!isSameValue(sourceEvent.allDay, values.allDay)) {
+                patch.allDay = values.allDay
+            }
 
-        if (!isSameValue(sourceEvent.timezone, values.timezone)) {
-            patch.timezone = values.timezone
-        }
+            if (!isSameValue(sourceEvent.timezone, values.timezone)) {
+                patch.timezone = values.timezone
+            }
 
-        const nextCategoryNames = normalizeNames(values.categoryNames)
-        const sourceCategoryNames = normalizeNames(
-            sourceEvent.categories.map((category) => category.name)
-        )
+            const nextCategoryNames = normalizeNames(values.categoryNames)
+            const sourceCategoryNames = normalizeNames(
+                sourceEvent.categories.map((category) => category.name)
+            )
 
-        if (!isSameValue(sourceCategoryNames, nextCategoryNames, "json")) {
-            const nextCategories = nextCategoryNames.map(
-                (categoryName): CalendarEventCategory => {
-                    const matchedCategory =
-                        eventCategories.find(
-                            (category) => category.name.trim() === categoryName
-                        ) ?? null
+            if (!isSameValue(sourceCategoryNames, nextCategoryNames, "json")) {
+                const nextCategories = nextCategoryNames.map(
+                    (categoryName): CalendarEventCategory => {
+                        const matchedCategory =
+                            categorySource.find(
+                                (category) =>
+                                    normalizeCategoryName(category.name) ===
+                                    normalizeCategoryName(categoryName)
+                            ) ?? null
 
-                    return (
-                        matchedCategory ?? {
-                            id: "",
-                            calendarId: activeCalendar?.id ?? "",
-                            name: categoryName,
-                            options: {
-                                visibleByDefault: true,
-                                color: getDraftCategoryColor(categoryName),
-                            },
-                            createdById: null,
-                            createdAt: Date.now(),
-                            updatedAt: Date.now(),
+                        return (
+                            matchedCategory ?? {
+                                id: "",
+                                calendarId: activeCalendar?.id ?? "",
+                                name: categoryName,
+                                options: {
+                                    visibleByDefault: true,
+                                    color: getDraftCategoryColor(categoryName),
+                                },
+                                createdById: null,
+                                createdAt: Date.now(),
+                                updatedAt: Date.now(),
+                            }
+                        )
+                    }
+                )
+
+                patch.categories = nextCategories
+                patch.category = nextCategories[0] ?? null
+            }
+
+            const nextParticipantIds = normalizeIds(values.participantIds)
+            const sourceParticipantIds = normalizeIds(
+                sourceEvent.participants.map(
+                    (participant) => participant.userId
+                )
+            )
+
+            if (
+                !isSameValue(sourceParticipantIds, nextParticipantIds, "json")
+            ) {
+                const memberMap = new Map(
+                    memberDirectory.map((member) => [member.userId, member])
+                )
+
+                const nextParticipants = nextParticipantIds.flatMap(
+                    (participantId): CalendarEventParticipant[] => {
+                        const sourceParticipant = sourceEvent.participants.find(
+                            (participant) =>
+                                participant.userId === participantId
+                        )
+
+                        if (sourceParticipant) {
+                            return [sourceParticipant]
                         }
-                    )
-                }
-            )
 
-            patch.categories = nextCategories
-            patch.category = nextCategories[0] ?? null
-        }
+                        const member = memberMap.get(participantId)
 
-        const nextParticipantIds = normalizeIds(values.participantIds)
-        const sourceParticipantIds = normalizeIds(
-            sourceEvent.participants.map((participant) => participant.userId)
-        )
-
-        if (!isSameValue(sourceParticipantIds, nextParticipantIds, "json")) {
-            const memberMap = new Map(
-                memberDirectory.map((member) => [member.userId, member])
-            )
-
-            const nextParticipants = nextParticipantIds.flatMap(
-                (participantId): CalendarEventParticipant[] => {
-                    const sourceParticipant = sourceEvent.participants.find(
-                        (participant) => participant.userId === participantId
-                    )
-
-                    if (sourceParticipant) {
-                        return [sourceParticipant]
-                    }
-
-                    const member = memberMap.get(participantId)
-
-                    if (member) {
-                        return [
-                            {
-                                id: member.id,
-                                eventId: sourceEvent.id,
-                                userId: member.userId,
-                                role: "participant",
-                                createdAt: Date.now(),
-                                user: {
-                                    id: member.userId,
-                                    name: member.name,
-                                    email: member.email,
-                                    avatarUrl: member.avatarUrl,
+                        if (member) {
+                            return [
+                                {
+                                    id: member.id,
+                                    eventId: sourceEvent.id,
+                                    userId: member.userId,
+                                    role: "participant",
+                                    createdAt: Date.now(),
+                                    user: {
+                                        id: member.userId,
+                                        name: member.name,
+                                        email: member.email,
+                                        avatarUrl: member.avatarUrl,
+                                    },
                                 },
-                            },
-                        ]
-                    }
+                            ]
+                        }
 
-                    if (participantId === user?.id) {
-                        return [
-                            {
-                                id: `local:${participantId}`,
-                                eventId: sourceEvent.id,
-                                userId: participantId,
-                                role: "participant",
-                                createdAt: Date.now(),
-                                user: {
-                                    id: participantId,
-                                    name: user.name,
-                                    email: user.email,
-                                    avatarUrl: user.avatarUrl,
+                        if (participantId === user?.id) {
+                            return [
+                                {
+                                    id: `local:${participantId}`,
+                                    eventId: sourceEvent.id,
+                                    userId: participantId,
+                                    role: "participant",
+                                    createdAt: Date.now(),
+                                    user: {
+                                        id: participantId,
+                                        name: user.name,
+                                        email: user.email,
+                                        avatarUrl: user.avatarUrl,
+                                    },
                                 },
-                            },
-                        ]
-                    }
+                            ]
+                        }
 
-                    return []
-                }
+                        return []
+                    }
+                )
+
+                patch.participants = nextParticipants
+            }
+
+            if (
+                !isSameValue(sourceEvent.recurrence, values.recurrence, "json")
+            ) {
+                patch.recurrence = values.recurrence
+            }
+
+            if (
+                !isSameValue(sourceEvent.exceptions, values.exceptions, "json")
+            ) {
+                patch.exceptions = values.exceptions
+            }
+
+            if (!isSameValue(sourceEvent.status, values.status)) {
+                patch.status = values.status
+            }
+
+            return patch
+        },
+        [
+            activeCalendar?.id,
+            eventCategories,
+            getDraftCategoryColor,
+            memberDirectory,
+            user,
+        ]
+    )
+
+    const ensureEventCategories = useCallback(
+        async (categoryNames: string[]) => {
+            if (
+                !activeCalendar?.id ||
+                activeCalendar.id === "demo" ||
+                disabled ||
+                categoryNames.length === 0
+            ) {
+                return eventCategories
+            }
+
+            const supabase = createBrowserSupabase()
+            const categoryMap = new Map(
+                eventCategories.map((category) => [
+                    normalizeCategoryName(category.name),
+                    category,
+                ])
             )
 
-            patch.participants = nextParticipants
-        }
+            for (const categoryName of categoryNames) {
+                const categoryKey = normalizeCategoryName(categoryName)
 
-        if (!isSameValue(sourceEvent.recurrence, values.recurrence, "json")) {
-            patch.recurrence = values.recurrence
-        }
+                if (!categoryKey || categoryMap.has(categoryKey)) {
+                    continue
+                }
 
-        if (!isSameValue(sourceEvent.exceptions, values.exceptions, "json")) {
-            patch.exceptions = values.exceptions
-        }
+                const createdCategory = await createCalendarEventCategory(
+                    supabase,
+                    activeCalendar.id,
+                    {
+                        name: categoryName,
+                        options: {
+                            visibleByDefault: true,
+                            color: getDraftCategoryColor(categoryName),
+                        },
+                    }
+                )
 
-        if (!isSameValue(sourceEvent.status, values.status)) {
-            patch.status = values.status
-        }
+                if (!createdCategory) {
+                    continue
+                }
 
-        return patch
-    }
+                categoryMap.set(categoryKey, createdCategory)
+                upsertEventCategorySnapshot(createdCategory)
+            }
 
-    const saveNow = (values: EventFormValues = form.getValues()) => {
-        if (timer.current) {
-            clearTimeout(timer.current)
-        }
+            return Array.from(categoryMap.values())
+        },
+        [
+            activeCalendar?.id,
+            disabled,
+            eventCategories,
+            getDraftCategoryColor,
+            upsertEventCategorySnapshot,
+        ]
+    )
 
-        if (activeCalendar?.id === "demo" || disabled || !event) {
-            return
-        }
+    const saveNow = useCallback(
+        async (values: EventFormValues = form.getValues()) => {
+            if (timer.current) {
+                clearTimeout(timer.current)
+            }
 
-        const patch = buildPatchFromValues(event, values)
+            if (activeCalendar?.id === "demo" || disabled || !event) {
+                return
+            }
 
-        if (Object.keys(patch).length === 0) {
-            return
-        }
+            const nextCategoryNames = normalizeNames(values.categoryNames)
+            const sourceCategoryNames = normalizeNames(
+                event.categories.map((category) => category.name)
+            )
+            const resolvedCategories =
+                JSON.stringify(sourceCategoryNames) ===
+                JSON.stringify(nextCategoryNames)
+                    ? eventCategories
+                    : await ensureEventCategories(nextCategoryNames)
+            const patch = buildPatchFromValues(
+                event,
+                values,
+                resolvedCategories
+            )
 
-        onChange?.(patch, {
-            expectedUpdatedAt: event.updatedAt,
-        })
-    }
+            if (Object.keys(patch).length === 0) {
+                return
+            }
+
+            onChange?.(patch, {
+                expectedUpdatedAt: event.updatedAt,
+            })
+        },
+        [
+            activeCalendar?.id,
+            buildPatchFromValues,
+            disabled,
+            ensureEventCategories,
+            event,
+            eventCategories,
+            form,
+            onChange,
+        ]
+    )
 
     const autoSave = () => {
         if (timer.current) clearTimeout(timer.current)
@@ -490,7 +664,7 @@ export function EventForm({
         }
 
         timer.current = setTimeout(() => {
-            saveNow()
+            void saveNow()
         }, 350)
     }
 
@@ -581,13 +755,6 @@ export function EventForm({
         }
     }, [activeCalendar?.id])
 
-    const memberDirectory =
-        !activeCalendar?.id ||
-        activeCalendar.id === "demo" ||
-        memberDirectoryState.calendarId !== activeCalendar.id
-            ? EMPTY_MEMBER_DIRECTORY
-            : memberDirectoryState.members
-
     useEffect(() => {
         eventCategories.forEach((category) => {
             if (category.options.color) {
@@ -598,6 +765,59 @@ export function EventForm({
             }
         })
     }, [eventCategories])
+
+    useEffect(() => {
+        if (!event || event.categoryIds.length === 0) {
+            return
+        }
+
+        const nextCategoryNames = event.categoryIds
+            .map(
+                (categoryId) =>
+                    eventCategories.find(
+                        (category) => category.id === categoryId
+                    )?.name ??
+                    event.categories.find(
+                        (category) => category.id === categoryId
+                    )?.name ??
+                    null
+            )
+            .filter((name): name is string => Boolean(name))
+        const currentCategoryNames = normalizeNames(
+            form.getValues("categoryNames") ?? []
+        )
+        const currentCategoryIds = currentCategoryNames
+            .map(
+                (categoryName) =>
+                    eventCategories.find(
+                        (category) =>
+                            normalizeCategoryName(category.name) ===
+                            normalizeCategoryName(categoryName)
+                    )?.id ??
+                    event.categories.find(
+                        (category) =>
+                            normalizeCategoryName(category.name) ===
+                            normalizeCategoryName(categoryName)
+                    )?.id ??
+                    null
+            )
+            .filter((categoryId): categoryId is string => Boolean(categoryId))
+
+        if (
+            nextCategoryNames.length !== event.categoryIds.length ||
+            JSON.stringify(currentCategoryIds.sort()) !==
+                JSON.stringify([...event.categoryIds].sort()) ||
+            JSON.stringify(currentCategoryNames) ===
+                JSON.stringify(normalizeNames(nextCategoryNames))
+        ) {
+            return
+        }
+
+        form.setValue("categoryNames", normalizeNames(nextCategoryNames), {
+            shouldDirty: false,
+            shouldTouch: false,
+        })
+    }, [event, eventCategories, form])
 
     useEffect(() => {
         return () => {
@@ -624,7 +844,9 @@ export function EventForm({
             normalizeNames(watchedCategoryNames ?? []).map((categoryName) => {
                 const matchedCategory =
                     eventCategories.find(
-                        (category) => category.name.trim() === categoryName
+                        (category) =>
+                            normalizeCategoryName(category.name) ===
+                            normalizeCategoryName(categoryName)
                     ) ?? null
 
                 return matchedCategory
@@ -774,6 +996,734 @@ export function EventForm({
         return Array.from(optionMap.values())
     }, [participantItems, selectedParticipants])
     const statusValue = watchedStatus ? [watchedStatus] : []
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    )
+    const orderedFields = useMemo(
+        () =>
+            eventFieldSettings.items
+                .map((item) => ({
+                    ...item,
+                    definition: calendarEventFieldDefinitions.find(
+                        (field) => field.id === item.id
+                    ),
+                }))
+                .filter(
+                    (
+                        item
+                    ): item is (typeof eventFieldSettings.items)[number] & {
+                        definition: (typeof calendarEventFieldDefinitions)[number]
+                    } => Boolean(item.definition)
+                ),
+        [eventFieldSettings]
+    )
+    const hiddenFieldCount = useMemo(
+        () =>
+            orderedFields.filter(
+                (field) =>
+                    !isCalendarEventFieldVisible(eventFieldSettings, field.id)
+            ).length,
+        [eventFieldSettings, orderedFields]
+    )
+
+    const handleFieldVisibilityChange = useCallback(
+        async (
+            fieldId: (typeof orderedFields)[number]["id"],
+            visible: boolean
+        ) => {
+            await saveEventFieldSettings(
+                setCalendarEventFieldVisibility(
+                    eventFieldSettings,
+                    fieldId,
+                    visible
+                )
+            )
+        },
+        [eventFieldSettings, saveEventFieldSettings]
+    )
+
+    const handleFieldDragEnd = useCallback(
+        async (dragEvent: DragEndEvent) => {
+            const activeId = String(dragEvent.active.id)
+            const overId = dragEvent.over?.id ? String(dragEvent.over.id) : null
+
+            if (!overId || activeId === overId) {
+                return
+            }
+
+            await saveEventFieldSettings(
+                moveCalendarEventFieldSettings(
+                    eventFieldSettings,
+                    activeId as (typeof orderedFields)[number]["id"],
+                    overId as (typeof orderedFields)[number]["id"]
+                )
+            )
+        },
+        [eventFieldSettings, saveEventFieldSettings]
+    )
+
+    const getPropertyMenuItems = useCallback(
+        (
+            fieldId: (typeof orderedFields)[number]["id"]
+        ): EventFormPropertyMenuItem[] => {
+            switch (fieldId) {
+                case "categories":
+                    return [
+                        {
+                            type: "panel",
+                            key: "edit-category-property",
+                            label: "속성 편집",
+                            icon: Settings2Icon,
+                            content: (
+                                <EventCategorySettingsPanel
+                                    disabled={disabled}
+                                />
+                            ),
+                            contentClassName: "w-auto",
+                            disabled:
+                                disabled ||
+                                !activeCalendar?.id ||
+                                activeCalendar.id === "demo",
+                        },
+                    ]
+                default:
+                    return []
+            }
+        },
+        [activeCalendar?.id, disabled]
+    )
+
+    const renderPropertyField = (
+        propertyField: (typeof orderedFields)[number]
+    ) => {
+        const Icon = eventFieldIconMap[propertyField.id]
+        const isVisible = propertyField.visible !== false
+        const visibility: EventFormPropertyVisibility = isVisible
+            ? "visible"
+            : "hidden"
+        const handleVisibilityChange = (
+            nextVisibility: EventFormPropertyVisibility
+        ) => {
+            void handleFieldVisibilityChange(
+                propertyField.id,
+                nextVisibility === "visible"
+            )
+        }
+        const propertyMenuItems = getPropertyMenuItems(propertyField.id)
+
+        if (propertyField.id === "schedule") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="start"
+                    control={form.control}
+                    render={() => {
+                        const start = form.getValues("start")
+                        const end = form.getValues("end")
+
+                        return (
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                            >
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start border-0! bg-transparent! px-1.5"
+                                            disabled={disabled}
+                                        >
+                                            {`${dayjs(start).format("YYYY-MM-DD HH:mm")} ~ ${dayjs(end).format("YYYY-MM-DD HH:mm")}`}
+                                        </Button>
+                                    </PopoverTrigger>
+
+                                    <PopoverContent
+                                        className="w-auto overflow-hidden p-0"
+                                        align="start"
+                                        alignOffset={4}
+                                    >
+                                        <CalendarPicker
+                                            className="dark:bg-muted"
+                                            mode="range"
+                                            selected={{
+                                                from: start,
+                                                to: end,
+                                            }}
+                                            onSelect={(range) => {
+                                                if (disabled || !range?.from) {
+                                                    return
+                                                }
+
+                                                form.setValue(
+                                                    "start",
+                                                    range.from
+                                                )
+                                                if (range.to) {
+                                                    form.setValue(
+                                                        "end",
+                                                        range.to
+                                                    )
+                                                }
+
+                                                autoSave()
+                                            }}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </EventFormPropertyRow>
+                        )
+                    }}
+                />
+            )
+        }
+
+        if (propertyField.id === "participants") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="participantIds"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                            >
+                                <div className="flex w-full flex-wrap justify-start gap-1.5">
+                                    <EventChipsCombobox
+                                        portalContainer={portalContainer}
+                                        disabled={disabled}
+                                        options={participantOptions}
+                                        value={normalizeIds(field.value ?? [])}
+                                        emptyText="표시할 멤버가 없습니다."
+                                        onValueChange={(values) => {
+                                            const nextParticipantIds =
+                                                normalizeIds(values)
+
+                                            field.onChange(nextParticipantIds)
+                                            void saveNow({
+                                                ...form.getValues(),
+                                                participantIds:
+                                                    nextParticipantIds,
+                                            })
+                                        }}
+                                        invalid={fieldState.invalid}
+                                        placeholder="멤버 선택"
+                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
+                                        renderChipContent={(participant) => (
+                                            <HoverCard
+                                                openDelay={10}
+                                                closeDelay={100}
+                                            >
+                                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                                    <Avatar className="size-4.5">
+                                                        <AvatarImage
+                                                            src={
+                                                                participant.data
+                                                                    ?.avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                participant.data
+                                                                    ?.name ??
+                                                                "참가자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback className="text-xs">
+                                                            {participant.data?.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    {participant.label}
+                                                </HoverCardTrigger>
+                                                <HoverCardContent
+                                                    className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
+                                                    align="start"
+                                                    alignOffset={-4}
+                                                    sideOffset={7}
+                                                >
+                                                    <Avatar className="shrink-0">
+                                                        <AvatarImage
+                                                            src={
+                                                                participant.data
+                                                                    ?.avatarUrl ||
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                participant.data
+                                                                    ?.name ||
+                                                                "사용자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback className="text-sm">
+                                                            {participant.data?.name?.[0]?.toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
+                                                        <div className="flex flex-1 items-center gap-1">
+                                                            <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
+                                                                {
+                                                                    participant
+                                                                        .data
+                                                                        ?.name
+                                                                }
+                                                            </span>
+                                                            {user?.id ===
+                                                            participant?.data
+                                                                ?.userId ? (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="shrink-0 px-1.75 leading-normal"
+                                                                >
+                                                                    나
+                                                                </Badge>
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="truncate text-xs text-muted-foreground">
+                                                            {
+                                                                participant
+                                                                    ?.data
+                                                                    ?.email
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </HoverCardContent>
+                                            </HoverCard>
+                                        )}
+                                        renderItemContent={(participant) => (
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <Avatar className="size-6">
+                                                    <AvatarImage
+                                                        src={
+                                                            participant.data
+                                                                ?.avatarUrl ??
+                                                            undefined
+                                                        }
+                                                        alt={
+                                                            participant.data
+                                                                ?.name ?? "멤버"
+                                                        }
+                                                    />
+                                                    <AvatarFallback className="text-xs">
+                                                        {participant.data?.name?.[0]?.toUpperCase() ??
+                                                            "?"}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <div className="truncate">
+                                                        {participant.data
+                                                            ?.name ??
+                                                            "이름 없음"}
+                                                    </div>
+                                                    <div className="truncate text-xs text-muted-foreground">
+                                                        {participant.data
+                                                            ?.email ??
+                                                            participant.value}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    />
+                                </div>
+                                {fieldState.invalid ? (
+                                    <FieldError errors={[fieldState.error]} />
+                                ) : null}
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "categories") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="categoryNames"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                                propertyMenuItemsPlacement="before-common"
+                            >
+                                <div className="flex flex-col gap-2">
+                                    <EventChipsCombobox
+                                        portalContainer={portalContainer}
+                                        disabled={disabled}
+                                        options={categoryOptions}
+                                        value={normalizeNames(
+                                            field.value ?? []
+                                        )}
+                                        emptyText="카테고리를 입력해 생성할 수 있습니다."
+                                        onValueChange={(values) => {
+                                            const nextCategoryNames =
+                                                normalizeNames(values)
+
+                                            field.onChange(nextCategoryNames)
+                                            void saveNow({
+                                                ...form.getValues(),
+                                                categoryNames:
+                                                    nextCategoryNames,
+                                            })
+                                        }}
+                                        invalid={fieldState.invalid}
+                                        placeholder="카테고리 추가"
+                                        chipClassName={(category) =>
+                                            getCalendarCategoryLabelClassName(
+                                                category.color,
+                                                "h-6 gap-0 [&_button]:hover:bg-transparent leading-normal"
+                                            )
+                                        }
+                                        renderChipContent={(category) => (
+                                            <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
+                                                {category.label}
+                                            </span>
+                                        )}
+                                        renderItemContent={(category) => (
+                                            <span className="inline-flex items-center gap-2">
+                                                <span
+                                                    className={getCalendarCategoryLabelClassName(
+                                                        category.color,
+                                                        "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
+                                                    )}
+                                                >
+                                                    {category.label}
+                                                </span>
+                                                {category.isCreate
+                                                    ? "새 카테고리 생성"
+                                                    : null}
+                                            </span>
+                                        )}
+                                        createOptionFromQuery={(query) =>
+                                            query
+                                                ? {
+                                                      value: query,
+                                                      label: query,
+                                                      color: getDraftCategoryColor(
+                                                          query
+                                                      ),
+                                                      isCreate: true,
+                                                  }
+                                                : null
+                                        }
+                                    />
+                                    {fieldState.invalid ? (
+                                        <FieldError
+                                            errors={[fieldState.error]}
+                                        />
+                                    ) : null}
+                                </div>
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "status") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="status"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                            >
+                                <div className="flex w-full flex-wrap justify-start gap-1.5">
+                                    <EventChipsCombobox
+                                        portalContainer={portalContainer}
+                                        disabled={disabled}
+                                        options={statusItems.map((status) => ({
+                                            value: status.value,
+                                            label: status.label,
+                                        }))}
+                                        value={statusValue}
+                                        emptyText="No items found."
+                                        onValueChange={(values) => {
+                                            const last =
+                                                values[values.length - 1]
+
+                                            if (!last) {
+                                                return
+                                            }
+
+                                            const nextStatus =
+                                                last as StatusOption["value"]
+
+                                            field.onChange(nextStatus)
+                                            void saveNow({
+                                                ...form.getValues(),
+                                                status: nextStatus,
+                                            })
+                                        }}
+                                        closeOnSelect
+                                        showRemove={false}
+                                        renderChipContent={(status) => (
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <span
+                                                    className={[
+                                                        statusDotClassNameMap[
+                                                            status.value as StatusOption["value"]
+                                                        ],
+                                                        "size-2 rounded-full",
+                                                    ].join(" ")}
+                                                />
+                                                {status.label}
+                                            </span>
+                                        )}
+                                        renderItemContent={(status) => (
+                                            <span
+                                                className={[
+                                                    statusItemClassNameMap[
+                                                        status.value as StatusOption["value"]
+                                                    ],
+                                                    "inline-flex h-6.5 items-center gap-1.5 text-sm",
+                                                ].join(" ")}
+                                            >
+                                                <span
+                                                    className={[
+                                                        statusDotClassNameMap[
+                                                            status.value as StatusOption["value"]
+                                                        ],
+                                                        "inline-block size-2 rounded-full",
+                                                    ].join(" ")}
+                                                />
+                                                {status.label}
+                                            </span>
+                                        )}
+                                        chipClassName={(status) =>
+                                            [
+                                                "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
+                                                statusLabelClassNameMap[
+                                                    status.value as StatusOption["value"]
+                                                ],
+                                            ].join(" ")
+                                        }
+                                    />
+                                </div>
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "recurrence") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="recurrence"
+                    control={form.control}
+                    render={({ field }) => (
+                        <EventFormPropertyRow
+                            fieldId={propertyField.id}
+                            label={propertyField.definition.label}
+                            icon={Icon}
+                            disabled={disabled}
+                            visibility={visibility}
+                            onVisibilityChange={handleVisibilityChange}
+                            propertyMenuItems={propertyMenuItems}
+                        >
+                            <Select
+                                value={field.value?.type ?? "none"}
+                                onValueChange={(value) => {
+                                    const nextRecurrence =
+                                        value === "none"
+                                            ? undefined
+                                            : {
+                                                  type: value as NonNullable<
+                                                      EventFormValues["recurrence"]
+                                                  >["type"],
+                                                  interval:
+                                                      field.value?.interval ??
+                                                      1,
+                                                  byWeekday:
+                                                      value === "weekly"
+                                                          ? (field.value
+                                                                ?.byWeekday ?? [
+                                                                1,
+                                                            ])
+                                                          : undefined,
+                                              }
+
+                                    field.onChange(nextRecurrence)
+                                    void saveNow({
+                                        ...form.getValues(),
+                                        recurrence: nextRecurrence,
+                                    })
+                                }}
+                                disabled={disabled}
+                            >
+                                <SelectTrigger
+                                    className={cn(
+                                        "w-full cursor-pointer border-0 px-1.5 [&_svg]:hidden",
+                                        !field.value && "text-muted-foreground"
+                                    )}
+                                >
+                                    <SelectValue placeholder="반복 설정" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectItem
+                                            value="none"
+                                            className="py-1.5"
+                                        >
+                                            반복 없음
+                                        </SelectItem>
+                                        <SelectItem
+                                            value="yearly"
+                                            className="py-1.5"
+                                        >
+                                            매년
+                                        </SelectItem>
+                                        <SelectItem
+                                            value="monthly"
+                                            className="py-1.5"
+                                        >
+                                            매월
+                                        </SelectItem>
+                                        <SelectItem
+                                            value="weekly"
+                                            className="py-1.5"
+                                        >
+                                            매주
+                                        </SelectItem>
+                                        <SelectItem
+                                            value="daily"
+                                            className="py-1.5"
+                                        >
+                                            매일
+                                        </SelectItem>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </EventFormPropertyRow>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "exceptions") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="exceptions"
+                    control={form.control}
+                    render={({ field }) => (
+                        <EventFormPropertyRow
+                            fieldId={propertyField.id}
+                            label={propertyField.definition.label}
+                            icon={Icon}
+                            disabled={disabled}
+                            visibility={visibility}
+                            onVisibilityChange={handleVisibilityChange}
+                            propertyMenuItems={propertyMenuItems}
+                        >
+                            <div className="flex min-h-9 items-center px-1.5 text-sm text-muted-foreground">
+                                {field.value?.length
+                                    ? `제외 날짜 ${field.value.length}개`
+                                    : "설정된 제외 날짜가 없습니다."}
+                            </div>
+                        </EventFormPropertyRow>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "timezone") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="timezone"
+                    control={form.control}
+                    render={({ field }) => (
+                        <EventFormPropertyRow
+                            fieldId={propertyField.id}
+                            label={propertyField.definition.label}
+                            icon={Icon}
+                            disabled={disabled}
+                            visibility={visibility}
+                            onVisibilityChange={handleVisibilityChange}
+                            propertyMenuItems={propertyMenuItems}
+                        >
+                            <TimezoneSelect
+                                icon={false}
+                                alignOffset={0}
+                                value={field.value}
+                                contentClassName="w-(--anchor-width) min-w-full"
+                                portalContainer={portalContainer}
+                                className="w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent! [&_button]:hidden [&_input]:px-1.5"
+                                disabled={disabled}
+                                onChange={(timezone) => {
+                                    field.onChange(timezone)
+                                    void saveNow({
+                                        ...form.getValues(),
+                                        timezone,
+                                    })
+                                }}
+                            />
+                        </EventFormPropertyRow>
+                    )}
+                />
+            )
+        }
+
+        return null
+    }
+
+    const renderSortablePropertyField = (
+        propertyField: (typeof orderedFields)[number]
+    ) => {
+        const content = renderPropertyField(propertyField)
+
+        if (!content) {
+            return null
+        }
+
+        if (propertyField.visible !== false) {
+            return content
+        }
+
+        return (
+            <CollapsibleContent
+                key={propertyField.id}
+                className="space-y-0"
+                forceMount
+                hidden={!areHiddenFieldsOpen}
+            >
+                {content}
+            </CollapsibleContent>
+        )
+    }
 
     return (
         <form
@@ -821,555 +1771,52 @@ export function EventForm({
                     )}
                 />
 
-                <Collapsible className="flex flex-col gap-3">
-                    {/* 기간 */}
-                    <Controller
-                        name="start"
-                        control={form.control}
-                        render={() => {
-                            const start = form.getValues("start")
-                            const end = form.getValues("end")
-
-                            return (
-                                <Field className="h-8.5 md:flex-row md:gap-3">
-                                    <FieldLabel className="flex items-center md:w-32.5">
-                                        <CalendarIcon className="size-4" />
-                                        기간
-                                    </FieldLabel>
-
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full justify-start border-0! bg-transparent! px-1.5 md:flex-1"
-                                                disabled={disabled}
-                                            >
-                                                {`${dayjs(start).format(
-                                                    "YYYY-MM-DD HH:mm"
-                                                )} ~ ${dayjs(end).format(
-                                                    "YYYY-MM-DD HH:mm"
-                                                )}`}
-                                            </Button>
-                                        </PopoverTrigger>
-
-                                        <PopoverContent
-                                            className="w-auto overflow-hidden p-0"
-                                            align="start"
-                                            alignOffset={4}
-                                        >
-                                            <CalendarPicker
-                                                className="dark:bg-muted"
-                                                mode="range"
-                                                selected={{
-                                                    from: start,
-                                                    to: end,
-                                                }}
-                                                onSelect={(r) => {
-                                                    if (disabled) return
-                                                    if (!r?.from) return
-
-                                                    form.setValue(
-                                                        "start",
-                                                        r.from
-                                                    )
-                                                    if (r.to)
-                                                        form.setValue(
-                                                            "end",
-                                                            r.to
-                                                        )
-
-                                                    autoSave()
-                                                }}
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                </Field>
-                            )
+                <Collapsible
+                    open={areHiddenFieldsOpen}
+                    onOpenChange={setAreHiddenFieldsOpen}
+                    className="flex flex-col gap-3"
+                >
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        modifiers={[restrictToVerticalAxis]}
+                        onDragEnd={(dragEvent) => {
+                            void handleFieldDragEnd(dragEvent)
                         }}
-                    />
-
-                    {/* 참가자 */}
-                    <Controller
-                        name="participantIds"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                            <Field
-                                className="md:flex-row md:gap-3"
-                                data-invalid={fieldState.invalid}
-                            >
-                                <FieldLabel className="flex h-8.5 items-center md:w-32.5">
-                                    <UsersIcon className="size-4" />
-                                    참가자
-                                </FieldLabel>
-
-                                <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
-                                    <EventChipsCombobox
-                                        disabled={disabled}
-                                        options={participantOptions}
-                                        value={normalizeIds(field.value ?? [])}
-                                        emptyText="표시할 멤버가 없습니다."
-                                        onValueChange={(values) => {
-                                            const nextParticipantIds =
-                                                normalizeIds(values)
-
-                                            field.onChange(nextParticipantIds)
-                                            saveNow({
-                                                ...form.getValues(),
-                                                participantIds:
-                                                    nextParticipantIds,
-                                            })
-                                        }}
-                                        invalid={fieldState.invalid}
-                                        placeholder="멤버 선택"
-                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
-                                        renderChipContent={(participant) => (
-                                            <>
-                                                <HoverCard
-                                                    openDelay={10}
-                                                    closeDelay={100}
-                                                >
-                                                    <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
-                                                        <Avatar className="size-4.5">
-                                                            <AvatarImage
-                                                                src={
-                                                                    participant
-                                                                        .data
-                                                                        ?.avatarUrl ??
-                                                                    undefined
-                                                                }
-                                                                alt={
-                                                                    participant
-                                                                        .data
-                                                                        ?.name ??
-                                                                    "참가자"
-                                                                }
-                                                            />
-                                                            <AvatarFallback className="text-xs">
-                                                                {participant.data?.name?.[0]?.toUpperCase() ??
-                                                                    "?"}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        {participant.label}
-                                                    </HoverCardTrigger>
-                                                    <HoverCardContent
-                                                        className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
-                                                        align="start"
-                                                        alignOffset={-4}
-                                                        sideOffset={7}
-                                                    >
-                                                        <Avatar className="shrink-0">
-                                                            <AvatarImage
-                                                                src={
-                                                                    participant
-                                                                        .data
-                                                                        ?.avatarUrl ||
-                                                                    undefined
-                                                                }
-                                                                alt={
-                                                                    participant
-                                                                        .data
-                                                                        ?.name ||
-                                                                    "사용자"
-                                                                }
-                                                            />
-                                                            <AvatarFallback className="text-sm">
-                                                                {participant.data?.name?.[0]?.toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                                            <div className="flex flex-1 items-center gap-1">
-                                                                <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                                                    {
-                                                                        participant
-                                                                            .data
-                                                                            ?.name
-                                                                    }
-                                                                </span>
-                                                                {user?.id ===
-                                                                    participant
-                                                                        ?.data
-                                                                        ?.userId && (
-                                                                    <Badge
-                                                                        variant="outline"
-                                                                        className="shrink-0 px-1.75 leading-normal"
-                                                                    >
-                                                                        나
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <div className="truncate text-xs text-muted-foreground">
-                                                                {
-                                                                    participant
-                                                                        ?.data
-                                                                        ?.email
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    </HoverCardContent>
-                                                </HoverCard>
-                                            </>
-                                        )}
-                                        renderItemContent={(participant) => (
-                                            <div className="flex min-w-0 items-center gap-2">
-                                                <Avatar className="size-6">
-                                                    <AvatarImage
-                                                        src={
-                                                            participant.data
-                                                                ?.avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            participant.data
-                                                                ?.name ?? "멤버"
-                                                        }
-                                                    />
-                                                    <AvatarFallback className="text-xs">
-                                                        {participant.data?.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="min-w-0">
-                                                    <div className="truncate">
-                                                        {participant.data
-                                                            ?.name ??
-                                                            "이름 없음"}
-                                                    </div>
-                                                    <div className="truncate text-xs text-muted-foreground">
-                                                        {participant.data
-                                                            ?.email ??
-                                                            participant.value}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
-                            </Field>
-                        )}
-                    />
-
-                    {/* <Field className="md:flex-row md:gap-3">
-                        <FieldLabel className="flex h-8.5 items-center md:w-32.5">
-                            작성자
-                        </FieldLabel>
-
-                        <div className="flex w-full flex-wrap justify-start gap-1.5 px-1 md:flex-1">
-                            <HoverCard openDelay={10} closeDelay={100}>
-                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
-                                    <Avatar className="size-5">
-                                        <AvatarImage
-                                            src={
-                                                event?.author?.avatarUrl ??
-                                                undefined
-                                            }
-                                            alt={
-                                                event?.author?.name ?? "작성자"
-                                            }
-                                        />
-                                        <AvatarFallback className="text-xs">
-                                            {event?.author?.name?.[0]?.toUpperCase() ??
-                                                "?"}
-                                        </AvatarFallback>
-                                    </Avatar>
-
-                                    {event?.author?.name}
-                                </HoverCardTrigger>
-                                <HoverCardContent
-                                    className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
-                                    align="start"
-                                >
-                                    <Avatar className="shrink-0">
-                                        <AvatarImage
-                                            src={
-                                                event?.author?.avatarUrl ||
-                                                undefined
-                                            }
-                                            alt={
-                                                event?.author?.name || "사용자"
-                                            }
-                                        />
-                                        <AvatarFallback className="text-sm">
-                                            {event?.author?.name?.[0]?.toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                        <div className="flex flex-1 items-center gap-1">
-                                            <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                                {event?.author?.name}
-                                            </span>
-                                            {user?.id === event?.authorId && (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="shrink-0 px-1.75 leading-normal"
-                                                >
-                                                    나
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <EventUpdatedAtText
-                                            value={event?.updatedAt}
-                                        />
-                                    </div>
-                                </HoverCardContent>
-                            </HoverCard>
-                        </div>
-                    </Field> */}
-
-                    <CollapsibleContent>
-                        <div className="flex flex-col gap-3">
-                            <Controller
-                                name="categoryNames"
-                                control={form.control}
-                                render={({ field, fieldState }) => (
-                                    <Field
-                                        className="h-8.5 md:flex-row md:gap-3"
-                                        data-invalid={fieldState.invalid}
-                                    >
-                                        <FieldLabel className="flex items-center md:w-32.5">
-                                            <TagsIcon className="size-4" />
-                                            카테고리
-                                        </FieldLabel>
-
-                                        <div className="flex w-full flex-col gap-2 md:flex-1">
-                                            <EventChipsCombobox
-                                                disabled={disabled}
-                                                options={categoryOptions}
-                                                value={normalizeNames(
-                                                    field.value ?? []
-                                                )}
-                                                emptyText="카테고리를 입력해 생성할 수 있습니다."
-                                                onValueChange={(values) => {
-                                                    const nextCategoryNames =
-                                                        normalizeNames(values)
-
-                                                    field.onChange(
-                                                        nextCategoryNames
-                                                    )
-
-                                                    console.log(
-                                                        nextCategoryNames
-                                                    )
-                                                    saveNow({
-                                                        ...form.getValues(),
-                                                        categoryNames:
-                                                            nextCategoryNames,
-                                                    })
-                                                }}
-                                                invalid={fieldState.invalid}
-                                                placeholder="카테고리 추가"
-                                                chipClassName={(category) =>
-                                                    getCalendarCategoryLabelClassName(
-                                                        category.color,
-                                                        "h-6.5 gap-0 [&_button]:hover:bg-transparent leading-normal"
-                                                    )
-                                                }
-                                                renderChipContent={(
-                                                    category
-                                                ) => (
-                                                    <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
-                                                        {category.label}
-                                                    </span>
-                                                )}
-                                                renderItemContent={(
-                                                    category
-                                                ) => (
-                                                    <span className="inline-flex items-center gap-2">
-                                                        <span
-                                                            className={getCalendarCategoryLabelClassName(
-                                                                category.color,
-                                                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
-                                                            )}
-                                                        >
-                                                            {category.label}
-                                                        </span>
-                                                        {category.isCreate
-                                                            ? "새 카테고리 생성"
-                                                            : null}
-                                                    </span>
-                                                )}
-                                                createOptionFromQuery={(
-                                                    query
-                                                ) =>
-                                                    query
-                                                        ? {
-                                                              value: query,
-                                                              label: query,
-                                                              color: getDraftCategoryColor(
-                                                                  query
-                                                              ),
-                                                              isCreate: true,
-                                                          }
-                                                        : null
-                                                }
-                                            />
-                                            {fieldState.invalid && (
-                                                <FieldError
-                                                    errors={[fieldState.error]}
-                                                />
-                                            )}
-                                        </div>
-                                    </Field>
-                                )}
-                            />
-
-                            {/* 상태 */}
-                            <Controller
-                                name="status"
-                                control={form.control}
-                                render={({ field, fieldState }) => (
-                                    <Field
-                                        className="h-8.5 md:flex-row md:gap-3"
-                                        data-invalid={fieldState.invalid}
-                                    >
-                                        <FieldLabel className="flex items-center md:w-32.5">
-                                            <CircleCheckBigIcon className="size-4" />
-                                            상태
-                                        </FieldLabel>
-
-                                        <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
-                                            <EventChipsCombobox
-                                                disabled={disabled}
-                                                options={statusItems.map(
-                                                    (status) => ({
-                                                        value: status.value,
-                                                        label: status.label,
-                                                    })
-                                                )}
-                                                value={statusValue}
-                                                emptyText="No items found."
-                                                onValueChange={(values) => {
-                                                    const last =
-                                                        values[
-                                                            values.length - 1
-                                                        ]
-
-                                                    if (!last) {
-                                                        return
-                                                    }
-
-                                                    const nextStatus =
-                                                        last as StatusOption["value"]
-
-                                                    field.onChange(nextStatus)
-                                                    saveNow({
-                                                        ...form.getValues(),
-                                                        status: nextStatus,
-                                                    })
-                                                }}
-                                                closeOnSelect
-                                                showRemove={false}
-                                                renderChipContent={(status) => (
-                                                    <span className="inline-flex items-center gap-1.5">
-                                                        <span
-                                                            className={[
-                                                                statusDotClassNameMap[
-                                                                    status.value as StatusOption["value"]
-                                                                ],
-                                                                "size-2 rounded-full",
-                                                            ].join(" ")}
-                                                        />
-                                                        {status.label}
-                                                    </span>
-                                                )}
-                                                renderItemContent={(status) => (
-                                                    <span
-                                                        className={[
-                                                            statusItemClassNameMap[
-                                                                status.value as StatusOption["value"]
-                                                            ],
-                                                            "inline-flex h-6.5 items-center gap-1.5 text-sm",
-                                                        ].join(" ")}
-                                                    >
-                                                        <span
-                                                            className={[
-                                                                statusDotClassNameMap[
-                                                                    status.value as StatusOption["value"]
-                                                                ],
-                                                                "inline-block size-2 rounded-full",
-                                                            ].join(" ")}
-                                                        />
-                                                        {status.label}
-                                                    </span>
-                                                )}
-                                                chipClassName={(status) =>
-                                                    [
-                                                        "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
-                                                        statusLabelClassNameMap[
-                                                            status.value as StatusOption["value"]
-                                                        ],
-                                                    ].join(" ")
-                                                }
-                                            />
-                                        </div>
-                                    </Field>
-                                )}
-                            />
-                        </div>
-                    </CollapsibleContent>
-
-                    <CollapsibleTrigger className="w-auto self-start" asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="group justify-center pl-1.5 leading-normal text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                    >
+                        <SortableContext
+                            disabled={disabled}
+                            items={orderedFields.map(
+                                (propertyField) => propertyField.id
+                            )}
+                            strategy={verticalListSortingStrategy}
                         >
-                            <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
-                            일정 속성{" "}
-                            <span className="group-data-[state=open]:hidden">
-                                더 보기
-                            </span>
-                            <span className="hidden group-data-[state=open]:inline">
-                                숨기기
-                            </span>
-                        </Button>
-                    </CollapsibleTrigger>
-
-                    {/* 색상 */}
-                    {/* <Controller
-                        name="color"
-                        control={form.control}
-                        render={({ field }) => (
-                            <Field className="md:flex-row md:gap-3">
-                                <FieldLabel className="flex justify-between bg-background! md:w-32.5">
-                                    색상
-                                </FieldLabel>
-                                <Input
-                                    {...field}
-                                    className="md:flex-1"
-                                    disabled={disabled}
-                                    onChange={(e) => {
-                                        if (disabled) return
-                                        field.onChange(e)
-                                        autoSave()
-                                    }}
-                                />
-                            </Field>
-                        )}
-                    /> */}
-
-                    {/* 타임존 */}
-                    {/* <Controller
-                        name="timezone"
-                        control={form.control}
-                        render={({ field }) => (
-                            <Field className="md:flex-row md:gap-3">
-                                <FieldLabel className="flex justify-between bg-background! md:w-32.5">
-                                    타임존
-                                </FieldLabel>
-    
-                                <TimezoneSelect
-                                    value={field.value}
-                                    className="flex-1"
-                                    disabled={disabled}
-                                    onChange={(tz) => {
-                                        if (disabled) return
-                                        field.onChange(tz)
-                                        autoSave()
-                                    }}
-                                />
-                            </Field>
-                        )}
-                    /> */}
+                            <div className="flex flex-col gap-3">
+                                {orderedFields.map(renderSortablePropertyField)}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                    {hiddenFieldCount > 0 ? (
+                        <CollapsibleTrigger
+                            className="w-auto self-start"
+                            asChild
+                        >
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="group justify-center pl-1.5 leading-normal text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                            >
+                                <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
+                                속성 {hiddenFieldCount}개{" "}
+                                <span className="group-data-[state=open]:hidden">
+                                    더 보기
+                                </span>
+                                <span className="hidden group-data-[state=open]:inline">
+                                    숨기기
+                                </span>
+                            </Button>
+                        </CollapsibleTrigger>
+                    ) : null}
                 </Collapsible>
 
                 <Separator />
@@ -1391,6 +1838,7 @@ export function EventForm({
                                         field.onChange(val)
                                         autoSave()
                                     }}
+                                    members={memberDirectoryState.members}
                                 />
                             ) : (
                                 <ContentEditorCSR
@@ -1404,6 +1852,7 @@ export function EventForm({
                                         field.onChange(val)
                                         autoSave()
                                     }}
+                                    members={memberDirectoryState.members}
                                 />
                             )}
                         </Field>

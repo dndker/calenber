@@ -1,7 +1,7 @@
 "use client"
 
 import { GlobeIcon } from "lucide-react"
-import { useMemo, type RefObject } from "react"
+import { useMemo } from "react"
 
 import {
     Combobox,
@@ -28,7 +28,7 @@ type Props = {
     value?: string
     onChange?: (value: string, option: CountryOption) => void
     className?: string
-    portalContainer?: RefObject<HTMLElement | null>
+    portalContainer?: HTMLElement | null
     disabled?: boolean
 }
 
@@ -67,7 +67,7 @@ export function CountrySelect({
             </ComboboxInput>
 
             <ComboboxContent
-                container={portalContainer}
+                container={portalContainer ?? undefined}
                 alignOffset={-28}
                 className="w-60"
             >

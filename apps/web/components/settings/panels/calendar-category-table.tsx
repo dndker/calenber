@@ -3,7 +3,7 @@
 import {
     calendarCategoryColorLabels,
     calendarCategoryColors,
-    getCalendarCategoryLabelClassName,
+    getCalendarCategoryPaletteClassName,
     type CalendarCategoryColor,
 } from "@/lib/calendar/category-color"
 import type { CalendarEventCategory } from "@/store/calendar-store.types"
@@ -32,6 +32,7 @@ import {
     TableHeader,
     TableRow,
 } from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
 import { Loader2Icon, MoreHorizontalIcon, PlusIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -264,7 +265,7 @@ export function CalendarCategoryTable({
                                                 !canManageEvents || isBusy
                                             }
                                         >
-                                            <SelectTrigger className="-ml-2 w-25 border-0 px-2 shadow-none hover:bg-muted">
+                                            <SelectTrigger className="-ml-2 w-35 border-0 px-2 shadow-none hover:bg-muted">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -274,13 +275,16 @@ export function CalendarCategoryTable({
                                                             key={color}
                                                             value={color}
                                                         >
-                                                            <span className="inline-flex items-center gap-2">
+                                                            <span className="flex cursor-pointer items-center gap-1.75 px-0.5 py-0.5">
                                                                 <span
-                                                                    className={getCalendarCategoryLabelClassName(
-                                                                        color,
-                                                                        "inline-flex rounded-full px-2 py-0.5 text-xs"
+                                                                    className={cn(
+                                                                        "inline-flex size-4.5 items-center gap-1.5 rounded-sm",
+                                                                        getCalendarCategoryPaletteClassName(
+                                                                            color
+                                                                        )
                                                                     )}
-                                                                >
+                                                                ></span>
+                                                                <span>
                                                                     {
                                                                         calendarCategoryColorLabels[
                                                                             color

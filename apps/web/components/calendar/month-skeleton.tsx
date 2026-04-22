@@ -12,8 +12,7 @@ export function MonthSkeleton() {
     const today = dayjs(selectedDate).tz(calendarTimezone).add(12, "hour")
     const startOfMonth = today.startOf("month")
 
-    // 달력 시작 주 (일요일 or 월요일 기준)
-    const calendarStart = startOfMonth.startOf("week")
+    const calendarStart = startOfMonth.startOf("isoWeek")
 
     const monthKey = getMonthKey(startOfMonth.toDate(), calendarTimezone)
 
@@ -30,7 +29,7 @@ export function MonthSkeleton() {
                 return (
                     <WeekRow
                         key={i}
-                        events={positionedEvents}
+                        events={[]}
                         weekDate={weekDate}
                         currentMonthKey={monthKey}
                         skeleton

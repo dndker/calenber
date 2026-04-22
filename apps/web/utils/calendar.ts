@@ -11,14 +11,14 @@ export function getWeekOffset(
 ) {
     return dayjs
         .tz(base, timezone)
-        .startOf("week")
+        .startOf("isoWeek")
         .add(offset, "week")
         .add(12, "hour")
         .toDate()
 }
 
 export function getWeek(date: Date, timezone: string = "Asia/Seoul") {
-    const start = dayjs.tz(date, timezone).startOf("week")
+    const start = dayjs.tz(date, timezone).startOf("isoWeek")
 
     return Array.from({ length: DAYS }, (_, i) =>
         start.add(i, "day").add(12, "hour").toDate()

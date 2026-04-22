@@ -2,9 +2,13 @@ import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
+import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
 import { parseEventContent } from "@/lib/calendar/event-content"
-import type { CalendarEvent } from "@/store/calendar-store.types"
+import type {
+    CalendarEvent,
+    CalendarEventFieldSettings,
+} from "@/store/calendar-store.types"
 import type {
     CalendarAccessMode,
     CalendarMemberStatus,
@@ -30,6 +34,7 @@ export type CalendarSummary = {
     avatarUrl: string | null
     accessMode: CalendarAccessMode
     eventLayout: CalendarEventLayout
+    eventFieldSettings: CalendarEventFieldSettings
     updatedAt: string
     createdAt: string
 }
@@ -113,6 +118,7 @@ type CalendarRow = {
     avatar_url: string | null
     access_mode: CalendarAccessMode
     event_layout: CalendarEventLayout
+    event_field_settings: unknown
     updated_at: string
     created_at: string
     calendar_members:
@@ -129,6 +135,7 @@ type DiscoverCalendarRow = {
     avatar_url: string | null
     access_mode: CalendarAccessMode
     event_layout: CalendarEventLayout
+    event_field_settings: unknown
     updated_at: string
     created_at: string
     member_count: number
@@ -200,6 +207,7 @@ type CalendarEventWithCalendarRow = {
         avatar_url: string | null
         access_mode: CalendarAccessMode
         event_layout: CalendarEventLayout
+        event_field_settings: unknown
         updated_at: string
         created_at: string
     } | null
@@ -233,6 +241,30 @@ function normalizeCalendarMembership(
         isMember: membership?.isMember === true,
         role: membership?.role ?? null,
         status: membership?.status ?? null,
+    }
+}
+
+function normalizeCalendarSummary(
+    calendar: CalendarSummary | null | undefined
+): CalendarSummary | null {
+    if (!calendar) {
+        return null
+    }
+
+    return {
+        ...calendar,
+        eventFieldSettings: normalizeCalendarEventFieldSettings(
+            calendar.eventFieldSettings
+        ),
+    }
+}
+
+function normalizeMyCalendarItem(calendar: MyCalendarItem): MyCalendarItem {
+    return {
+        ...calendar,
+        eventFieldSettings: normalizeCalendarEventFieldSettings(
+            calendar.eventFieldSettings
+        ),
     }
 }
 
@@ -278,6 +310,9 @@ export async function getAllCalendars(
         avatarUrl: calendar.avatar_url,
         accessMode: calendar.access_mode,
         eventLayout: calendar.event_layout,
+        eventFieldSettings: normalizeCalendarEventFieldSettings(
+            calendar.event_field_settings
+        ),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
         memberCount: calendar.member_count,
@@ -295,7 +330,7 @@ export async function getMyCalendars(
     const { data, error } = await supabase
         .from("calendars")
         .select(
-            "id, name, avatar_url, access_mode, event_layout, updated_at, created_at, calendar_members!inner(role, status)"
+            "id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at, calendar_members!inner(role, status)"
         )
         .eq("calendar_members.user_id", userId)
         .eq("calendar_members.status", "active")
@@ -314,6 +349,9 @@ export async function getMyCalendars(
         accessMode: calendar.access_mode,
         role: calendar.calendar_members?.[0]?.role ?? null,
         eventLayout: calendar.event_layout,
+        eventFieldSettings: normalizeCalendarEventFieldSettings(
+            calendar.event_field_settings
+        ),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
     }))
@@ -348,7 +386,7 @@ export async function getCalendarById(
     const { data, error } = await supabase
         .from("calendars")
         .select(
-            "id, name, avatar_url, access_mode, event_layout, updated_at, created_at"
+            "id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at"
         )
         .eq("id", calendarId)
         .maybeSingle()
@@ -370,6 +408,9 @@ export async function getCalendarById(
         avatarUrl: calendar.avatar_url,
         accessMode: calendar.access_mode,
         eventLayout: calendar.event_layout,
+        eventFieldSettings: normalizeCalendarEventFieldSettings(
+            calendar.event_field_settings
+        ),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
     }
@@ -401,9 +442,9 @@ export async function getCalendarInitialData(
     const payload = data as CalendarInitialDataPayload
 
     return {
-        calendar: payload.calendar ?? null,
+        calendar: normalizeCalendarSummary(payload.calendar ?? null),
         membership: normalizeCalendarMembership(payload.membership),
-        myCalendars: payload.myCalendars ?? [],
+        myCalendars: (payload.myCalendars ?? []).map(normalizeMyCalendarItem),
         eventCategories: (payload.eventCategories ?? []).map(
             normalizeCalendarEventCategorySummary
         ),
@@ -633,7 +674,7 @@ export async function getEventMetadataByCalendarId(
     const { data, error } = await supabase
         .from("events")
         .select(
-            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
+            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
         )
         .eq("id", eventId)
         .eq("calendar_id", calendarId)
@@ -680,6 +721,9 @@ export async function getEventMetadataByCalendarId(
                   avatarUrl: calendarRow.avatar_url,
                   accessMode: calendarRow.access_mode,
                   eventLayout: calendarRow.event_layout,
+                  eventFieldSettings: normalizeCalendarEventFieldSettings(
+                      calendarRow.event_field_settings
+                  ),
                   updatedAt: calendarRow.updated_at,
                   createdAt: calendarRow.created_at,
               }

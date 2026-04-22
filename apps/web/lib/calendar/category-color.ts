@@ -61,6 +61,18 @@ export function getCalendarCategoryLabelClassName(
     )
 }
 
+export function getCalendarCategoryPaletteClassName(
+    color: string | null | undefined,
+    className?: string
+) {
+    const normalizedColor = normalizeCalendarCategoryColor(color)
+
+    return cn(
+        normalizedColor ? `cb-palette-${normalizedColor}` : undefined,
+        className
+    )
+}
+
 export function getCalendarCategoryDotClassName(
     color: string | null | undefined,
     className?: string

@@ -1,7 +1,7 @@
 "use client"
 
 import { ClockIcon } from "lucide-react"
-import { useMemo, type RefObject } from "react"
+import { useMemo } from "react"
 
 import {
     Combobox,
@@ -28,16 +28,22 @@ type Props = {
     value?: string
     onChange?: (value: string, option: TimezoneOption) => void
     className?: string
-    portalContainer?: RefObject<HTMLElement | null>
+    contentClassName?: string
+    portalContainer?: HTMLElement | null
     disabled?: boolean
+    icon?: boolean
+    alignOffset?: number
 }
 
 export function TimezoneSelect({
     value,
     className,
+    contentClassName,
     onChange,
     portalContainer,
+    icon = true,
     disabled = false,
+    alignOffset = -28,
 }: Props) {
     const selected = useMemo(
         () => TIMEZONES.find((tz) => tz.value === value),
@@ -60,15 +66,17 @@ export function TimezoneSelect({
                 className={cn("w-44", className)}
                 disabled={disabled}
             >
-                <InputGroupAddon>
-                    <ClockIcon />
-                </InputGroupAddon>
+                {icon && (
+                    <InputGroupAddon>
+                        <ClockIcon />
+                    </InputGroupAddon>
+                )}
             </ComboboxInput>
 
             <ComboboxContent
-                container={portalContainer}
-                alignOffset={-28}
-                className="w-60"
+                container={portalContainer ?? undefined}
+                alignOffset={alignOffset}
+                className={cn("w-60", contentClassName)}
             >
                 <ComboboxEmpty>No timezones found.</ComboboxEmpty>
 

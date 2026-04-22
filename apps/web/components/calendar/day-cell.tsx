@@ -46,6 +46,10 @@ export const DayCell = memo(
         const dayValue = useMemo(() => {
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
+        const dayOfMonth = useMemo(
+            () => dayjs(day).tz(calendarTz).date(),
+            [calendarTz, day]
+        )
         const { todayDate } = useCalendarToday(calendarTz)
 
         const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
@@ -163,15 +167,17 @@ export const DayCell = memo(
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
                     <div className="flex items-center">
                         <>
-                            <Button
-                                size="icon"
-                                variant="outline"
-                                className="hidden size-8 text-muted-foreground group-hover/day:flex"
-                                onClick={handleDoubleClick}
-                            >
-                                <PlusIcon />
-                            </Button>
-                            {day.getDate() === 1 && (
+                            {!isHover && !isSelectingRange && (
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="hidden size-8 text-muted-foreground group-hover/day:flex"
+                                    onClick={handleDoubleClick}
+                                >
+                                    <PlusIcon />
+                                </Button>
+                            )}
+                            {dayOfMonth === 1 && (
                                 <span className="text-sm text-muted-foreground/80 group-hover/day:hidden">
                                     {dayjs.tz(day, calendarTz).format("M월")}
                                 </span>
@@ -194,7 +200,7 @@ export const DayCell = memo(
                                     isCellMember,
                             })}
                         >
-                            {day.getDate()}
+                            {dayOfMonth}
                         </span>
                     </DayCellMemberHoverCard>
                 </div>

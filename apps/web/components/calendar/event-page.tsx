@@ -94,11 +94,11 @@ export function EventPage({
                 updatedAt: Date.now(),
             }
 
-            createEvent(tempEvent).then((createdEventId) => {
-                if (createdEventId) {
-                    setLocalId(createdEventId)
-                }
-            })
+            const createdEventId = createEvent(tempEvent)
+
+            if (createdEventId) {
+                setLocalId(createdEventId)
+            }
         }
     }, [eventId, createEvent, user])
 
@@ -181,6 +181,7 @@ export function EventPage({
                 modal={modal}
                 event={event}
                 disabled={!canEdit}
+                portalContainer={portalContainer}
                 onChange={(patch, options) => {
                     updateEvent(event.id, patch, options)
                 }}

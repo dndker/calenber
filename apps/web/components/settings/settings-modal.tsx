@@ -20,6 +20,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@workspace/ui/components/dialog"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
     Sidebar,
     SidebarContent,
@@ -149,8 +150,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
     )
     const availableTabs = SETTINGS_TABS.filter(
         (tab) =>
-            tab.group === "account" ||
-            (activeCalendar && canViewCalendarTabs)
+            tab.group === "account" || (activeCalendar && canViewCalendarTabs)
     )
     const [activeTab, setActiveTab] = useState<SettingsTabId>(
         availableTabs.find((tab) => tab.id === initialTab)?.id ?? fallbackTab
@@ -232,8 +232,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                                         <SidebarMenuItem key={tab.id}>
                                             <SidebarMenuButton
                                                 isActive={
-                                                    resolvedActiveTab ===
-                                                    tab.id
+                                                    resolvedActiveTab === tab.id
                                                 }
                                                 onClick={() =>
                                                     setActiveTab(tab.id)
@@ -252,18 +251,20 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                 </SidebarContent>
             </Sidebar>
 
-            <section className="flex-1 overflow-auto p-8">
-                <div className="mx-auto max-w-200">
-                    {availableTabs.map((tab) => (
-                        <SettingsPanelSlot
-                            key={tab.id}
-                            tabId={tab.id}
-                            tabLabel={tab.label}
-                            active={resolvedActiveTab === tab.id}
-                        />
-                    ))}
+            <ScrollArea className="flex-1 overflow-auto">
+                <div className="p-8">
+                    <div className="mx-auto max-w-200">
+                        {availableTabs.map((tab) => (
+                            <SettingsPanelSlot
+                                key={tab.id}
+                                tabId={tab.id}
+                                tabLabel={tab.label}
+                                active={resolvedActiveTab === tab.id}
+                            />
+                        ))}
+                    </div>
                 </div>
-            </section>
+            </ScrollArea>
         </div>
     )
 }

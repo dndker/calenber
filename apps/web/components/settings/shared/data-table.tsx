@@ -89,7 +89,7 @@ export function DataTable<TData, TValue>({
     return (
         <div className="space-y-4">
             {(filterColumnId || toolbarActions || bulkActions) && (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     {filterColumnId ? (
                         <Input
                             value={
@@ -103,12 +103,12 @@ export function DataTable<TData, TValue>({
                                     ?.setFilterValue(event.target.value)
                             }
                             placeholder={filterPlaceholder}
-                            className="max-w-sm"
+                            className="w-full max-w-sm"
                         />
                     ) : (
                         <div />
                     )}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         {toolbarActions?.(table)}
                         {bulkActions?.(table)}
                     </div>

@@ -2,6 +2,7 @@
 
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { useSignOut } from "@/hooks/use-sign-out"
+import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { getCalendarPath } from "@/lib/calendar/routes"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -75,6 +76,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                 avatarUrl: null,
                 accessMode: "public_open" as const,
                 eventLayout: "compact" as const,
+                eventFieldSettings: getDefaultCalendarEventFieldSettings(),
                 updatedAt: "",
                 createdAt: "",
             },

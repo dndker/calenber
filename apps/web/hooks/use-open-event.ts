@@ -7,6 +7,7 @@ import {
     defaultContent,
 } from "@/store/calendar-store.types"
 import { usePathname, useRouter } from "next/navigation"
+import { startTransition } from "react"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 
@@ -18,7 +19,7 @@ export function useOpenEvent() {
     const setViewEvent = useCalendarStore((s) => s.setViewEvent)
     const user = useAuthStore((s) => s.user)
 
-    return async (payload?: { start?: number; end?: number }) => {
+    return (payload?: { start?: number; end?: number }) => {
         const id = crypto.randomUUID()
         const now = Date.now()
 
@@ -58,7 +59,7 @@ export function useOpenEvent() {
             updatedAt: now,
         }
 
-        const createdEventId = await createEvent(event)
+        const createdEventId = createEvent(event)
 
         if (!createdEventId) {
             return
@@ -69,11 +70,13 @@ export function useOpenEvent() {
             ...event,
             id: createdEventId,
         })
-        router.push(
-            getCalendarModalOpenPath({
-                pathname,
-                eventId: createdEventId,
-            })
-        )
+        startTransition(() => {
+            router.push(
+                getCalendarModalOpenPath({
+                    pathname,
+                    eventId: createdEventId,
+                })
+            )
+        })
     }
 }

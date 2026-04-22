@@ -1,5 +1,6 @@
 "use client"
 
+import { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
 import type { EditorContent } from "@/store/calendar-store.types"
 import {
     BlockNoteSchema,
@@ -36,6 +37,7 @@ type Props = {
     updatedAt?: number
     updatedById?: string | null
     currentUserId?: string | null
+    members?: CalendarMemberDirectoryItem[]
 }
 
 const schema = BlockNoteSchema.create({
@@ -46,9 +48,12 @@ const schema = BlockNoteSchema.create({
 })
 
 const getMentionMenuItems = (
-    editor: typeof schema.BlockNoteEditor
+    editor: typeof schema.BlockNoteEditor,
+    members: CalendarMemberDirectoryItem[]
 ): DefaultReactSuggestionItem[] => {
-    const users = ["Woong", "Steve", "Bob", "Joe", "Mike"]
+    const users = members.map(
+        (member) => member.name || member.email || member.userId
+    )
 
     return users.map((user) => ({
         title: user,
@@ -73,6 +78,7 @@ export default function ContentEditor({
     updatedAt,
     updatedById,
     currentUserId,
+    members,
 }: Props) {
     // const [isMounted, setIsMounted] = useState(false)
 
@@ -92,6 +98,7 @@ export default function ContentEditor({
             updatedAt={updatedAt}
             updatedById={updatedById}
             currentUserId={currentUserId}
+            members={members}
         />
     )
 }
@@ -103,6 +110,7 @@ function ContentEditorClient({
     updatedAt,
     updatedById,
     currentUserId,
+    members,
 }: Props) {
     const isLocalChangeRef = useRef(false)
     const lastAppliedContentRef = useRef<string | null>(null)
@@ -211,7 +219,10 @@ function ContentEditorClient({
             <SuggestionMenuController
                 triggerCharacter="@"
                 getItems={async (query) =>
-                    filterSuggestionItems(getMentionMenuItems(editor), query)
+                    filterSuggestionItems(
+                        getMentionMenuItems(editor, members!),
+                        query
+                    )
                 }
             />
         </BlockNoteView>

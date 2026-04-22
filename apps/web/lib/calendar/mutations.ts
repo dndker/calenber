@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
 import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
@@ -367,6 +368,7 @@ export async function createCalendar(
             name: input.name,
             access_mode: input.accessMode,
             created_by: user.id,
+            event_field_settings: getDefaultCalendarEventFieldSettings(),
         })
 
     if (error) {

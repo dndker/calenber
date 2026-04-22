@@ -39,6 +39,7 @@ export type EventChipsComboboxOption<TData = unknown> = {
 type EventChipsComboboxProps<TData = unknown> = {
     options: EventChipsComboboxOption<TData>[]
     value: string[]
+    portalContainer?: HTMLElement | null
     disabled?: boolean
     invalid?: boolean
     placeholder?: string
@@ -64,6 +65,7 @@ function normalizeQuery(value: string) {
 export function EventChipsCombobox<TData = unknown>({
     options,
     value,
+    portalContainer,
     disabled = false,
     invalid = false,
     placeholder,
@@ -267,15 +269,21 @@ export function EventChipsCombobox<TData = unknown>({
                                 onKeyDown={handleInputKeyDown}
                                 className={
                                     inputClassName ??
-                                    "cursor-pointer focus:cursor-text"
+                                    "cursor-pointer text-sm focus:cursor-text"
                                 }
-                                placeholder={value.length === 0 ? placeholder : ""}
+                                placeholder={
+                                    value.length === 0 ? placeholder : ""
+                                }
                             />
                         </>
                     )}
                 </ComboboxValue>
             </ComboboxChips>
-            <ComboboxContent anchor={anchor} className="dark:bg-muted">
+            <ComboboxContent
+                anchor={anchor}
+                container={portalContainer ?? undefined}
+                className="dark:bg-muted"
+            >
                 <ComboboxEmpty>{emptyText}</ComboboxEmpty>
                 <ComboboxList>
                     {(itemValue) => {

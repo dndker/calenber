@@ -1,9 +1,9 @@
+import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type {
     CalendarMembership,
     CalendarSummary,
     MyCalendarItem,
 } from "@/lib/calendar/queries"
-import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type { CalendarWorkspaceCursor } from "@/lib/calendar/realtime"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
@@ -57,6 +57,28 @@ export type CalendarEventCategory = {
     createdById: string | null
     createdAt: number
     updatedAt: number
+}
+
+export const calendarEventFieldIds = [
+    "schedule",
+    "participants",
+    "categories",
+    "status",
+    "recurrence",
+    "exceptions",
+    "timezone",
+    "place",
+    "notification",
+] as const
+
+export type CalendarEventFieldId = (typeof calendarEventFieldIds)[number]
+
+export type CalendarEventFieldSettings = {
+    version: 1
+    items: {
+        id: CalendarEventFieldId
+        visible: boolean
+    }[]
 }
 
 export const eventStatusLabel = {

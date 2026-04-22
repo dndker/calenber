@@ -310,6 +310,46 @@
         @apply bg-category-mauve-muted text-category-mauve-strong;
     }
 
+    .cb-palette-blue {
+        @apply border border-category-blue-soft bg-category-blue-muted text-category-blue-strong;
+    }
+
+    .cb-palette-green {
+        @apply border border-category-green-soft bg-category-green-muted text-category-green-strong;
+    }
+
+    .cb-palette-sky {
+        @apply border border-category-sky-soft bg-category-sky-muted text-category-sky-strong;
+    }
+
+    .cb-palette-purple {
+        @apply border border-category-purple-soft bg-category-purple-muted text-category-purple-strong;
+    }
+
+    .cb-palette-red {
+        @apply border border-category-red-soft bg-category-red-muted text-category-red-strong;
+    }
+
+    .cb-palette-yellow {
+        @apply border border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong;
+    }
+
+    .cb-palette-gray {
+        @apply border border-category-gray-soft bg-category-gray-muted text-category-gray-strong;
+    }
+
+    .cb-palette-olive {
+        @apply border border-category-olive-soft bg-category-olive-muted text-category-olive-strong;
+    }
+
+    .cb-palette-pink {
+        @apply border border-category-pink-soft bg-category-pink-muted text-category-pink-strong;
+    }
+
+    .cb-palette-mauve {
+        @apply border border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong;
+    }
+
     .cb-dot-blue {
         @apply bg-category-blue-default;
     }

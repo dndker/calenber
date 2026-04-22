@@ -1,15 +1,23 @@
 "use client"
 
 import {
+    editableStatuses,
     getCalendarDataColumns,
+    statusLabelMap,
     type CalendarDataRow,
 } from "@/components/settings/panels/calendar-data-table-columns"
 import {
     CalendarCategoryTable,
     type CalendarCategoryTableRow,
 } from "@/components/settings/panels/calendar-category-table"
+import { CalendarEventFieldSettingsCard } from "@/components/settings/panels/calendar-event-field-settings-card"
+import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import { DataTable } from "@/components/settings/shared/data-table"
-import { type CalendarCategoryColor } from "@/lib/calendar/category-color"
+import { setCalendarEventFieldVisibility } from "@/lib/calendar/event-field-settings"
+import {
+    getCalendarCategoryLabelClassName,
+    type CalendarCategoryColor,
+} from "@/lib/calendar/category-color"
 import {
     createCalendarEventCategory,
     deleteCalendarEvent,
@@ -22,7 +30,6 @@ import {
     canViewCalendarSettings,
 } from "@/lib/calendar/permissions"
 import type {
-    CalendarEvent,
     CalendarEventCategory,
     CalendarEventStatus,
 } from "@/store/calendar-store.types"
@@ -35,7 +42,11 @@ import {
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -49,16 +60,32 @@ import {
 } from "@workspace/ui/components/field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import {
+    CheckCheckIcon,
     CalendarRangeIcon,
     CircleXIcon,
     ListFilterIcon,
     ListFilterPlusIcon,
+    TagsIcon,
     XIcon,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 type CalendarEventRecord = CalendarDataRow
+type FilterBadge = {
+    key: string
+    label: string
+    tone?: "default" | "category"
+    color?: CalendarCategoryColor
+    onRemove: () => void
+}
+type SelectedCategoryLabel = {
+    id: string
+    label: string
+    color: CalendarCategoryColor | undefined
+}
+
+const UNCATEGORIZED_FILTER_KEY = "__uncategorized__"
 
 function sortCategoriesForSettings(categories: CalendarEventCategory[]) {
     return [...categories].sort((a, b) => {
@@ -80,43 +107,13 @@ function sortCategoriesForSettings(categories: CalendarEventCategory[]) {
     })
 }
 
-function replaceCategoryInEvent(
-    event: CalendarEvent,
-    nextCategory: CalendarEventCategory
-) {
-    if (!event.categoryIds.includes(nextCategory.id)) {
-        return event
-    }
-
-    const nextCategories = event.categories.map((category) =>
-        category.id === nextCategory.id ? nextCategory : category
+function getAuthorFilterKey(event: Pick<CalendarEventRecord, "author">) {
+    return (
+        event.author?.id ??
+        event.author?.email ??
+        event.author?.name ??
+        "unknown-author"
     )
-
-    return {
-        ...event,
-        categories: nextCategories,
-        category: nextCategories[0] ?? null,
-        categoryId: nextCategories[0]?.id ?? null,
-        categoryIds: nextCategories.map((category) => category.id),
-    }
-}
-
-function removeCategoryFromEvent(event: CalendarEvent, categoryId: string) {
-    if (!event.categoryIds.includes(categoryId)) {
-        return event
-    }
-
-    const nextCategories = event.categories.filter(
-        (category) => category.id !== categoryId
-    )
-
-    return {
-        ...event,
-        categories: nextCategories,
-        category: nextCategories[0] ?? null,
-        categoryId: nextCategories[0]?.id ?? null,
-        categoryIds: nextCategories.map((category) => category.id),
-    }
 }
 
 export function CalendarDataSettingsPanel() {
@@ -132,12 +129,16 @@ export function CalendarDataSettingsPanel() {
     const removeEventCategorySnapshot = useCalendarStore(
         (s) => s.removeEventCategorySnapshot
     )
-    const setEventCategoryDefaultVisibility = useCalendarStore(
-        (s) => s.setEventCategoryDefaultVisibility
-    )
+    const { eventFieldSettings, saveEventFieldSettings } =
+        useCalendarEventFieldSettings()
     const [events, setEvents] = useState<CalendarEventRecord[]>([])
     const eventsRef = useRef<CalendarEventRecord[]>([])
+    const calendarEventsRef = useRef(calendarEvents)
     const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+    const [selectedStatuses, setSelectedStatuses] = useState<
+        CalendarEventStatus[]
+    >([])
     const [isLoading, setIsLoading] = useState(true)
     const [newCategoryName, setNewCategoryName] = useState("")
     const [isCreatingCategory, setIsCreatingCategory] = useState(false)
@@ -145,35 +146,43 @@ export function CalendarDataSettingsPanel() {
 
     const canManageEvents = canManageCalendar(activeCalendarMembership)
     const canViewData = canViewCalendarSettings(activeCalendarMembership)
+    const eventCategoryMap = useMemo(
+        () =>
+            new Map(eventCategories.map((category) => [category.id, category])),
+        [eventCategories]
+    )
 
     useEffect(() => {
         eventsRef.current = events
     }, [events])
 
-    const syncCategoryOnEvents = useCallback(
-        (nextCategory: CalendarEventCategory) => {
-            useCalendarStore.setState((state) => ({
-                events: state.events.map((event) =>
-                    replaceCategoryInEvent(event, nextCategory)
-                ),
-                viewEvent: state.viewEvent
-                    ? replaceCategoryInEvent(state.viewEvent, nextCategory)
-                    : null,
-            }))
-        },
-        []
-    )
+    useEffect(() => {
+        calendarEventsRef.current = calendarEvents
+    }, [calendarEvents])
 
-    const removeCategoryFromEvents = useCallback((categoryId: string) => {
-        useCalendarStore.setState((state) => ({
-            events: state.events.map((event) =>
-                removeCategoryFromEvent(event, categoryId)
-            ),
-            viewEvent: state.viewEvent
-                ? removeCategoryFromEvent(state.viewEvent, categoryId)
-                : null,
-        }))
-    }, [])
+    useEffect(() => {
+        setEvents((current) =>
+            current.map((event) => ({
+                ...event,
+                categories: event.categoryIds
+                    .map((categoryId) => eventCategoryMap.get(categoryId))
+                    .filter(
+                        (category): category is NonNullable<typeof category> =>
+                            Boolean(category)
+                    ),
+            }))
+        )
+    }, [eventCategoryMap])
+
+    useEffect(() => {
+        setSelectedCategoryIds((current) =>
+            current.filter(
+                (categoryId) =>
+                    categoryId === UNCATEGORIZED_FILTER_KEY ||
+                    eventCategoryMap.has(categoryId)
+            )
+        )
+    }, [eventCategoryMap])
 
     const withBusyCategory = useCallback(
         async <T,>(categoryId: string, task: () => Promise<T>) => {
@@ -238,6 +247,64 @@ export function CalendarDataSettingsPanel() {
         [activeCalendar]
     )
 
+    const updateEventsCategory = useCallback(
+        async (eventIds: string[], nextCategoryId: string | null) => {
+            if (!activeCalendar || !eventIds.length) {
+                return
+            }
+
+            const previousEvents = eventsRef.current
+            const nextCategoryIds = nextCategoryId ? [nextCategoryId] : []
+            const nextCategories = nextCategoryIds
+                .map((categoryId) => eventCategoryMap.get(categoryId))
+                .filter((category): category is NonNullable<typeof category> =>
+                    Boolean(category)
+                )
+
+            setEvents((current) =>
+                current.map((event) =>
+                    eventIds.includes(event.id)
+                        ? {
+                              ...event,
+                              categoryIds: nextCategoryIds,
+                              categories: nextCategories,
+                          }
+                        : event
+                )
+            )
+
+            try {
+                const supabase = createBrowserSupabase()
+
+                const results = await Promise.all(
+                    eventIds.map((eventId) =>
+                        updateCalendarEvent(supabase, eventId, {
+                            categoryIds: nextCategoryIds,
+                        })
+                    )
+                )
+
+                if (results.some((result) => !result.ok)) {
+                    throw new Error("Some event categories failed to update.")
+                }
+
+                toast.success(
+                    nextCategoryId
+                        ? "일정 카테고리가 업데이트되었습니다."
+                        : "일정 카테고리를 제거했습니다."
+                )
+            } catch (error) {
+                console.error(
+                    "Failed to update calendar event categories:",
+                    error
+                )
+                setEvents(previousEvents)
+                toast.error("일정 카테고리를 변경하지 못했습니다.")
+            }
+        },
+        [activeCalendar, eventCategoryMap]
+    )
+
     const removeEvents = useCallback(
         async (eventIds: string[]) => {
             if (!activeCalendar || !eventIds.length) {
@@ -295,7 +362,6 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     upsertEventCategorySnapshot(updatedCategory)
-                    syncCategoryOnEvents(updatedCategory)
                     return true
                 } catch (error) {
                     console.error("Failed to rename calendar category:", error)
@@ -307,7 +373,6 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendar,
             canManageEvents,
-            syncCategoryOnEvents,
             upsertEventCategorySnapshot,
             withBusyCategory,
         ]
@@ -342,10 +407,6 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     upsertEventCategorySnapshot(updatedCategory)
-                    setEventCategoryDefaultVisibility(
-                        updatedCategory.id,
-                        visibleByDefault
-                    )
                 } catch (error) {
                     console.error(
                         "Failed to update calendar category visibility:",
@@ -358,7 +419,6 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendar,
             canManageEvents,
-            setEventCategoryDefaultVisibility,
             upsertEventCategorySnapshot,
             withBusyCategory,
         ]
@@ -396,7 +456,6 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     upsertEventCategorySnapshot(updatedCategory)
-                    syncCategoryOnEvents(updatedCategory)
                 } catch (error) {
                     console.error(
                         "Failed to update calendar category color:",
@@ -409,7 +468,6 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendar,
             canManageEvents,
-            syncCategoryOnEvents,
             upsertEventCategorySnapshot,
             withBusyCategory,
         ]
@@ -461,7 +519,6 @@ export function CalendarDataSettingsPanel() {
             }
 
             upsertEventCategorySnapshot(createdCategory)
-            setEventCategoryDefaultVisibility(createdCategory.id, true)
             setNewCategoryName("")
             toast.success("카테고리를 추가했습니다.")
         } catch (error) {
@@ -475,7 +532,6 @@ export function CalendarDataSettingsPanel() {
         canManageEvents,
         eventCategories,
         newCategoryName,
-        setEventCategoryDefaultVisibility,
         upsertEventCategorySnapshot,
     ])
 
@@ -498,7 +554,6 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     removeEventCategorySnapshot(category.id)
-                    removeCategoryFromEvents(category.id)
                     toast.success("카테고리를 삭제했습니다.")
                 } catch (error) {
                     console.error("Failed to delete calendar category:", error)
@@ -509,7 +564,6 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendar,
             canManageEvents,
-            removeCategoryFromEvents,
             removeEventCategorySnapshot,
             withBusyCategory,
         ]
@@ -553,27 +607,77 @@ export function CalendarDataSettingsPanel() {
 
         return Array.from(authorMap.values())
     }, [events])
+    const categoryOptions = useMemo(
+        () =>
+            sortCategoriesForSettings(eventCategories).map((category) => ({
+                id: category.id,
+                label: category.name,
+                color: category.options.color,
+            })),
+        [eventCategories]
+    )
 
     const selectedAuthorSet = useMemo(
         () => new Set(selectedAuthors),
         [selectedAuthors]
     )
+    const selectedCategorySet = useMemo(
+        () => new Set(selectedCategoryIds),
+        [selectedCategoryIds]
+    )
+    const selectedStatusSet = useMemo(
+        () => new Set(selectedStatuses),
+        [selectedStatuses]
+    )
 
     const filteredEvents = useMemo(() => {
-        if (!selectedAuthors.length) {
+        if (
+            !selectedAuthors.length &&
+            !selectedCategoryIds.length &&
+            !selectedStatuses.length
+        ) {
             return events
         }
 
         return events.filter((event) => {
-            const authorKey =
-                event.author?.id ??
-                event.author?.email ??
-                event.author?.name ??
-                "unknown-author"
+            if (
+                selectedAuthorSet.size > 0 &&
+                !selectedAuthorSet.has(getAuthorFilterKey(event))
+            ) {
+                return false
+            }
 
-            return selectedAuthorSet.has(authorKey)
+            if (
+                selectedCategorySet.size > 0 &&
+                !event.categoryIds.some((categoryId) =>
+                    selectedCategorySet.has(categoryId)
+                ) &&
+                !(
+                    selectedCategorySet.has(UNCATEGORIZED_FILTER_KEY) &&
+                    event.categoryIds.length === 0
+                )
+            ) {
+                return false
+            }
+
+            if (
+                selectedStatusSet.size > 0 &&
+                !selectedStatusSet.has(event.status)
+            ) {
+                return false
+            }
+
+            return true
         })
-    }, [events, selectedAuthors.length, selectedAuthorSet])
+    }, [
+        events,
+        selectedAuthors.length,
+        selectedAuthorSet,
+        selectedCategoryIds.length,
+        selectedCategorySet,
+        selectedStatuses.length,
+        selectedStatusSet,
+    ])
 
     const selectedAuthorLabels = useMemo(
         () =>
@@ -582,6 +686,75 @@ export function CalendarDataSettingsPanel() {
             ),
         [authorOptions, selectedAuthors]
     )
+    const selectedCategoryLabels = useMemo(
+        () =>
+            selectedCategoryIds.flatMap(
+                (categoryId): SelectedCategoryLabel[] => {
+                    if (categoryId === UNCATEGORIZED_FILTER_KEY) {
+                        return [
+                            {
+                                id: categoryId,
+                                label: "카테고리 없음",
+                                color: undefined,
+                            },
+                        ]
+                    }
+
+                    const category = eventCategoryMap.get(categoryId)
+
+                    return category
+                        ? [
+                              {
+                                  id: category.id,
+                                  label: category.name,
+                                  color: category.options.color,
+                              },
+                          ]
+                        : []
+                }
+            ),
+        [eventCategoryMap, selectedCategoryIds]
+    )
+    const activeFilterBadges = useMemo<FilterBadge[]>(() => {
+        const authorBadges = selectedAuthorLabels.map((author) => ({
+            key: `author:${author.key}`,
+            label: author.label,
+            onRemove: () => {
+                setSelectedAuthors((current) =>
+                    current.filter((item) => item !== author.key)
+                )
+            },
+        }))
+        const categoryBadges = selectedCategoryLabels.map((category) => ({
+            key: `category:${category.id}`,
+            label: category.label,
+            tone: "category" as const,
+            color: category.color,
+            onRemove: () => {
+                setSelectedCategoryIds((current) =>
+                    current.filter((item) => item !== category.id)
+                )
+            },
+        }))
+        const statusBadges = selectedStatuses.map((status) => ({
+            key: `status:${status}`,
+            label: statusLabelMap[status],
+            onRemove: () => {
+                setSelectedStatuses((current) =>
+                    current.filter((item) => item !== status)
+                )
+            },
+        }))
+
+        return [...authorBadges, ...categoryBadges, ...statusBadges]
+    }, [selectedAuthorLabels, selectedCategoryLabels, selectedStatuses])
+    const activeFilterCount = activeFilterBadges.length
+    const clearAllFilters = useCallback(() => {
+        setSelectedAuthors([])
+        setSelectedCategoryIds([])
+        setSelectedStatuses([])
+    }, [])
+
     const categoryUsageCountMap = useMemo(() => {
         const usageCountMap = new Map<string, number>()
 
@@ -603,6 +776,22 @@ export function CalendarDataSettingsPanel() {
             usageCount: categoryUsageCountMap.get(category.id) ?? 0,
         }))
     }, [categoryUsageCountMap, eventCategories])
+
+    const handleFieldVisibilityChange = useCallback(
+        async (
+            fieldId: Parameters<typeof setCalendarEventFieldVisibility>[1],
+            visible: boolean
+        ) => {
+            await saveEventFieldSettings(
+                setCalendarEventFieldVisibility(
+                    eventFieldSettings,
+                    fieldId,
+                    visible
+                )
+            )
+        },
+        [eventFieldSettings, saveEventFieldSettings]
+    )
 
     useEffect(() => {
         if (!canViewData) {
@@ -652,31 +841,51 @@ export function CalendarDataSettingsPanel() {
                               creator_avatar_url: string | null
                           }[]
                         | null) ?? []
+                const eventLookup = new Map(
+                    calendarEventsRef.current.map((event) => [event.id, event])
+                )
 
                 setEvents(
-                    rows.map((event) => ({
-                        id: event.id,
-                        title: event.title ?? "",
-                        start: event.start_at
-                            ? new Date(event.start_at).valueOf()
-                            : Date.now(),
-                        end: event.end_at
-                            ? new Date(event.end_at).valueOf()
-                            : Date.now(),
-                        status: event.status ?? "scheduled",
-                        author:
-                            event.creator_name ||
-                            event.creator_email ||
-                            event.creator_avatar_url
-                                ? {
-                                      id: null,
-                                      name: event.creator_name,
-                                      email: event.creator_email,
-                                      avatarUrl: event.creator_avatar_url,
-                                  }
-                                : null,
-                        canManage: canManageEvents,
-                    }))
+                    rows.map((event) => {
+                        const storedEvent = eventLookup.get(event.id)
+                        const categoryIds = storedEvent?.categoryIds ?? []
+                        const categories = categoryIds
+                            .map((categoryId) =>
+                                eventCategoryMap.get(categoryId)
+                            )
+                            .filter(
+                                (
+                                    category
+                                ): category is NonNullable<typeof category> =>
+                                    Boolean(category)
+                            )
+
+                        return {
+                            id: event.id,
+                            title: event.title ?? "",
+                            start: event.start_at
+                                ? new Date(event.start_at).valueOf()
+                                : Date.now(),
+                            end: event.end_at
+                                ? new Date(event.end_at).valueOf()
+                                : Date.now(),
+                            status: event.status ?? "scheduled",
+                            author:
+                                event.creator_name ||
+                                event.creator_email ||
+                                event.creator_avatar_url
+                                    ? {
+                                          id: null,
+                                          name: event.creator_name,
+                                          email: event.creator_email,
+                                          avatarUrl: event.creator_avatar_url,
+                                      }
+                                    : null,
+                            categoryIds,
+                            categories,
+                            canManage: canManageEvents,
+                        }
+                    })
                 )
             } catch (error) {
                 console.error("Failed to load calendar events:", error)
@@ -695,7 +904,7 @@ export function CalendarDataSettingsPanel() {
         return () => {
             isCancelled = true
         }
-    }, [activeCalendar, canManageEvents, canViewData])
+    }, [activeCalendar, canManageEvents, canViewData, eventCategoryMap])
 
     if (!activeCalendar) {
         return (
@@ -750,28 +959,26 @@ export function CalendarDataSettingsPanel() {
                                                 size="sm"
                                                 className="leading-normal"
                                             >
-                                                {selectedAuthors.length > 0 ? (
+                                                {activeFilterCount > 0 ? (
                                                     <ListFilterIcon />
                                                 ) : (
                                                     <ListFilterPlusIcon />
                                                 )}
-                                                작성자 필터
-                                                {selectedAuthors.length > 0
-                                                    ? `됨 (${selectedAuthors.length}명)`
+                                                필터
+                                                {activeFilterCount > 0
+                                                    ? ` ${activeFilterCount}`
                                                     : ""}
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent
                                             align="end"
-                                            className="w-56"
+                                            className="w-72"
                                         >
-                                            {selectedAuthors.length > 0 ? (
+                                            {activeFilterCount > 0 ? (
                                                 <>
                                                     <DropdownMenuItem
                                                         onSelect={() => {
-                                                            setSelectedAuthors(
-                                                                []
-                                                            )
+                                                            clearAllFilters()
                                                         }}
                                                     >
                                                         <CircleXIcon />
@@ -780,7 +987,9 @@ export function CalendarDataSettingsPanel() {
                                                     <DropdownMenuSeparator />
                                                 </>
                                             ) : null}
-
+                                            <DropdownMenuLabel>
+                                                작성자
+                                            </DropdownMenuLabel>
                                             {authorOptions.length ? (
                                                 authorOptions.map((author) => (
                                                     <DropdownMenuCheckboxItem
@@ -831,49 +1040,172 @@ export function CalendarDataSettingsPanel() {
                                                     작성자 없음
                                                 </DropdownMenuItem>
                                             )}
+
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuLabel>
+                                                카테고리
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuCheckboxItem
+                                                checked={selectedCategoryIds.includes(
+                                                    UNCATEGORIZED_FILTER_KEY
+                                                )}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedCategoryIds(
+                                                        (current) =>
+                                                            checked
+                                                                ? Array.from(
+                                                                      new Set([
+                                                                          ...current,
+                                                                          UNCATEGORIZED_FILTER_KEY,
+                                                                      ])
+                                                                  )
+                                                                : current.filter(
+                                                                      (item) =>
+                                                                          item !==
+                                                                          UNCATEGORIZED_FILTER_KEY
+                                                                  )
+                                                    )
+                                                }}
+                                            >
+                                                카테고리 없음
+                                            </DropdownMenuCheckboxItem>
+                                            {categoryOptions.length ? (
+                                                categoryOptions.map(
+                                                    (category) => (
+                                                        <DropdownMenuCheckboxItem
+                                                            key={category.id}
+                                                            checked={selectedCategoryIds.includes(
+                                                                category.id
+                                                            )}
+                                                            onCheckedChange={(
+                                                                checked
+                                                            ) => {
+                                                                setSelectedCategoryIds(
+                                                                    (
+                                                                        current
+                                                                    ) =>
+                                                                        checked
+                                                                            ? Array.from(
+                                                                                  new Set(
+                                                                                      [
+                                                                                          ...current,
+                                                                                          category.id,
+                                                                                      ]
+                                                                                  )
+                                                                              )
+                                                                            : current.filter(
+                                                                                  (
+                                                                                      item
+                                                                                  ) =>
+                                                                                      item !==
+                                                                                      category.id
+                                                                              )
+                                                                )
+                                                            }}
+                                                        >
+                                                            <span
+                                                                className={getCalendarCategoryLabelClassName(
+                                                                    category.color,
+                                                                    "inline-flex h-6 items-center rounded-md px-1.5 leading-normal"
+                                                                )}
+                                                            >
+                                                                {category.label}
+                                                            </span>
+                                                        </DropdownMenuCheckboxItem>
+                                                    )
+                                                )
+                                            ) : (
+                                                <DropdownMenuItem disabled>
+                                                    카테고리 없음
+                                                </DropdownMenuItem>
+                                            )}
+
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuLabel>
+                                                상태
+                                            </DropdownMenuLabel>
+                                            {editableStatuses.map((status) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={status}
+                                                    checked={selectedStatuses.includes(
+                                                        status
+                                                    )}
+                                                    onCheckedChange={(
+                                                        checked
+                                                    ) => {
+                                                        setSelectedStatuses(
+                                                            (current) =>
+                                                                checked
+                                                                    ? Array.from(
+                                                                          new Set(
+                                                                              [
+                                                                                  ...current,
+                                                                                  status,
+                                                                              ]
+                                                                          )
+                                                                      )
+                                                                    : current.filter(
+                                                                          (
+                                                                              item
+                                                                          ) =>
+                                                                              item !==
+                                                                              status
+                                                                      )
+                                                        )
+                                                    }}
+                                                >
+                                                    {statusLabelMap[status]}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 )}
                                 toolbarContent={
-                                    selectedAuthorLabels.length > 0 ? (
+                                    activeFilterBadges.length > 0 ? (
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <span className="text-sm text-muted-foreground">
-                                                작성자 필터:
-                                            </span>
-                                            {selectedAuthorLabels.map(
-                                                (author) => (
-                                                    <Badge
-                                                        key={author.key}
-                                                        variant="secondary"
-                                                        className="h-6 gap-px"
+                                            {activeFilterBadges.map((badge) => (
+                                                <Badge
+                                                    key={badge.key}
+                                                    variant={
+                                                        badge.tone ===
+                                                        "category"
+                                                            ? "outline"
+                                                            : "secondary"
+                                                    }
+                                                    className={
+                                                        badge.tone ===
+                                                        "category"
+                                                            ? getCalendarCategoryLabelClassName(
+                                                                  badge.color,
+                                                                  "h-6 gap-px border-transparent"
+                                                              )
+                                                            : "h-6 gap-px"
+                                                    }
+                                                >
+                                                    {badge.label}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        type="button"
+                                                        className="size-3 p-0 text-muted-foreground/70 hover:text-primary"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation()
+                                                            badge.onRemove()
+                                                        }}
                                                     >
-                                                        {author.label}
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            type="button"
-                                                            className="size-3 p-0 text-muted-foreground/70 hover:text-primary"
-                                                            onClick={(
-                                                                event
-                                                            ) => {
-                                                                event.stopPropagation()
-                                                                setSelectedAuthors(
-                                                                    (current) =>
-                                                                        current.filter(
-                                                                            (
-                                                                                item
-                                                                            ) =>
-                                                                                item !==
-                                                                                author.key
-                                                                        )
-                                                                )
-                                                            }}
-                                                        >
-                                                            <XIcon className="-mr-px size-3.25" />
-                                                        </Button>
-                                                    </Badge>
-                                                )
-                                            )}
+                                                        <XIcon className="-mr-px size-3.25" />
+                                                    </Button>
+                                                </Badge>
+                                            ))}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                type="button"
+                                                onClick={clearAllFilters}
+                                            >
+                                                <CircleXIcon />
+                                                필터 초기화
+                                            </Button>
                                         </div>
                                     ) : null
                                 }
@@ -897,76 +1229,149 @@ export function CalendarDataSettingsPanel() {
                                                     variant="outline"
                                                     size="sm"
                                                 >
-                                                    <CalendarRangeIcon />
-                                                    선택한 일정 상태 변경
+                                                    <CheckCheckIcon />
+                                                    선택 항목 수정 (
+                                                    {selectedEvents.length})
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent
                                                 align="end"
-                                                className="w-44"
+                                                className="w-56"
                                             >
-                                                <DropdownMenuItem
-                                                    onSelect={() => {
-                                                        void updateEventsStatus(
-                                                            selectedEvents.map(
-                                                                (event) =>
-                                                                    event.id
-                                                            ),
-                                                            "scheduled"
-                                                        )
-                                                        table.resetRowSelection()
-                                                    }}
-                                                >
-                                                    예정
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onSelect={() => {
-                                                        void updateEventsStatus(
-                                                            selectedEvents.map(
-                                                                (event) =>
-                                                                    event.id
-                                                            ),
-                                                            "in_progress"
-                                                        )
-                                                        table.resetRowSelection()
-                                                    }}
-                                                >
-                                                    진행 중
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onSelect={() => {
-                                                        void updateEventsStatus(
-                                                            selectedEvents.map(
-                                                                (event) =>
-                                                                    event.id
-                                                            ),
-                                                            "completed"
-                                                        )
-                                                        table.resetRowSelection()
-                                                    }}
-                                                >
-                                                    완료
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onSelect={() => {
-                                                        void updateEventsStatus(
-                                                            selectedEvents.map(
-                                                                (event) =>
-                                                                    event.id
-                                                            ),
-                                                            "cancelled"
-                                                        )
-                                                        table.resetRowSelection()
-                                                    }}
-                                                >
-                                                    취소
-                                                </DropdownMenuItem>
+                                                <DropdownMenuLabel>
+                                                    선택한 일정 일괄 수정
+                                                </DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuSub>
+                                                    <DropdownMenuSubTrigger>
+                                                        <CalendarRangeIcon />
+                                                        상태 변경
+                                                    </DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent className="w-44">
+                                                        {editableStatuses.map(
+                                                            (status) => (
+                                                                <DropdownMenuItem
+                                                                    key={status}
+                                                                    onSelect={() => {
+                                                                        void updateEventsStatus(
+                                                                            selectedEvents.map(
+                                                                                (
+                                                                                    event
+                                                                                ) =>
+                                                                                    event.id
+                                                                            ),
+                                                                            status
+                                                                        )
+                                                                        table.resetRowSelection()
+                                                                    }}
+                                                                >
+                                                                    {
+                                                                        statusLabelMap[
+                                                                            status
+                                                                        ]
+                                                                    }
+                                                                </DropdownMenuItem>
+                                                            )
+                                                        )}
+                                                    </DropdownMenuSubContent>
+                                                </DropdownMenuSub>
+                                                <DropdownMenuSub>
+                                                    <DropdownMenuSubTrigger>
+                                                        <TagsIcon />
+                                                        카테고리 변경
+                                                    </DropdownMenuSubTrigger>
+                                                    <DropdownMenuSubContent className="w-52">
+                                                        <DropdownMenuItem
+                                                            onSelect={() => {
+                                                                void updateEventsCategory(
+                                                                    selectedEvents.map(
+                                                                        (
+                                                                            event
+                                                                        ) =>
+                                                                            event.id
+                                                                    ),
+                                                                    null
+                                                                )
+                                                                table.resetRowSelection()
+                                                            }}
+                                                        >
+                                                            카테고리 없음
+                                                        </DropdownMenuItem>
+                                                        {categoryOptions.length ? (
+                                                            <>
+                                                                <DropdownMenuSeparator />
+                                                                {categoryOptions.map(
+                                                                    (
+                                                                        category
+                                                                    ) => (
+                                                                        <DropdownMenuItem
+                                                                            key={
+                                                                                category.id
+                                                                            }
+                                                                            onSelect={() => {
+                                                                                void updateEventsCategory(
+                                                                                    selectedEvents.map(
+                                                                                        (
+                                                                                            event
+                                                                                        ) =>
+                                                                                            event.id
+                                                                                    ),
+                                                                                    category.id
+                                                                                )
+                                                                                table.resetRowSelection()
+                                                                            }}
+                                                                        >
+                                                                            <span
+                                                                                className={getCalendarCategoryLabelClassName(
+                                                                                    category.color,
+                                                                                    "inline-flex h-6 items-center rounded-md px-1.5 leading-normal"
+                                                                                )}
+                                                                            >
+                                                                                {
+                                                                                    category.label
+                                                                                }
+                                                                            </span>
+                                                                        </DropdownMenuItem>
+                                                                    )
+                                                                )}
+                                                            </>
+                                                        ) : null}
+                                                    </DropdownMenuSubContent>
+                                                </DropdownMenuSub>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     )
                                 }}
                             />
                         )}
+                    </Field>
+
+                    <FieldSeparator />
+
+                    <Field className="gap-4">
+                        <FieldContent>
+                            <FieldLabel>일정 속성 표시</FieldLabel>
+                            <FieldDescription>
+                                속성 숨김 여부는 캘린더 단위로 일괄 적용됩니다.
+                                순서는 일정 폼에서 드래그하면 바로 저장되고,
+                                여기서는 표시 여부를 관리합니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <CalendarEventFieldSettingsCard
+                            settings={eventFieldSettings}
+                            disabled={
+                                !activeCalendar ||
+                                activeCalendar.id === "demo" ||
+                                !canManageEvents
+                            }
+                            onVisibilityChange={(fieldId, visible) => {
+                                void handleFieldVisibilityChange(
+                                    fieldId,
+                                    visible
+                                )
+                            }}
+                        />
                     </Field>
 
                     <FieldSeparator />

@@ -83,22 +83,17 @@ export function MonthList({
     useEffect(() => {
         const base = baseDateRef.current
 
-        // 👇 핵심: 해당 달의 1일
-        const firstDayOfMonth = dayjs(newDate).startOf("month")
-
-        // 👇 그 1일이 포함된 주 시작
+        const firstDayOfMonth = dayjs.tz(newDate, calendarTz).startOf("month")
         const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
 
-        const diff = dayjs(firstWeekStart)
-            .tz(calendarTz)
-            .diff(dayjs(base).tz(calendarTz), "week")
+        const diff = firstWeekStart.diff(dayjs.tz(base, calendarTz), "week")
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
             align: "start",
         })
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [calendarTz])
 
     // 외부 이동
     useEffect(() => {
@@ -106,20 +101,16 @@ export function MonthList({
 
         const base = baseDateRef.current
 
-        const firstDayOfMonth = dayjs(targetDate).startOf("month")
+        const firstDayOfMonth = dayjs.tz(targetDate, calendarTz).startOf("month")
         const firstWeekStart = firstDayOfMonth.startOf("isoWeek")
-
-        const diff = Math.floor(
-            (firstWeekStart.toDate().getTime() - base.getTime()) /
-                (1000 * 60 * 60 * 24 * 7)
-        )
+        const diff = firstWeekStart.diff(dayjs.tz(base, calendarTz), "week")
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
             align: "start",
         })
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [targetDate])
+    }, [calendarTz, targetDate])
 
     // 현재 월 계산
     useEffect(() => {

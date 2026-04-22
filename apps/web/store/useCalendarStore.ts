@@ -5,6 +5,7 @@ import {
     deleteCalendarEvent,
     updateCalendarEvent as updateCalendarEventQuery,
 } from "@/lib/calendar/mutations"
+import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     canCreateCalendarEvents,
     canDeleteCalendarEvent,
@@ -17,6 +18,7 @@ import { toast } from "sonner"
 import type {
     CalendarDragState,
     CalendarEvent,
+    CalendarEventCategory,
     CalendarEventFilterState,
     CalendarStoreState,
 } from "./calendar-store.types"
@@ -88,14 +90,6 @@ async function persistUpdatedEvent(
     }
 
     if (result.event) {
-        if (result.event.categories.length > 0) {
-            const store = useCalendarStore.getState()
-
-            result.event.categories.forEach((category) => {
-                store.upsertEventCategorySnapshot(category)
-            })
-        }
-
         const currentEvent = useCalendarStore
             .getState()
             .events.find((event) => event.id === result.event?.id)
@@ -147,6 +141,45 @@ function sortEventCategories(
     })
 }
 
+function replaceCategoryInEvent(
+    event: CalendarEvent,
+    nextCategory: CalendarEventCategory
+) {
+    if (!event.categoryIds.includes(nextCategory.id)) {
+        return event
+    }
+
+    const nextCategories = event.categories.map((category) =>
+        category.id === nextCategory.id ? nextCategory : category
+    )
+
+    return {
+        ...event,
+        categories: nextCategories,
+        category: nextCategories[0] ?? null,
+        categoryId: nextCategories[0]?.id ?? null,
+        categoryIds: nextCategories.map((category) => category.id),
+    }
+}
+
+function removeCategoryFromEvent(event: CalendarEvent, categoryId: string) {
+    if (!event.categoryIds.includes(categoryId)) {
+        return event
+    }
+
+    const nextCategories = event.categories.filter(
+        (category) => category.id !== categoryId
+    )
+
+    return {
+        ...event,
+        categories: nextCategories,
+        category: nextCategories[0] ?? null,
+        categoryId: nextCategories[0]?.id ?? null,
+        categoryIds: nextCategories.map((category) => category.id),
+    }
+}
+
 function toggleStringFilterItem(items: string[], value: string) {
     return items.includes(value)
         ? items.filter((item) => item !== value)
@@ -173,6 +206,29 @@ function pruneEventFilters(
     return {
         ...filters,
         excludedCategoryIds,
+    }
+}
+
+function syncEventFiltersWithCategoryDefaults(
+    filters: CalendarEventFilterState,
+    nextCategory: CalendarEventCategory,
+    previousCategory?: CalendarEventCategory
+) {
+    if (
+        previousCategory &&
+        previousCategory.options.visibleByDefault ===
+            nextCategory.options.visibleByDefault
+    ) {
+        return filters
+    }
+
+    return {
+        ...filters,
+        excludedCategoryIds: nextCategory.options.visibleByDefault
+            ? filters.excludedCategoryIds.filter((id) => id !== nextCategory.id)
+            : Array.from(
+                  new Set([...filters.excludedCategoryIds, nextCategory.id])
+              ),
     }
 }
 
@@ -278,8 +334,26 @@ export const useCalendarStore = createSSRStore<
         excludedCategoryIds: [],
     },
 
-    setMyCalendars: (myCalendars) => set({ myCalendars }),
-    setActiveCalendar: (activeCalendar) => set({ activeCalendar }),
+    setMyCalendars: (myCalendars) =>
+        set({
+            myCalendars: myCalendars.map((calendar) => ({
+                ...calendar,
+                eventFieldSettings: normalizeCalendarEventFieldSettings(
+                    calendar.eventFieldSettings
+                ),
+            })),
+        }),
+    setActiveCalendar: (activeCalendar) =>
+        set({
+            activeCalendar: activeCalendar
+                ? {
+                      ...activeCalendar,
+                      eventFieldSettings: normalizeCalendarEventFieldSettings(
+                          activeCalendar.eventFieldSettings
+                      ),
+                  }
+                : null,
+        }),
     setActiveCalendarMembership: (activeCalendarMembership) =>
         set({ activeCalendarMembership }),
     applyActiveCalendarMembership: (membership) =>
@@ -339,17 +413,29 @@ export const useCalendarStore = createSSRStore<
             },
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
-        set((s) => ({
-            myCalendars: s.myCalendars.map((calendar) =>
-                calendar.id === calendarId
-                    ? { ...calendar, ...patch }
-                    : calendar
-            ),
-            activeCalendar:
-                s.activeCalendar?.id === calendarId
-                    ? { ...s.activeCalendar, ...patch }
-                    : s.activeCalendar,
-        })),
+        set((s) => {
+            const normalizedPatch =
+                patch.eventFieldSettings !== undefined
+                    ? {
+                          ...patch,
+                          eventFieldSettings: normalizeCalendarEventFieldSettings(
+                              patch.eventFieldSettings
+                          ),
+                      }
+                    : patch
+
+            return {
+                myCalendars: s.myCalendars.map((calendar) =>
+                    calendar.id === calendarId
+                        ? { ...calendar, ...normalizedPatch }
+                        : calendar
+                ),
+                activeCalendar:
+                    s.activeCalendar?.id === calendarId
+                        ? { ...s.activeCalendar, ...normalizedPatch }
+                        : s.activeCalendar,
+            }
+        }),
 
     setCalendarTimezone: (tz: string) => set({ calendarTimezone: tz }),
     setIsWorkspacePresenceLoading: (isWorkspacePresenceLoading) =>
@@ -421,9 +507,10 @@ export const useCalendarStore = createSSRStore<
         }),
     upsertEventCategorySnapshot: (category) =>
         set((state) => {
-            const nextCategories = state.eventCategories.some(
-                (item) => item.id === category.id
-            )
+            const previousCategory =
+                state.eventCategories.find((item) => item.id === category.id) ??
+                undefined
+            const nextCategories = previousCategory
                 ? state.eventCategories.map((item) =>
                       item.id === category.id ? { ...item, ...category } : item
                   )
@@ -431,20 +518,49 @@ export const useCalendarStore = createSSRStore<
 
             return {
                 eventCategories: sortEventCategories(nextCategories),
+                eventFilters: pruneEventFilters(
+                    syncEventFiltersWithCategoryDefaults(
+                        state.eventFilters,
+                        category,
+                        previousCategory
+                    ),
+                    nextCategories
+                ),
+                events: sortCalendarEvents(
+                    state.events.map((event) =>
+                        replaceCategoryInEvent(event, category)
+                    )
+                ),
+                viewEvent: state.viewEvent
+                    ? replaceCategoryInEvent(state.viewEvent, category)
+                    : null,
             }
         }),
     removeEventCategorySnapshot: (categoryId) =>
-        set((state) => ({
-            eventCategories: state.eventCategories.filter(
+        set((state) => {
+            const nextCategories = state.eventCategories.filter(
                 (category) => category.id !== categoryId
-            ),
-            eventFilters: {
-                ...state.eventFilters,
-                excludedCategoryIds: state.eventFilters.excludedCategoryIds.filter(
-                    (id) => id !== categoryId
+            )
+
+            return {
+                eventCategories: nextCategories,
+                eventFilters: {
+                    ...state.eventFilters,
+                    excludedCategoryIds:
+                        state.eventFilters.excludedCategoryIds.filter(
+                            (id) => id !== categoryId
+                        ),
+                },
+                events: sortCalendarEvents(
+                    state.events.map((event) =>
+                        removeCategoryFromEvent(event, categoryId)
+                    )
                 ),
-            },
-        })),
+                viewEvent: state.viewEvent
+                    ? removeCategoryFromEvent(state.viewEvent, categoryId)
+                    : null,
+            }
+        }),
     setEventCategoryDefaultVisibility: (categoryId, visibleByDefault) =>
         set((state) => {
             const nextCategories = state.eventCategories.map((category) =>
@@ -548,6 +664,22 @@ export const useCalendarStore = createSSRStore<
     setEvents: (events) => set({ events: sortCalendarEvents(events) }),
     upsertEventSnapshot: (event) =>
         set((state) => {
+            const nextCategories = event.categories.reduce(
+                (categories, category) => {
+                    const existingCategory = categories.find(
+                        (item) => item.id === category.id
+                    )
+
+                    return existingCategory
+                        ? categories.map((item) =>
+                              item.id === category.id
+                                  ? { ...item, ...category }
+                                  : item
+                          )
+                        : [...categories, category]
+                },
+                state.eventCategories
+            )
             const nextEvents = state.events.some((item) => item.id === event.id)
                 ? state.events.map((item) =>
                       item.id === event.id ? { ...item, ...event } : item
@@ -555,7 +687,24 @@ export const useCalendarStore = createSSRStore<
                 : [...state.events, event]
 
             return {
+                eventCategories: sortEventCategories(nextCategories),
+                eventFilters: pruneEventFilters(
+                    nextCategories.reduce(
+                        (filters, category) =>
+                            syncEventFiltersWithCategoryDefaults(
+                                filters,
+                                category,
+                                state.eventCategories.find(
+                                    (item) => item.id === category.id
+                                )
+                            ),
+                        state.eventFilters
+                    ),
+                    nextCategories
+                ),
                 events: sortCalendarEvents(nextEvents),
+                viewEvent:
+                    state.viewEvent?.id === event.id ? event : state.viewEvent,
             }
         }),
     removeEventSnapshot: (id) =>

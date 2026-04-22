@@ -1,15 +1,19 @@
 "use client"
 
+import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
 import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
+import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     CALENDAR_WORKSPACE_REALTIME_EVENTS,
     CALENDAR_WORKSPACE_REALTIME_RECOVERABLE_STATUSES,
     CALENDAR_WORKSPACE_REALTIME_RETRY_DELAYS_MS,
     getCalendarWorkspaceTopic,
+    type CalendarEventCategoryRealtimePayload,
     type CalendarEventRealtimePayload,
+    type CalendarSettingsRealtimePayload,
     type CalendarWorkspaceCursor,
     type CalendarWorkspaceCursorBroadcastPayload,
     type CalendarWorkspaceCursorSnapshotRequestPayload,
@@ -31,6 +35,14 @@ import { useCallback, useEffect, useRef } from "react"
 
 type CalendarBroadcastMessage = {
     payload?: CalendarEventRealtimePayload
+}
+
+type CalendarCategoryBroadcastMessage = {
+    payload?: CalendarEventCategoryRealtimePayload
+}
+
+type CalendarSettingsBroadcastMessage = {
+    payload?: CalendarSettingsRealtimePayload
 }
 
 type CalendarCursorBroadcastMessage = {
@@ -150,6 +162,40 @@ function isCalendarWorkspaceCursorBroadcastPayload(
     )
 }
 
+function isCalendarEventCategoryRealtimePayload(
+    value: unknown
+): value is CalendarEventCategoryRealtimePayload {
+    if (!value || typeof value !== "object") {
+        return false
+    }
+
+    const candidate = value as Partial<CalendarEventCategoryRealtimePayload>
+
+    return (
+        candidate.entity === "event_category" &&
+        typeof candidate.calendarId === "string" &&
+        typeof candidate.categoryId === "string" &&
+        typeof candidate.occurredAt === "string"
+    )
+}
+
+function isCalendarSettingsRealtimePayload(
+    value: unknown
+): value is CalendarSettingsRealtimePayload {
+    if (!value || typeof value !== "object") {
+        return false
+    }
+
+    const candidate = value as Partial<CalendarSettingsRealtimePayload>
+
+    return (
+        candidate.entity === "calendar_settings" &&
+        candidate.operation === "update" &&
+        typeof candidate.calendarId === "string" &&
+        typeof candidate.occurredAt === "string"
+    )
+}
+
 function isCalendarWorkspaceCursorSnapshotRequestPayload(
     value: unknown
 ): value is CalendarWorkspaceCursorSnapshotRequestPayload {
@@ -199,6 +245,15 @@ export function useCalendarWorkspaceRealtime() {
     )
     const removeEventSnapshot = useCalendarStore(
         (state) => state.removeEventSnapshot
+    )
+    const upsertEventCategorySnapshot = useCalendarStore(
+        (state) => state.upsertEventCategorySnapshot
+    )
+    const removeEventCategorySnapshot = useCalendarStore(
+        (state) => state.removeEventCategorySnapshot
+    )
+    const updateCalendarSnapshot = useCalendarStore(
+        (state) => state.updateCalendarSnapshot
     )
     const setWorkspacePresence = useCalendarStore(
         (state) => state.setWorkspacePresence
@@ -519,6 +574,57 @@ export function useCalendarWorkspaceRealtime() {
             }
 
             upsertEventSnapshot(mapCalendarEventRecordToCalendarEvent(record))
+        }
+
+        const handleCategoryBroadcast = (
+            message: CalendarCategoryBroadcastMessage
+        ) => {
+            const payload = message.payload
+
+            if (!isCalendarEventCategoryRealtimePayload(payload)) {
+                return
+            }
+
+            if (payload.operation === "delete") {
+                removeEventCategorySnapshot(payload.categoryId)
+                return
+            }
+
+            if (!payload.record) {
+                return
+            }
+
+            upsertEventCategorySnapshot({
+                id: payload.record.id,
+                calendarId: payload.record.calendar_id,
+                name: payload.record.name,
+                options: {
+                    visibleByDefault:
+                        payload.record.options?.visibleByDefault !== false,
+                    color: normalizeCalendarCategoryColor(
+                        payload.record.options?.color
+                    ),
+                },
+                createdById: payload.record.created_by,
+                createdAt: new Date(payload.record.created_at).valueOf(),
+                updatedAt: new Date(payload.record.updated_at).valueOf(),
+            })
+        }
+
+        const handleCalendarSettingsBroadcast = (
+            message: CalendarSettingsBroadcastMessage
+        ) => {
+            const payload = message.payload
+
+            if (!isCalendarSettingsRealtimePayload(payload) || !payload.record) {
+                return
+            }
+
+            updateCalendarSnapshot(payload.record.id, {
+                eventFieldSettings: normalizeCalendarEventFieldSettings(
+                    payload.record.event_field_settings
+                ),
+            })
         }
 
         const handleCursorBroadcast = (
@@ -852,6 +958,34 @@ export function useCalendarWorkspaceRealtime() {
                 .on(
                     "broadcast",
                     {
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.categoryCreated,
+                    },
+                    handleCategoryBroadcast
+                )
+                .on(
+                    "broadcast",
+                    {
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.categoryUpdated,
+                    },
+                    handleCategoryBroadcast
+                )
+                .on(
+                    "broadcast",
+                    {
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.categoryDeleted,
+                    },
+                    handleCategoryBroadcast
+                )
+                .on(
+                    "broadcast",
+                    {
+                        event: CALENDAR_WORKSPACE_REALTIME_EVENTS.settingsUpdated,
+                    },
+                    handleCalendarSettingsBroadcast
+                )
+                .on(
+                    "broadcast",
+                    {
                         event: CALENDAR_WORKSPACE_REALTIME_EVENTS.cursorUpdated,
                     },
                     handleCursorBroadcast
@@ -1023,7 +1157,10 @@ export function useCalendarWorkspaceRealtime() {
         getCurrentCursor,
         requestCursorSnapshot,
         trackPresence,
+        removeEventCategorySnapshot,
+        updateCalendarSnapshot,
         upsertEventSnapshot,
+        upsertEventCategorySnapshot,
         userAvatarUrl,
         userId,
         userName,

@@ -3,7 +3,7 @@ import type { CalendarEvent } from "@/store/calendar-store.types"
 
 // 👉 캘린더 기준 변환 (핵심)
 export function toCalendarDay(date: number | Date | string, tz: string) {
-    return dayjs(date).tz(tz, true).startOf("day").valueOf()
+    return dayjs(date).tz(tz).startOf("day").valueOf()
 }
 
 // 👉 이벤트 → 캘린더 변환
@@ -31,10 +31,11 @@ export function getEventDuration(event: {
 }
 
 export function toCalendarRange(event: CalendarEvent, calendarTz: string) {
-    // ✅ 올데이 이벤트는 tz 변환 금지
+    // 올데이 이벤트는 이벤트 기준 타임존의 날짜 경계를 그대로 사용한다.
     if (event.allDay) {
-        const start = dayjs(event.start).startOf("day")
-        const end = dayjs(event.end).startOf("day")
+        const eventTz = event.timezone || calendarTz
+        const start = dayjs(event.start).tz(eventTz).startOf("day")
+        const end = dayjs(event.end).tz(eventTz).startOf("day")
 
         return {
             startDay: start,
@@ -42,7 +43,7 @@ export function toCalendarRange(event: CalendarEvent, calendarTz: string) {
         }
     }
 
-    // ✅ 일반 이벤트만 tz 변환
+    // 일반 이벤트는 이벤트 타임존에서 캘린더 타임존으로 변환한다.
     const start = eventToCalendar(event, event.start, calendarTz)
     const end = eventToCalendar(event, event.end, calendarTz)
 
