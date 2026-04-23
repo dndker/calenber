@@ -29,7 +29,6 @@ import {
 } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
-import { withMask } from "use-mask-input"
 
 import { EventCategorySettingsPanel } from "./event-category-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
@@ -46,7 +45,6 @@ import { Button } from "@workspace/ui/components/button"
 import { Field, FieldError, FieldGroup } from "@workspace/ui/components/field"
 
 import { CalendarPicker } from "@workspace/ui/components/calendar-picker"
-import { Input } from "@workspace/ui/components/input"
 import {
     Popover,
     PopoverContent,
@@ -99,10 +97,39 @@ import {
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarMenu,
+    SidebarMenuButton,
+} from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
+import {
+    WheelPicker,
+    WheelPickerOption,
+    WheelPickerWrapper,
+} from "../wheel-picker"
+
+const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
+    Array.from({ length }, (_, i) => {
+        const value = i + add
+        return {
+            label: value.toString().padStart(2, "0"),
+            value: value,
+        }
+    })
+
+const hourOptions = createArray(12, 1)
+const minuteOptions = createArray(60)
+const meridiemOptions: WheelPickerOption<"am" | "pm">[] = [
+    { label: "오전", value: "am" },
+    { label: "오후", value: "pm" },
+]
 
 const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
     ssr: false,
@@ -204,20 +231,100 @@ function normalizeIds(values: string[]) {
 }
 
 type ScheduleBoundary = "start" | "end"
+type SchedulePickerPanel = "date" | "time"
+type ScheduleChangeKind = "date" | "time"
+type WheelTimeValue = ReturnType<typeof getMeridiemHourMinute>
 
-function isSameScheduleDay(start: Date, end: Date) {
-    return dayjs(start).isSame(end, "day")
+const MINIMUM_END_MINUTES = 5
+const START_BOUNDARY_FALLBACK_HOURS = 1
+const WHEEL_COMMIT_DELAY_MS = 500
+
+function toMinuteOfDay(value: WheelTimeValue) {
+    return toHour24(value.meridiem, value.hour12) * 60 + value.minute
 }
 
-function formatDateInputValue(date: Date) {
-    return dayjs(date).format("YY.MM.DD")
+function isWheelTimeAllowed({
+    boundary,
+    candidate,
+    start,
+    end,
+    timezone,
+}: {
+    boundary: ScheduleBoundary
+    candidate: WheelTimeValue
+    start: Date
+    end: Date
+    timezone: string
+}) {
+    if (!isSameScheduleDay(start, end, timezone)) {
+        return true
+    }
+
+    const startValue = getMeridiemHourMinute(start, timezone)
+    const endValue = getMeridiemHourMinute(end, timezone)
+    const candidateMinute = toMinuteOfDay(candidate)
+    const startMinute = toMinuteOfDay(startValue)
+    const endMinute = toMinuteOfDay(endValue)
+
+    if (boundary === "start") {
+        return candidateMinute < endMinute
+    }
+
+    return candidateMinute > startMinute
 }
 
-function formatTimeInputValue(date: Date) {
-    return dayjs(date).format("HH:mm")
+function isSameScheduleDay(start: Date, end: Date, timezone: string) {
+    return dayjs(start).tz(timezone).isSame(dayjs(end).tz(timezone), "day")
 }
 
-function setDateParts(baseDate: Date, value: string) {
+function formatDateInputValue(date: Date, timezone: string) {
+    return dayjs(date).tz(timezone).format("YY.MM.DD")
+}
+
+function getMeridiemHourMinute(
+    date: Date,
+    timezone: string
+): {
+    meridiem: "am" | "pm"
+    hour12: number
+    minute: number
+} {
+    const zoned = dayjs(date).tz(timezone)
+    const hour24 = zoned.hour()
+    const meridiem = hour24 < 12 ? "am" : "pm"
+    const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+
+    return {
+        meridiem,
+        hour12,
+        minute: zoned.minute(),
+    }
+}
+
+function toHour24(meridiem: "am" | "pm", hour12: number) {
+    const normalizedHour = hour12 === 12 ? 0 : hour12
+    return meridiem === "pm" ? normalizedHour + 12 : normalizedHour
+}
+
+function getMinimumEndDate(start: Date, timezone: string) {
+    return dayjs(start).tz(timezone).add(MINIMUM_END_MINUTES, "minute").toDate()
+}
+
+function addScheduleTime(
+    date: Date,
+    amount: number,
+    unit: "day" | "hour" | "minute",
+    timezone: string
+) {
+    return dayjs(date)
+        .tz(timezone)
+        .add(amount, unit)
+        .second(0)
+        .millisecond(0)
+        .toDate()
+}
+
+function setDateParts(baseDate: Date, value: string, timezone: string) {
     const normalized = value.trim()
     let year = NaN
     let month = NaN
@@ -239,51 +346,104 @@ function setDateParts(baseDate: Date, value: string) {
         return baseDate
     }
 
-    const candidate = new Date(year, month - 1, day)
+    const zonedBaseDate = dayjs(baseDate).tz(timezone)
+    const candidate = zonedBaseDate
+        .year(year)
+        .month(month - 1)
+        .date(day)
+        .second(0)
+        .millisecond(0)
     const isValidDate =
-        candidate.getFullYear() === year &&
-        candidate.getMonth() === month - 1 &&
-        candidate.getDate() === day
+        candidate.year() === year &&
+        candidate.month() === month - 1 &&
+        candidate.date() === day
 
     if (!isValidDate) {
         return baseDate
     }
 
-    const nextDate = new Date(baseDate)
-    nextDate.setFullYear(year, month - 1, day)
-    return nextDate
+    return candidate.toDate()
 }
 
-function setTimeParts(baseDate: Date, value: string) {
+function setTimeParts(baseDate: Date, value: string, timezone: string) {
     const [hour = NaN, minute = NaN] = value.split(":").map(Number)
 
     if (Number.isNaN(hour) || Number.isNaN(minute)) {
         return baseDate
     }
 
-    const nextDate = new Date(baseDate)
-    nextDate.setHours(hour, minute, 0, 0)
-    return nextDate
+    return dayjs(baseDate)
+        .tz(timezone)
+        .hour(hour)
+        .minute(minute)
+        .second(0)
+        .millisecond(0)
+        .toDate()
 }
 
-function normalizeScheduleRange(
-    start: Date,
-    end: Date,
+function normalizeTimedScheduleRange({
+    start,
+    end,
+    changedBoundary,
+    changeKind,
+    timezone,
+}: {
+    start: Date
+    end: Date
     changedBoundary: ScheduleBoundary
-) {
+    changeKind: ScheduleChangeKind
+    timezone: string
+}) {
     if (start.getTime() <= end.getTime()) {
-        return { start, end }
+        return { start, end, didCoerce: false }
     }
 
     if (changedBoundary === "start") {
-        return { start, end: new Date(start) }
+        if (changeKind === "time") {
+            const previousDayStart = addScheduleTime(start, -1, "day", timezone)
+
+            if (previousDayStart.getTime() <= end.getTime()) {
+                return {
+                    start: previousDayStart,
+                    end,
+                    didCoerce: true,
+                }
+            }
+        }
+
+        return {
+            start: addScheduleTime(
+                end,
+                -START_BOUNDARY_FALLBACK_HOURS,
+                "hour",
+                timezone
+            ),
+            end,
+            didCoerce: true,
+        }
     }
 
-    return { start: new Date(end), end }
+    if (changeKind === "time") {
+        const nextDayEnd = addScheduleTime(end, 1, "day", timezone)
+
+        if (nextDayEnd.getTime() >= start.getTime()) {
+            return {
+                start,
+                end: nextDayEnd,
+                didCoerce: true,
+            }
+        }
+    }
+
+    return {
+        start,
+        end: getMinimumEndDate(start, timezone),
+        didCoerce: true,
+    }
 }
 
-function getRangeModifiers(start: Date, end: Date) {
-    if (isSameScheduleDay(start, end)) {
+function getRangeModifiers(start: Date, end: Date, timezone: string) {
+    if (isSameScheduleDay(start, end, timezone)) {
         return {
             selected: [start],
             range_start: [start],
@@ -312,25 +472,198 @@ function formatScheduleTriggerLabel({
     start,
     end,
     allDay,
+    timezone,
 }: {
     start: Date
     end: Date
     allDay: boolean
+    timezone: string
 }) {
+    const zonedStart = dayjs(start).tz(timezone)
+    const zonedEnd = dayjs(end).tz(timezone)
+    const formatMeridiemHour = (target: dayjs.Dayjs) => {
+        const hour = target.hour()
+        const meridiem = hour < 12 ? "오전" : "오후"
+        const hour12 = hour % 12 === 0 ? 12 : hour % 12
+        return `${meridiem} ${hour12}시`
+    }
+
     if (allDay) {
-        if (isSameScheduleDay(start, end)) {
-            return dayjs(start).format("YYYY년 M월 D일")
+        if (zonedStart.isSame(zonedEnd, "day")) {
+            return zonedStart.format("YYYY년 M월 D일")
         }
 
-        return `${dayjs(start).format("YYYY년 M월 D일")} ~ ${dayjs(end).format("YYYY년 M월 D일")}`
+        return `${zonedStart.format("YYYY년 M월 D일")} ~ ${zonedEnd.format("YYYY년 M월 D일")}`
     }
 
-    if (isSameScheduleDay(start, end)) {
-        return `${dayjs(start).format("YYYY년 M월 D일 HH:mm")} - ${dayjs(end).format("HH:mm")}`
+    if (zonedStart.isSame(zonedEnd, "day")) {
+        return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} - ${formatMeridiemHour(zonedEnd)}`
     }
 
-    return `${dayjs(start).format("YYYY년 M월 D일 HH:mm")} ~ ${dayjs(end).format("YYYY년 M월 D일 HH:mm")}`
+    return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} ~ ${zonedEnd.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedEnd)}`
 }
+
+function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
+    const normalizedStart = dayjs(start).tz(timezone).startOf("day")
+    const normalizedEnd = dayjs(end).tz(timezone).endOf("day")
+    const safeEnd = normalizedEnd.isBefore(normalizedStart)
+        ? normalizedStart.endOf("day")
+        : normalizedEnd
+
+    return {
+        start: normalizedStart.toDate(),
+        end: safeEnd.toDate(),
+    }
+}
+
+function preserveDateTimeInTimezone(
+    date: Date,
+    fromTimezone: string,
+    toTimezone: string
+) {
+    if (fromTimezone === toTimezone) {
+        return new Date(date)
+    }
+
+    const localDateTime = dayjs(date)
+        .tz(fromTimezone)
+        .format("YYYY-MM-DDTHH:mm:ss.SSS")
+
+    return dayjs.tz(localDateTime, toTimezone).toDate()
+}
+
+function normalizeValuesForPersistence(
+    values: EventFormValues
+): EventFormValues {
+    if (!values.allDay) {
+        return values
+    }
+
+    const normalized = normalizeAllDaySchedule(
+        values.start,
+        values.end,
+        values.timezone || "Asia/Seoul"
+    )
+    return {
+        ...values,
+        start: normalized.start,
+        end: normalized.end,
+    }
+}
+
+const ScheduleTimeWheelPicker = memo(function ScheduleTimeWheelPicker({
+    value,
+    disabled,
+    meridiemOptions,
+    hourOptions,
+    minuteOptions,
+    onCommit,
+}: {
+    value: WheelTimeValue
+    disabled?: boolean
+    meridiemOptions: WheelPickerOption<"am" | "pm">[]
+    hourOptions: WheelPickerOption<number>[]
+    minuteOptions: WheelPickerOption<number>[]
+    onCommit: (value: WheelTimeValue) => {
+        value: WheelTimeValue
+        locked: boolean
+    }
+}) {
+    const [draft, setDraft] = useState<WheelTimeValue>(value)
+    const draftRef = useRef(value)
+    const commitTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (commitTimerRef.current) {
+                clearTimeout(commitTimerRef.current)
+            }
+        }
+    }, [])
+
+    const queueCommit = useCallback(
+        (nextDraft: WheelTimeValue) => {
+            if (commitTimerRef.current) {
+                clearTimeout(commitTimerRef.current)
+            }
+
+            commitTimerRef.current = setTimeout(() => {
+                const result = onCommit(nextDraft)
+                draftRef.current = result.value
+                setDraft(result.value)
+            }, WHEEL_COMMIT_DELAY_MS)
+        },
+        [onCommit]
+    )
+
+    const handlePartChange = useCallback(
+        (nextPart: Partial<WheelTimeValue>) => {
+            if (disabled) {
+                return
+            }
+
+            const nextDraft = {
+                ...draftRef.current,
+                ...nextPart,
+            }
+            const isSameDraft =
+                nextDraft.meridiem === draftRef.current.meridiem &&
+                nextDraft.hour12 === draftRef.current.hour12 &&
+                nextDraft.minute === draftRef.current.minute
+
+            if (isSameDraft) {
+                return
+            }
+
+            draftRef.current = nextDraft
+            setDraft(nextDraft)
+            queueCommit(nextDraft)
+        },
+        [disabled, queueCommit]
+    )
+
+    return (
+        <div className="w-full">
+            <WheelPickerWrapper
+                className={`w-full border-0 p-0 shadow-none ${disabled ? "pointer-events-none opacity-80" : ""}`}
+            >
+                <WheelPicker
+                    options={meridiemOptions}
+                    value={draft.meridiem}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            meridiem: nextValue as "am" | "pm",
+                        })
+                    }}
+                />
+                <WheelPicker
+                    options={hourOptions}
+                    value={draft.hour12}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            hour12: nextValue as number,
+                        })
+                    }}
+                />
+                <WheelPicker
+                    options={minuteOptions}
+                    value={draft.minute}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            minute: nextValue as number,
+                        })
+                    }}
+                />
+            </WheelPickerWrapper>
+        </div>
+    )
+})
 
 const EMPTY_MEMBER_DIRECTORY: CalendarMemberDirectoryItem[] = []
 
@@ -372,6 +705,7 @@ export function EventForm({
     portalContainer?: HTMLElement | null
 }) {
     const user = useAuthStore((a) => a.user)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const defaultParticipantIds = useMemo(
         () => getDefaultParticipantIds({ event, currentUserId: user?.id }),
         [event, user?.id]
@@ -385,12 +719,12 @@ export function EventForm({
                   content: event.content,
                   start: new Date(event.start),
                   end: new Date(event.end),
-                  timezone: event.timezone,
+                  timezone: event.timezone || calendarTimezone || "Asia/Seoul",
                   categoryNames: event.categories.map(
                       (category) => category.name
                   ),
                   participantIds: defaultParticipantIds,
-                  allDay: event.allDay,
+                  allDay: event.allDay ?? false,
                   recurrence: event.recurrence,
                   exceptions: event.exceptions,
                   status: event.status,
@@ -398,9 +732,19 @@ export function EventForm({
             : {
                   title: "",
                   content: defaultContent,
-                  start: new Date(),
-                  end: new Date(),
-                  timezone: "Asia/Seoul",
+                  start: dayjs()
+                      .tz(calendarTimezone || "Asia/Seoul")
+                      .add(1, "hour")
+                      .second(0)
+                      .millisecond(0)
+                      .toDate(),
+                  end: dayjs()
+                      .tz(calendarTimezone || "Asia/Seoul")
+                      .add(2, "hour")
+                      .second(0)
+                      .millisecond(0)
+                      .toDate(),
+                  timezone: calendarTimezone || "Asia/Seoul",
                   categoryNames: [],
                   participantIds: defaultParticipantIds,
                   allDay: false,
@@ -434,6 +778,13 @@ export function EventForm({
     const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false)
     const [activeScheduleBoundary, setActiveScheduleBoundary] =
         useState<ScheduleBoundary>("start")
+    const [schedulePickerPanel, setSchedulePickerPanel] =
+        useState<SchedulePickerPanel>("date")
+    const [pendingScheduleRange, setPendingScheduleRange] = useState<
+        DateRange | undefined
+    >(undefined)
+    const scheduleSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const hasPendingScheduleSaveRef = useRef(false)
     const [schedulePickerMonth, setSchedulePickerMonth] = useState<Date>(() =>
         form.getValues("start")
     )
@@ -473,7 +824,8 @@ export function EventForm({
                 content: targetEvent.content,
                 start: new Date(targetEvent.start),
                 end: new Date(targetEvent.end),
-                timezone: targetEvent.timezone,
+                timezone:
+                    targetEvent.timezone || calendarTimezone || "Asia/Seoul",
                 categoryNames: targetEvent.categories.map(
                     (category) => category.name
                 ),
@@ -481,13 +833,13 @@ export function EventForm({
                     event: targetEvent,
                     currentUserId: user?.id,
                 }),
-                allDay: targetEvent.allDay,
+                allDay: targetEvent.allDay ?? false,
                 recurrence: targetEvent.recurrence,
                 exceptions: targetEvent.exceptions,
                 status: targetEvent.status,
             })
         },
-        [form, user?.id]
+        [calendarTimezone, form, user?.id]
     )
 
     const isSameValue = (
@@ -746,7 +1098,12 @@ export function EventForm({
     )
 
     const saveNow = useCallback(
-        async (values: EventFormValues = form.getValues()) => {
+        async (
+            values: EventFormValues = form.getValues(),
+            options?: {
+                skipValidation?: boolean
+            }
+        ) => {
             if (timer.current) {
                 clearTimeout(timer.current)
             }
@@ -755,15 +1112,32 @@ export function EventForm({
                 return
             }
 
-            const isValid = await form.trigger(undefined, {
-                shouldFocus: false,
-            })
+            const normalizedValues = normalizeValuesForPersistence(values)
 
-            if (!isValid) {
-                return
+            if (normalizedValues !== values) {
+                form.setValue("start", normalizedValues.start, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", normalizedValues.end, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
             }
 
-            const nextCategoryNames = normalizeNames(values.categoryNames)
+            if (!options?.skipValidation) {
+                const isValid = await form.trigger(undefined, {
+                    shouldFocus: false,
+                })
+
+                if (!isValid) {
+                    return
+                }
+            }
+
+            const nextCategoryNames = normalizeNames(
+                normalizedValues.categoryNames
+            )
             const sourceCategoryNames = normalizeNames(
                 event.categories.map((category) => category.name)
             )
@@ -774,7 +1148,7 @@ export function EventForm({
                     : await ensureEventCategories(nextCategoryNames)
             const patch = buildPatchFromValues(
                 event,
-                values,
+                normalizedValues,
                 resolvedCategories
             )
 
@@ -812,13 +1186,61 @@ export function EventForm({
         }, 350)
     }, [activeCalendar?.id, disabled, saveNow])
 
+    const queueScheduleDebouncedSave = useCallback(() => {
+        hasPendingScheduleSaveRef.current = true
+        if (scheduleSaveTimerRef.current) {
+            clearTimeout(scheduleSaveTimerRef.current)
+        }
+        scheduleSaveTimerRef.current = setTimeout(() => {
+            if (!isSchedulePopoverOpen) {
+                hasPendingScheduleSaveRef.current = false
+                void saveNow(form.getValues(), {
+                    skipValidation: true,
+                })
+            }
+        }, 450)
+    }, [form, isSchedulePopoverOpen, saveNow])
+
+    const triggerDatePickerDebouncedSave = useCallback(() => {
+        queueScheduleDebouncedSave()
+    }, [queueScheduleDebouncedSave])
+
+    const triggerTimePickerDebouncedSave = useCallback(() => {
+        queueScheduleDebouncedSave()
+    }, [queueScheduleDebouncedSave])
+
     const updateScheduleValues = useCallback(
-        (nextStart: Date, nextEnd: Date, changedBoundary: ScheduleBoundary) => {
-            const normalized = normalizeScheduleRange(
-                nextStart,
-                nextEnd,
-                changedBoundary
-            )
+        (
+            nextStart: Date,
+            nextEnd: Date,
+            changedBoundary: ScheduleBoundary,
+            options?: {
+                skipAutoSave?: boolean
+                changeKind?: ScheduleChangeKind
+            }
+        ) => {
+            const currentAllDay = form.getValues("allDay")
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+            const normalized = currentAllDay
+                ? normalizeAllDaySchedule(nextStart, nextEnd, timezone)
+                : normalizeTimedScheduleRange({
+                      start: nextStart,
+                      end: nextEnd,
+                      changedBoundary,
+                      changeKind: options?.changeKind ?? "date",
+                      timezone,
+                  })
+
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+
+            if (
+                currentStart.getTime() === normalized.start.getTime() &&
+                currentEnd.getTime() === normalized.end.getTime()
+            ) {
+                return normalized
+            }
 
             form.setValue("start", normalized.start, {
                 shouldDirty: true,
@@ -828,9 +1250,13 @@ export function EventForm({
                 shouldDirty: true,
                 shouldTouch: true,
             })
-            autoSave()
+            if (!options?.skipAutoSave) {
+                autoSave()
+            }
+
+            return normalized
         },
-        [autoSave, form]
+        [autoSave, calendarTimezone, form]
     )
 
     const focusScheduleBoundary = useCallback(
@@ -846,130 +1272,112 @@ export function EventForm({
         [form]
     )
 
-    const handleScheduleDateChange = useCallback(
-        (
-            boundary: ScheduleBoundary,
-            value: string,
-            options?: { syncSameDayRange?: boolean }
-        ) => {
-            const currentStart = form.getValues("start")
-            const currentEnd = form.getValues("end")
-
-            if (!value) {
-                return
-            }
-
-            const shouldSyncSameDayRange =
-                options?.syncSameDayRange &&
-                isSameScheduleDay(currentStart, currentEnd)
-
-            const nextStart =
-                boundary === "start" || shouldSyncSameDayRange
-                    ? setDateParts(currentStart, value)
-                    : currentStart
-            const nextEnd =
-                boundary === "end" || shouldSyncSameDayRange
-                    ? setDateParts(currentEnd, value)
-                    : currentEnd
-
-            setSchedulePickerMonth(boundary === "end" ? nextEnd : nextStart)
-            updateScheduleValues(nextStart, nextEnd, boundary)
-        },
-        [form, updateScheduleValues]
-    )
-
-    const handleScheduleTimeChange = useCallback(
-        (boundary: ScheduleBoundary, value: string) => {
-            const currentStart = form.getValues("start")
-            const currentEnd = form.getValues("end")
-
-            if (!value) {
-                return
-            }
-
-            const nextStart =
+    const handleSchedulePickerButtonClick = useCallback(
+        (boundary: ScheduleBoundary, panel: SchedulePickerPanel) => {
+            setActiveScheduleBoundary(boundary)
+            setSchedulePickerPanel(panel)
+            const targetDate =
                 boundary === "start"
-                    ? setTimeParts(currentStart, value)
-                    : currentStart
-            const nextEnd =
-                boundary === "end"
-                    ? setTimeParts(currentEnd, value)
-                    : currentEnd
-
-            updateScheduleValues(nextStart, nextEnd, boundary)
+                    ? form.getValues("start")
+                    : form.getValues("end")
+            setSchedulePickerMonth(targetDate)
         },
-        [form, updateScheduleValues]
+        [form]
     )
 
-    const handleScheduleDaySelect = useCallback(
-        (date: Date | undefined) => {
-            if (!date) {
-                return
-            }
-
+    const handleWheelTimeCommit = useCallback(
+        (boundary: ScheduleBoundary, nextValue: WheelTimeValue) => {
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
             const currentStart = form.getValues("start")
             const currentEnd = form.getValues("end")
-            const shouldSyncSameDayRange = isSameScheduleDay(
-                currentStart,
-                currentEnd
+            const nextTime = `${String(toHour24(nextValue.meridiem, nextValue.hour12)).padStart(2, "0")}:${String(nextValue.minute).padStart(2, "0")}`
+            const nextBoundaryDate = setTimeParts(
+                boundary === "start" ? currentStart : currentEnd,
+                nextTime,
+                timezone
             )
-            const nextDateValue = formatDateInputValue(date)
+            const normalized =
+                updateScheduleValues(
+                    boundary === "start" ? nextBoundaryDate : currentStart,
+                    boundary === "end" ? nextBoundaryDate : currentEnd,
+                    boundary,
+                    {
+                        skipAutoSave: true,
+                        changeKind: "time",
+                    }
+                ) ??
+                ({
+                    start: currentStart,
+                    end: currentEnd,
+                    didCoerce: false,
+                } as const)
 
-            const nextStart =
-                activeScheduleBoundary === "start" || shouldSyncSameDayRange
-                    ? setDateParts(currentStart, nextDateValue)
-                    : currentStart
-            const nextEnd =
-                activeScheduleBoundary === "end" || shouldSyncSameDayRange
-                    ? setDateParts(currentEnd, nextDateValue)
-                    : currentEnd
+            triggerTimePickerDebouncedSave()
 
-            setSchedulePickerMonth(date)
-            updateScheduleValues(nextStart, nextEnd, activeScheduleBoundary)
+            const resolvedBoundaryDate =
+                boundary === "start" ? normalized.start : normalized.end
+
+            return {
+                value: getMeridiemHourMinute(resolvedBoundaryDate, timezone),
+                locked:
+                    resolvedBoundaryDate.getTime() !==
+                    nextBoundaryDate.getTime(),
+            }
         },
-        [activeScheduleBoundary, form, updateScheduleValues]
+        [
+            calendarTimezone,
+            form,
+            triggerTimePickerDebouncedSave,
+            updateScheduleValues,
+        ]
     )
 
     const handleScheduleRangeSelect = useCallback(
         (range: DateRange | undefined) => {
             if (!range?.from) {
+                setPendingScheduleRange(undefined)
                 return
             }
 
             const currentStart = form.getValues("start")
             const currentEnd = form.getValues("end")
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
 
             if (range.to) {
+                setPendingScheduleRange(undefined)
                 const nextStart = setDateParts(
                     currentStart,
-                    formatDateInputValue(range.from)
+                    formatDateInputValue(range.from, timezone),
+                    timezone
                 )
                 const nextEnd = setDateParts(
                     currentEnd,
-                    formatDateInputValue(range.to)
+                    formatDateInputValue(range.to, timezone),
+                    timezone
                 )
 
                 setActiveScheduleBoundary("end")
                 setSchedulePickerMonth(range.to)
-                updateScheduleValues(nextStart, nextEnd, "end")
+                updateScheduleValues(nextStart, nextEnd, "end", {
+                    skipAutoSave: true,
+                })
+                triggerDatePickerDebouncedSave()
                 return
             }
 
-            handleScheduleDateChange(
-                activeScheduleBoundary,
-                formatDateInputValue(range.from),
-                {
-                    syncSameDayRange: isSameScheduleDay(
-                        currentStart,
-                        currentEnd
-                    ),
-                }
-            )
+            setPendingScheduleRange({
+                from: range.from,
+                to: undefined,
+            })
+            setActiveScheduleBoundary("end")
+            setSchedulePickerMonth(range.from)
         },
         [
-            activeScheduleBoundary,
+            calendarTimezone,
             form,
-            handleScheduleDateChange,
+            triggerDatePickerDebouncedSave,
             updateScheduleValues,
         ]
     )
@@ -977,25 +1385,97 @@ export function EventForm({
     const handleSchedulePopoverOpenChange = useCallback(
         (open: boolean) => {
             if (open) {
+                setPendingScheduleRange(undefined)
+                setSchedulePickerPanel("date")
                 const boundary =
                     activeScheduleBoundary === "end" ? "end" : "start"
                 focusScheduleBoundary(boundary)
+            } else {
+                setPendingScheduleRange(undefined)
+                setSchedulePickerPanel("date")
+                if (hasPendingScheduleSaveRef.current) {
+                    hasPendingScheduleSaveRef.current = false
+                    if (scheduleSaveTimerRef.current) {
+                        clearTimeout(scheduleSaveTimerRef.current)
+                    }
+                    void saveNow(form.getValues(), {
+                        skipValidation: true,
+                    })
+                }
             }
 
             setIsSchedulePopoverOpen(open)
         },
-        [activeScheduleBoundary, focusScheduleBoundary]
+        [activeScheduleBoundary, focusScheduleBoundary, form, saveNow]
     )
 
     const handleAllDayToggle = useCallback(
         (checked: boolean) => {
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+
+            if (checked) {
+                const currentStart = form.getValues("start")
+                const currentEnd = form.getValues("end")
+                const normalized = normalizeAllDaySchedule(
+                    currentStart,
+                    currentEnd,
+                    timezone
+                )
+                form.setValue("start", normalized.start, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", normalized.end, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+            } else {
+                setSchedulePickerPanel("date")
+                const toggleNow = dayjs().tz(timezone)
+                const currentStartDay = dayjs(form.getValues("start"))
+                    .tz(timezone)
+                    .startOf("day")
+                const nextStartSlot = toggleNow
+                    .add(1, "hour")
+                    .minute(0)
+                    .second(0)
+                    .millisecond(0)
+                const nextEndSlot = toggleNow
+                    .add(2, "hour")
+                    .minute(0)
+                    .second(0)
+                    .millisecond(0)
+                const nextStart = currentStartDay
+                    .add(
+                        nextStartSlot.diff(toggleNow.startOf("day"), "minute"),
+                        "minute"
+                    )
+                    .toDate()
+                const nextEnd = currentStartDay
+                    .add(
+                        nextEndSlot.diff(toggleNow.startOf("day"), "minute"),
+                        "minute"
+                    )
+                    .toDate()
+
+                form.setValue("start", nextStart, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", nextEnd, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+            }
+
             form.setValue("allDay", checked, {
                 shouldDirty: true,
                 shouldTouch: true,
             })
             autoSave()
         },
-        [autoSave, form]
+        [autoSave, calendarTimezone, form]
     )
 
     useEffect(() => {
@@ -1153,6 +1633,9 @@ export function EventForm({
         return () => {
             if (timer.current) {
                 clearTimeout(timer.current)
+            }
+            if (scheduleSaveTimerRef.current) {
+                clearTimeout(scheduleSaveTimerRef.current)
             }
         }
     }, [])
@@ -1367,7 +1850,85 @@ export function EventForm({
             ).length,
         [eventFieldSettings, orderedFields]
     )
+    const resolvedWatchedTimezone =
+        watchedTimezone || calendarTimezone || "Asia/Seoul"
+    const scheduleUiState = useMemo(() => {
+        const start = scheduleStart ?? form.getValues("start")
+        const end = scheduleEnd ?? form.getValues("end")
+        const allDay = scheduleAllDay ?? false
+        const timezone = resolvedWatchedTimezone
+        const activeBoundaryDate =
+            activeScheduleBoundary === "start" ? start : end
+        const activeBoundaryTime = getMeridiemHourMinute(
+            activeBoundaryDate,
+            timezone
+        )
 
+        const filteredMeridiemOptions = meridiemOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    meridiem: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+        const filteredHourOptions = hourOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    hour12: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+        const filteredMinuteOptions = minuteOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    minute: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+
+        return {
+            start,
+            end,
+            allDay,
+            timezone,
+            activeBoundaryDate,
+            activeBoundaryTime,
+            filteredMeridiemOptions:
+                filteredMeridiemOptions.length > 0
+                    ? filteredMeridiemOptions
+                    : meridiemOptions,
+            filteredHourOptions:
+                filteredHourOptions.length > 0
+                    ? filteredHourOptions
+                    : hourOptions,
+            filteredMinuteOptions:
+                filteredMinuteOptions.length > 0
+                    ? filteredMinuteOptions
+                    : minuteOptions,
+        }
+    }, [
+        activeScheduleBoundary,
+        form,
+        resolvedWatchedTimezone,
+        scheduleAllDay,
+        scheduleEnd,
+        scheduleStart,
+    ])
     const handleFieldVisibilityChange = useCallback(
         async (
             fieldId: (typeof orderedFields)[number]["id"],
@@ -1454,20 +2015,24 @@ export function EventForm({
         const propertyMenuItems = getPropertyMenuItems(propertyField.id)
 
         if (propertyField.id === "schedule") {
-            const start = scheduleStart ?? form.getValues("start")
-            const end = scheduleEnd ?? form.getValues("end")
-            const allDay = scheduleAllDay ?? false
+            const {
+                start,
+                end,
+                allDay,
+                timezone,
+                activeBoundaryTime,
+                filteredMeridiemOptions,
+                filteredHourOptions,
+                filteredMinuteOptions,
+            } = scheduleUiState
             const scheduleModifiers = {
-                ...getRangeModifiers(start, end),
+                ...getRangeModifiers(start, end, timezone),
                 focused: [activeScheduleBoundary === "end" ? end : start],
             }
 
-            const scheduleInputClassName =
-                "h-9 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:border-0 focus-visible:ring-0"
-            const scheduleFieldBlockClassName =
-                "flex min-w-0 items-center gap-2 rounded-lg border border-input/70 bg-background px-3 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/20"
-            const scheduleRowClassName = "flex items-center gap-2"
-            const scheduleRange = {
+            const scheduleButtonClassName =
+                "h-7 flex-1 justify-start px-1.5 text-sm font-normal shadow-none"
+            const scheduleRange = pendingScheduleRange ?? {
                 from: start,
                 to: end,
             }
@@ -1491,227 +2056,199 @@ export function EventForm({
                             <Button
                                 variant="ghost"
                                 disabled={disabled}
-                                className="h-auto w-full justify-start px-1.5 py-1 text-left text-sm font-normal hover:bg-muted/50"
+                                className="h-auto w-full justify-start rounded-md px-1.5 py-1 text-left text-sm font-normal hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50"
                             >
                                 {formatScheduleTriggerLabel({
                                     start,
                                     end,
                                     allDay,
+                                    timezone,
                                 })}
                             </Button>
                         </PopoverTrigger>
 
                         <PopoverContent
-                            className="w-58 overflow-hidden p-0"
+                            className="w-56 overflow-hidden p-0"
                             align="start"
                             alignOffset={4}
                         >
-                            <div className="p-2 dark:bg-muted">
-                                {allDay ? (
-                                    <div className="flex gap-2">
-                                        {(["start", "end"] as const).map(
-                                            (boundary) => {
-                                                const value =
-                                                    boundary === "start"
-                                                        ? start
-                                                        : end
+                            <Sidebar
+                                collapsible="none"
+                                className="bg-transparent dark:bg-muted"
+                            >
+                                <SidebarContent className="p-0">
+                                    <SidebarGroup className="pb-0">
+                                        {allDay ? (
+                                            <div className="flex rounded-lg border border-border p-0.5">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    disabled={disabled}
+                                                    className={
+                                                        scheduleButtonClassName
+                                                    }
+                                                    onClick={() =>
+                                                        handleSchedulePickerButtonClick(
+                                                            "start",
+                                                            "date"
+                                                        )
+                                                    }
+                                                >
+                                                    {`시작일 ${dayjs(start).tz(timezone).format("YYYY.MM.DD")}`}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-1.5">
+                                                {(
+                                                    ["start", "end"] as const
+                                                ).map((boundary) => {
+                                                    const value =
+                                                        boundary === "start"
+                                                            ? start
+                                                            : end
 
-                                                return (
-                                                    <div
-                                                        key={boundary}
-                                                        className="flex min-w-0 flex-1 flex-col gap-1.5"
-                                                    >
-                                                        <span className="px-0.5 text-xs font-medium text-muted-foreground">
-                                                            {boundary ===
-                                                            "start"
-                                                                ? "시작일"
-                                                                : "종료일"}
-                                                        </span>
+                                                    return (
                                                         <div
-                                                            className={
-                                                                scheduleFieldBlockClassName
-                                                            }
+                                                            key={boundary}
+                                                            className="flex items-center gap-0.5 rounded-lg border border-border p-0.5"
                                                         >
-                                                            <Input
-                                                                type="text"
-                                                                inputMode="numeric"
-                                                                placeholder="26.04.23"
-                                                                value={formatDateInputValue(
-                                                                    value
-                                                                )}
-                                                                aria-label={
-                                                                    boundary ===
-                                                                    "start"
-                                                                        ? "시작 날짜"
-                                                                        : "종료 날짜"
-                                                                }
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
                                                                 disabled={
                                                                     disabled
                                                                 }
                                                                 className={
-                                                                    scheduleInputClassName
+                                                                    scheduleButtonClassName
                                                                 }
-                                                                ref={withMask(
-                                                                    "99.99.99"
-                                                                )}
-                                                                onFocus={() =>
-                                                                    focusScheduleBoundary(
-                                                                        boundary
-                                                                    )
-                                                                }
-                                                                onChange={(
-                                                                    event
-                                                                ) =>
-                                                                    handleScheduleDateChange(
+                                                                onClick={() =>
+                                                                    handleSchedulePickerButtonClick(
                                                                         boundary,
-                                                                        event
-                                                                            .target
-                                                                            .value
+                                                                        "date"
                                                                     )
                                                                 }
+                                                            >
+                                                                {dayjs(value)
+                                                                    .tz(
+                                                                        timezone
+                                                                    )
+                                                                    .format(
+                                                                        "YYYY.MM.DD"
+                                                                    )}
+                                                            </Button>
+                                                            <Separator
+                                                                orientation="vertical"
+                                                                className="h-5 self-center! bg-border/55"
                                                             />
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                className={`${scheduleButtonClassName} ${schedulePickerPanel === "time" && activeScheduleBoundary === boundary ? "bg-muted/70" : ""}`}
+                                                                onClick={() =>
+                                                                    handleSchedulePickerButtonClick(
+                                                                        boundary,
+                                                                        "time"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {dayjs(value)
+                                                                    .tz(
+                                                                        timezone
+                                                                    )
+                                                                    .format(
+                                                                        "A h:mm"
+                                                                    )
+                                                                    .replace(
+                                                                        "AM",
+                                                                        "오전"
+                                                                    )
+                                                                    .replace(
+                                                                        "PM",
+                                                                        "오후"
+                                                                    )}
+                                                            </Button>
                                                         </div>
-                                                    </div>
-                                                )
-                                            }
+                                                    )
+                                                })}
+                                            </div>
                                         )}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {(["start", "end"] as const).map(
-                                            (boundary) => {
-                                                const value =
-                                                    boundary === "start"
-                                                        ? start
-                                                        : end
+                                    </SidebarGroup>
 
-                                                return (
-                                                    <div
-                                                        key={boundary}
-                                                        className="space-y-1.5"
-                                                    >
-                                                        <span className="px-0.5 text-xs font-medium text-muted-foreground">
-                                                            {boundary ===
-                                                            "start"
-                                                                ? "시작일"
-                                                                : "종료일"}
-                                                        </span>
-                                                        <div
-                                                            className={
-                                                                scheduleRowClassName
+                                    <SidebarGroup className="py-0">
+                                        {schedulePickerPanel === "time" &&
+                                        !allDay ? (
+                                            <div className="w-full">
+                                                <ScheduleTimeWheelPicker
+                                                    key={activeScheduleBoundary}
+                                                    value={activeBoundaryTime}
+                                                    disabled={disabled}
+                                                    meridiemOptions={
+                                                        filteredMeridiemOptions
+                                                    }
+                                                    hourOptions={
+                                                        filteredHourOptions
+                                                    }
+                                                    minuteOptions={
+                                                        filteredMinuteOptions
+                                                    }
+                                                    onCommit={(
+                                                        nextValue: WheelTimeValue
+                                                    ) =>
+                                                        handleWheelTimeCommit(
+                                                            activeScheduleBoundary,
+                                                            nextValue
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="py-1.5">
+                                                <CalendarPicker
+                                                    className="mx-auto w-full max-w-full p-0 dark:bg-muted"
+                                                    mode="range"
+                                                    month={schedulePickerMonth}
+                                                    timeZone={timezone}
+                                                    noonSafe
+                                                    onMonthChange={
+                                                        setSchedulePickerMonth
+                                                    }
+                                                    selected={scheduleRange}
+                                                    modifiers={
+                                                        scheduleModifiers
+                                                    }
+                                                    onSelect={
+                                                        handleScheduleRangeSelect
+                                                    }
+                                                />
+                                            </div>
+                                        )}
+                                    </SidebarGroup>
+
+                                    <SidebarGroup className="border-t">
+                                        <SidebarGroupContent>
+                                            <SidebarMenu>
+                                                <SidebarMenuButton asChild>
+                                                    <label className="flex cursor-pointer items-center justify-between">
+                                                        하루종일
+                                                        <Switch
+                                                            size="sm"
+                                                            checked={allDay}
+                                                            disabled={disabled}
+                                                            aria-label="하루종일 일정"
+                                                            onCheckedChange={
+                                                                handleAllDayToggle
                                                             }
-                                                        >
-                                                            <div
-                                                                className={`${scheduleFieldBlockClassName} flex-1`}
-                                                            >
-                                                                <Input
-                                                                    type="text"
-                                                                    inputMode="numeric"
-                                                                    placeholder="26.04.23"
-                                                                    value={formatDateInputValue(
-                                                                        value
-                                                                    )}
-                                                                    aria-label={
-                                                                        boundary ===
-                                                                        "start"
-                                                                            ? "시작 날짜"
-                                                                            : "종료 날짜"
-                                                                    }
-                                                                    disabled={
-                                                                        disabled
-                                                                    }
-                                                                    className={
-                                                                        scheduleInputClassName
-                                                                    }
-                                                                    ref={withMask(
-                                                                        "99.99.99"
-                                                                    )}
-                                                                    onFocus={() =>
-                                                                        focusScheduleBoundary(
-                                                                            boundary
-                                                                        )
-                                                                    }
-                                                                    onChange={(
-                                                                        event
-                                                                    ) =>
-                                                                        handleScheduleDateChange(
-                                                                            boundary,
-                                                                            event
-                                                                                .target
-                                                                                .value
-                                                                        )
-                                                                    }
-                                                                />
-                                                            </div>
-                                                            <div
-                                                                className={`${scheduleFieldBlockClassName} flex-1`}
-                                                            >
-                                                                <Input
-                                                                    type="time"
-                                                                    step={60}
-                                                                    value={formatTimeInputValue(
-                                                                        value
-                                                                    )}
-                                                                    aria-label={
-                                                                        boundary ===
-                                                                        "start"
-                                                                            ? "시작 시간"
-                                                                            : "종료 시간"
-                                                                    }
-                                                                    disabled={
-                                                                        disabled
-                                                                    }
-                                                                    className={
-                                                                        `${scheduleInputClassName} appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none`
-                                                                    }
-                                                                    onFocus={() =>
-                                                                        focusScheduleBoundary(
-                                                                            boundary
-                                                                        )
-                                                                    }
-                                                                    onChange={(
-                                                                        event
-                                                                    ) =>
-                                                                        handleScheduleTimeChange(
-                                                                            boundary,
-                                                                            event
-                                                                                .target
-                                                                                .value
-                                                                        )
-                                                                    }
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            }
-                                        )}
-                                    </div>
-                                )}
-
-                                <CalendarPicker
-                                    className="-mx-1 dark:bg-muted p-0 w-full max-w-full mx-auto"
-                                    mode="range"
-                                    month={schedulePickerMonth}
-                                    onMonthChange={setSchedulePickerMonth}
-                                    selected={scheduleRange}
-                                    modifiers={scheduleModifiers}
-                                    onSelect={handleScheduleRangeSelect}
-                                />
-                                <Separator className="-mx-3 w-auto" />
-                                <div className="flex items-center justify-between px-0.5">
-                                    <span className="text-sm font-medium">
-                                        하루종일
-                                    </span>
-                                    <Switch
-                                        size="sm"
-                                        checked={allDay}
-                                        disabled={disabled}
-                                        aria-label="하루종일 일정"
-                                        onCheckedChange={handleAllDayToggle}
-                                    />
-                                </div>
-                            </div>
+                                                        />
+                                                    </label>
+                                                </SidebarMenuButton>
+                                            </SidebarMenu>
+                                        </SidebarGroupContent>
+                                    </SidebarGroup>
+                                </SidebarContent>
+                            </Sidebar>
                         </PopoverContent>
                     </Popover>
                 </EventFormPropertyRow>
@@ -2143,11 +2680,57 @@ export function EventForm({
                                 portalContainer={portalContainer}
                                 className="w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent! [&_button]:hidden [&_input]:px-1.5"
                                 disabled={disabled}
-                                onChange={(timezone) => {
-                                    field.onChange(timezone)
+                                onChange={(nextTimezone) => {
+                                    const currentTimezone =
+                                        field.value ||
+                                        calendarTimezone ||
+                                        "Asia/Seoul"
+                                    const currentValues = form.getValues()
+                                    const nextStart =
+                                        preserveDateTimeInTimezone(
+                                            currentValues.start,
+                                            currentTimezone,
+                                            nextTimezone
+                                        )
+                                    const nextEnd = preserveDateTimeInTimezone(
+                                        currentValues.end,
+                                        currentTimezone,
+                                        nextTimezone
+                                    )
+                                    const nextScheduleValues =
+                                        currentValues.allDay
+                                            ? normalizeAllDaySchedule(
+                                                  nextStart,
+                                                  nextEnd,
+                                                  nextTimezone
+                                              )
+                                            : {
+                                                  start: nextStart,
+                                                  end: nextEnd,
+                                              }
+
+                                    form.setValue(
+                                        "start",
+                                        nextScheduleValues.start,
+                                        {
+                                            shouldDirty: true,
+                                            shouldTouch: true,
+                                        }
+                                    )
+                                    form.setValue(
+                                        "end",
+                                        nextScheduleValues.end,
+                                        {
+                                            shouldDirty: true,
+                                            shouldTouch: true,
+                                        }
+                                    )
+                                    field.onChange(nextTimezone)
                                     void saveNow({
-                                        ...form.getValues(),
-                                        timezone,
+                                        ...currentValues,
+                                        start: nextScheduleValues.start,
+                                        end: nextScheduleValues.end,
+                                        timezone: nextTimezone,
                                     })
                                 }}
                             />

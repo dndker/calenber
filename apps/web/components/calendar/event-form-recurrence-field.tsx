@@ -6,6 +6,7 @@ import {
     CheckIcon,
     ChevronRightIcon,
     Settings2Icon,
+    TrashIcon,
     type LucideIcon,
 } from "lucide-react"
 import { useState } from "react"
@@ -19,13 +20,13 @@ import {
 } from "./event-form-property-row"
 import {
     createRecurrenceValue,
-    getDefaultRecurrenceUntil,
-    getRecurrenceMinimumUntilDate,
     formatRecurrenceEndShortText,
     formatRecurrenceMenuShortText,
     formatRecurrenceSummary,
+    getDefaultRecurrenceUntil,
     getRecurrenceEndMode,
     getRecurrenceFallbackWeekday,
+    getRecurrenceMinimumUntilDate,
     normalizeRecurrenceWeekdays,
     recurrenceIntervalUnitLabelMap,
     recurrenceWeekdayItemsTextOrdered,
@@ -160,7 +161,7 @@ export function EventFormRecurrenceField({
                                     variant="ghost"
                                     disabled={disabled}
                                     className={cn(
-                                        "w-full justify-start px-1.5 [word-spacing:-1px] hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50",
+                                        "w-full justify-start px-1.5 font-normal [word-spacing:-1px] hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50",
                                         !recurrenceValue &&
                                             "text-muted-foreground"
                                     )}
@@ -190,7 +191,7 @@ export function EventFormRecurrenceField({
                                                             type="single"
                                                             size="default"
                                                             variant="outline"
-                                                            className="flex w-full flex-col items-start gap-1 overflow-hidden rounded-none! [&_button]:w-full [&_button]:justify-start [&_button]:rounded-md! [&_button]:border-0! [&_button]:tracking-wide [&_button]:[word-spacing:-2px]"
+                                                            className="flex w-full flex-col items-start gap-1 overflow-hidden rounded-none! [&_button]:w-full [&_button]:justify-start [&_button]:rounded-md! [&_button]:border-0! [&_button]:font-normal [&_button]:tracking-wide [&_button]:[word-spacing:-2px]"
                                                             value={
                                                                 recurrenceValue?.type ??
                                                                 "none"
@@ -327,6 +328,24 @@ export function EventFormRecurrenceField({
                                                                 <SidebarMenuItem>
                                                                     <SidebarMenuButton
                                                                         onClick={() => {
+                                                                            updateRecurrence(
+                                                                                undefined
+                                                                            )
+                                                                            setRecurrenceOpen(
+                                                                                false
+                                                                            )
+                                                                            setRecurrenceStep(
+                                                                                0
+                                                                            )
+                                                                        }}
+                                                                        className="gap-1 px-1 py-1.5 text-[12px]"
+                                                                    >
+                                                                        <TrashIcon className="size-4!" />
+                                                                        반복
+                                                                        삭제
+                                                                    </SidebarMenuButton>
+                                                                    <SidebarMenuButton
+                                                                        onClick={() => {
                                                                             setRecurrenceStep(
                                                                                 2
                                                                             )
@@ -431,7 +450,7 @@ export function EventFormRecurrenceField({
                                                                                 }
                                                                             )
                                                                         }}
-                                                                        className="flex w-full flex-col items-start gap-1 overflow-hidden rounded-none! [&_button]:w-full [&_button]:justify-start [&_button]:rounded-md! [&_button]:border-0! [&_button]:tracking-wide [&_button]:[word-spacing:-2px]"
+                                                                        className="flex w-full flex-col items-start gap-1 overflow-hidden rounded-none! [&_button]:w-full [&_button]:justify-start [&_button]:rounded-md! [&_button]:border-0! [&_button]:font-normal [&_button]:tracking-wide [&_button]:[word-spacing:-2px]"
                                                                         disabled={
                                                                             disabled
                                                                         }

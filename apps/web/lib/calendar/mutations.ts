@@ -307,6 +307,8 @@ export async function createCalendarEvent(
             content: serializeEventContent(event.content),
             start_at: new Date(event.start).toISOString(),
             end_at: new Date(event.end).toISOString(),
+            all_day: event.allDay ?? false,
+            timezone: event.timezone || "Asia/Seoul",
         })
         .select("id")
         .single()
@@ -428,6 +430,16 @@ export async function updateCalendarEvent(
     if (patch.end !== undefined) {
         updates.end_at = new Date(patch.end).toISOString()
         changedFields.push("end_at")
+    }
+
+    if (patch.allDay !== undefined) {
+        updates.all_day = patch.allDay
+        changedFields.push("all_day")
+    }
+
+    if (patch.timezone !== undefined) {
+        updates.timezone = patch.timezone || "Asia/Seoul"
+        changedFields.push("timezone")
     }
 
     if (

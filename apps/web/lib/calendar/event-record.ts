@@ -9,6 +9,8 @@ export type CalendarEventRecord = {
     content: CalendarEvent["content"] | string | null
     start_at: string | null
     end_at: string | null
+    all_day: boolean | null
+    timezone: string | null
     categories: CalendarEvent["categories"] | null
     category_id: string | null
     category_name: string | null
@@ -82,8 +84,8 @@ export function mapCalendarEventRecordToCalendarEvent(
         content: parseEventContent(event.content),
         start,
         end,
-        allDay: true,
-        timezone: "Asia/Seoul",
+        allDay: event.all_day ?? false,
+        timezone: event.timezone?.trim() || "Asia/Seoul",
         categoryIds: categories.map((category) => category.id),
         categories,
         categoryId: primaryCategory?.id ?? null,

@@ -38,6 +38,7 @@ export function EventPage({
     const createEvent = useCreateEvent()
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
@@ -64,7 +65,7 @@ export function EventPage({
                 content: defaultContent,
                 start: Date.now(),
                 end: Date.now(),
-                timezone: "Asia/Seoul",
+                timezone: calendarTimezone || "Asia/Seoul",
                 categoryIds: [],
                 categories: [],
                 categoryId: null,
@@ -100,7 +101,7 @@ export function EventPage({
                 setLocalId(createdEventId)
             }
         }
-    }, [eventId, createEvent, user])
+    }, [calendarTimezone, eventId, createEvent, user])
 
     const { event, isLoading, isMissing } = useCalendarEventDetail({
         eventId: effectiveId,

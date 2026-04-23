@@ -52,7 +52,7 @@ function CalendarPicker({
         [props.month, selectedValue]
     )
     const showTodayButton = React.useMemo(
-        () => !isTodayIncludedInSelection(selectedValue),
+        () => !isTodayExactlySelected(selectedValue),
         [selectedValue]
     )
 
@@ -185,6 +185,43 @@ function CalendarPicker({
                         mode={pickerMode}
                         onModeChange={setPickerMode}
                         showTodayButton={showTodayButton}
+                        onTodayClick={() => {
+                            const today = new Date()
+                            const onSelect = (
+                                props as {
+                                    mode?: "single" | "multiple" | "range"
+                                    onSelect?: (
+                                        selected: unknown,
+                                        triggerDate: Date,
+                                        modifiers: Record<string, boolean>,
+                                        e?:
+                                            | React.MouseEvent
+                                            | React.KeyboardEvent
+                                    ) => void
+                                }
+                            ).onSelect
+                            const mode = (
+                                props as {
+                                    mode?: "single" | "multiple" | "range"
+                                }
+                            ).mode
+
+                            if (onSelect) {
+                                const nextSelected =
+                                    mode === "range"
+                                        ? {
+                                              from: today,
+                                              to: today,
+                                          }
+                                        : mode === "multiple"
+                                          ? [today]
+                                          : today
+
+                                onSelect(nextSelected, today, {
+                                    selected: true,
+                                })
+                            }
+                        }}
                     />
                 ),
                 MonthCaption: () => (
@@ -299,7 +336,7 @@ function isDateRange(selected: unknown): selected is DateRange {
     )
 }
 
-function isTodayIncludedInSelection(selected: unknown) {
+function isTodayExactlySelected(selected: unknown) {
     const today = dayjs()
 
     if (selected instanceof Date) {
@@ -323,10 +360,10 @@ function isTodayIncludedInSelection(selected: unknown) {
             return dayjs(selected.to).isSame(today, "day")
         }
 
-        const from = dayjs(selected.from).startOf("day").valueOf()
-        const to = dayjs(selected.to).endOf("day").valueOf()
-        const now = today.valueOf()
-        return now >= from && now <= to
+        const fromIsToday = dayjs(selected.from).isSame(today, "day")
+        const toIsToday = dayjs(selected.to).isSame(today, "day")
+
+        return fromIsToday && toIsToday
     }
 
     return false
@@ -347,11 +384,11 @@ function CalendarPickerMonthCaption({
     const years = Array.from({ length: 12 }, (_, index) => baseYear + index)
 
     return (
-        <div className="flex min-w-0 items-center -space-x-1.75 pr-24 *:px-1.5!">
+        <div className="flex min-w-0 items-center -space-x-2 pr-24 *:px-1.5!">
             <Button
                 variant="ghost"
                 onClick={() => onModeChange(mode === "year" ? "day" : "year")}
-                className={cn("text-[13px]", {
+                className={cn({
                     "bg-muted dark:hover:bg-muted/50": mode === "year",
                     "opacity-50": mode === "month",
                 })}
@@ -377,11 +414,13 @@ function CalendarPickerNav({
     mode,
     onModeChange,
     showTodayButton,
+    onTodayClick,
 }: {
     buttonVariant: React.ComponentProps<typeof Button>["variant"]
     mode: CalendarPickerMode
     onModeChange: React.Dispatch<React.SetStateAction<CalendarPickerMode>>
     showTodayButton: boolean
+    onTodayClick: () => void
 }) {
     const { goToMonth, months, nextMonth, previousMonth } = useDayPicker()
     const currentMonth = months[0]?.date ?? new Date()
@@ -421,6 +460,7 @@ function CalendarPickerNav({
                     className="h-7 px-1.5 text-xs"
                     onClick={() => {
                         goToMonth(new Date())
+                        onTodayClick()
                         onModeChange("day")
                     }}
                 >

@@ -17,6 +17,7 @@ export function useOpenEvent() {
     const createEvent = useCreateEvent()
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
     const setViewEvent = useCalendarStore((s) => s.setViewEvent)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const user = useAuthStore((s) => s.user)
 
     return (payload?: { start?: number; end?: number }) => {
@@ -29,7 +30,7 @@ export function useOpenEvent() {
             content: defaultContent,
             start: payload?.start ?? now,
             end: payload?.end ?? now,
-            timezone: "Asia/Seoul",
+            timezone: calendarTimezone || "Asia/Seoul",
             categoryIds: [],
             categories: [],
             categoryId: null,
