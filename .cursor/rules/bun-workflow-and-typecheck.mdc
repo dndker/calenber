@@ -1,0 +1,37 @@
+---
+description: Bun 기반 시니어 실무 개발 규칙
+alwaysApply: true
+---
+
+# Bun + 시니어 실무 규칙
+
+모든 작업은 아래 기준을 기본값으로 따른다.
+
+1. **Bun 사용**
+   - 패키지 설치, 스크립트 실행, 테스트, 빌드 모두 Bun을 사용한다.
+   - `npm`, `pnpm`, `yarn`, `node`, `npx`, `vite` 중심 실행은 지양한다.
+
+2. **시니어 급 코딩**
+   - 가독성, 유지보수성, 확장성, 에러 처리, 경계 조건을 고려해 구현한다.
+   - 임시방편보다 근본 원인 해결을 우선한다.
+
+3. **실무 기준 작업**
+   - 리뷰 가능한 구조, 일관된 네이밍, 명확한 책임 분리를 유지한다.
+   - 변경 영향도를 고려하고 회귀 위험을 줄이는 방식으로 작업한다.
+
+4. **항상 렌더링 최적화**
+   - 불필요한 리렌더를 줄이고 상태/이펙트/메모이제이션을 신중히 설계한다.
+   - React 훅 사용 시 특히 `useEffect` 및 `setState` 패턴으로 인한 연쇄 렌더를 점검한다.
+   - useEffect 사용시 Error: Calling setState synchronously within an effect can trigger cascading renders 이 에러 무조건 체크
+   - 리액트 setState 패턴 오류 체크 필수
+
+5. **마지막 검증은 Bun 타입 체크**
+   - 작업 마무리 단계에서 항상 Bun 기반 타입 체크를 실행해 통과 여부를 확인한다.
+   - 예: `bun run typecheck` 또는 프로젝트 표준 Bun 타입체크 명령.
+
+6. **코딩 스팩**
+   - 모노레포 구성으로 /apps/docs(fumadocs), /apps/web(calendar) 있음
+   - /apps/web는 캘린더 사이트
+   - 캘린더는 nextjs + typescript + shadcn
+   - /app/docs는 문서 사이트
+   - 문서는 fumadocs로 제작

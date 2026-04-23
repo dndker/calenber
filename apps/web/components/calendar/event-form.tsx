@@ -27,7 +27,9 @@ import {
     TagsIcon,
     UsersIcon,
 } from "lucide-react"
+import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
+import { withMask } from "use-mask-input"
 
 import { EventCategorySettingsPanel } from "./event-category-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
@@ -36,6 +38,7 @@ import {
     type EventFormPropertyMenuItem,
     type EventFormPropertyVisibility,
 } from "./event-form-property-row"
+import { EventFormRecurrenceField } from "./event-form-recurrence-field"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
 import { TimezoneSelect } from "./timezone-select"
 
@@ -43,6 +46,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Field, FieldError, FieldGroup } from "@workspace/ui/components/field"
 
 import { CalendarPicker } from "@workspace/ui/components/calendar-picker"
+import { Input } from "@workspace/ui/components/input"
 import {
     Popover,
     PopoverContent,
@@ -94,26 +98,8 @@ import {
     HoverCardContent,
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
-import {
-    InputGroup,
-    InputGroupAddon,
-    InputGroupInput,
-    InputGroupText,
-} from "@workspace/ui/components/input-group"
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@workspace/ui/components/select"
 import { Separator } from "@workspace/ui/components/separator"
-import {
-    ToggleGroup,
-    ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
-import { cn } from "@workspace/ui/lib/utils"
+import { Switch } from "@workspace/ui/components/switch"
 import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
@@ -170,30 +156,6 @@ const statusDotClassNameMap: Record<StatusOption["value"], string> = {
     cancelled: getCalendarCategoryDotClassName("red"),
 }
 
-const recurrenceTypeLabelMap = {
-    daily: "매일",
-    weekly: "매주",
-    monthly: "매월",
-    yearly: "매년",
-} as const
-
-const recurrenceIntervalUnitLabelMap = {
-    daily: "일",
-    weekly: "주",
-    monthly: "개월",
-    yearly: "년",
-} as const
-
-const recurrenceWeekdayItems = [
-    { value: 0, label: "일" },
-    { value: 1, label: "월" },
-    { value: 2, label: "화" },
-    { value: 3, label: "수" },
-    { value: 4, label: "목" },
-    { value: 5, label: "금" },
-    { value: 6, label: "토" },
-] as const
-
 const eventFieldIconMap = {
     schedule: CalendarRangeIcon,
     participants: UsersIcon,
@@ -241,67 +203,133 @@ function normalizeIds(values: string[]) {
     return Array.from(new Set(values.filter(Boolean)))
 }
 
-function normalizeRecurrenceWeekdays(
-    weekdays: number[] | undefined,
-    fallbackWeekday: number
-) {
-    const weekdayOrder = new Map<number, number>(
-        recurrenceWeekdayItems.map((item, index) => [item.value, index])
-    )
-    const normalized = Array.from(
-        new Set(
-            (weekdays ?? [fallbackWeekday]).filter(
-                (value) => value >= 0 && value <= 6
-            )
-        )
-    ).sort((a, b) => (weekdayOrder.get(a) ?? 0) - (weekdayOrder.get(b) ?? 0))
+type ScheduleBoundary = "start" | "end"
 
-    return normalized.length > 0 ? normalized : [fallbackWeekday]
+function isSameScheduleDay(start: Date, end: Date) {
+    return dayjs(start).isSame(end, "day")
 }
 
-function getRecurrenceEndMode(recurrence: EventFormValues["recurrence"]) {
-    if (!recurrence) {
-        return "never"
-    }
-
-    if (recurrence.until) {
-        return "until"
-    }
-
-    if (recurrence.count) {
-        return "count"
-    }
-
-    return "never"
+function formatDateInputValue(date: Date) {
+    return dayjs(date).format("YY.MM.DD")
 }
 
-function formatRecurrenceSummary(
-    recurrence: EventFormValues["recurrence"] | undefined,
-    fallbackWeekday: number
+function formatTimeInputValue(date: Date) {
+    return dayjs(date).format("HH:mm")
+}
+
+function setDateParts(baseDate: Date, value: string) {
+    const normalized = value.trim()
+    let year = NaN
+    let month = NaN
+    let day = NaN
+
+    if (/^\d{2}\.\d{2}\.\d{2}$/.test(normalized)) {
+        const parts = normalized.split(".")
+        year = 2000 + Number(parts[0] ?? NaN)
+        month = Number(parts[1] ?? NaN)
+        day = Number(parts[2] ?? NaN)
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+        const parts = normalized.split("-")
+        year = Number(parts[0] ?? NaN)
+        month = Number(parts[1] ?? NaN)
+        day = Number(parts[2] ?? NaN)
+    }
+
+    if (!year || !month || !day) {
+        return baseDate
+    }
+
+    const candidate = new Date(year, month - 1, day)
+    const isValidDate =
+        candidate.getFullYear() === year &&
+        candidate.getMonth() === month - 1 &&
+        candidate.getDate() === day
+
+    if (!isValidDate) {
+        return baseDate
+    }
+
+    const nextDate = new Date(baseDate)
+    nextDate.setFullYear(year, month - 1, day)
+    return nextDate
+}
+
+function setTimeParts(baseDate: Date, value: string) {
+    const [hour = NaN, minute = NaN] = value.split(":").map(Number)
+
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+        return baseDate
+    }
+
+    const nextDate = new Date(baseDate)
+    nextDate.setHours(hour, minute, 0, 0)
+    return nextDate
+}
+
+function normalizeScheduleRange(
+    start: Date,
+    end: Date,
+    changedBoundary: ScheduleBoundary
 ) {
-    if (!recurrence) {
-        return "반복 안 함"
+    if (start.getTime() <= end.getTime()) {
+        return { start, end }
     }
 
-    const interval = Math.max(1, recurrence.interval || 1)
-    const baseLabel =
-        interval === 1
-            ? recurrenceTypeLabelMap[recurrence.type]
-            : `${interval}${recurrenceIntervalUnitLabelMap[recurrence.type]}마다`
-
-    if (recurrence.type !== "weekly") {
-        return baseLabel
+    if (changedBoundary === "start") {
+        return { start, end: new Date(start) }
     }
 
-    const weekdayLabelMap = new Map<number, string>(
-        recurrenceWeekdayItems.map((item) => [item.value, item.label])
-    )
-    const weekdays = normalizeRecurrenceWeekdays(
-        recurrence.byWeekday,
-        fallbackWeekday
-    ).map((value) => weekdayLabelMap.get(value) ?? String(value))
+    return { start: new Date(end), end }
+}
 
-    return `${baseLabel} · ${weekdays.join(", ")}`
+function getRangeModifiers(start: Date, end: Date) {
+    if (isSameScheduleDay(start, end)) {
+        return {
+            selected: [start],
+            range_start: [start],
+            range_end: [end],
+            range_middle: [],
+        }
+    }
+
+    return {
+        selected: {
+            from: start,
+            to: end,
+        },
+        range_start: [start],
+        range_end: [end],
+        range_middle: [
+            {
+                after: start,
+                before: end,
+            },
+        ],
+    }
+}
+
+function formatScheduleTriggerLabel({
+    start,
+    end,
+    allDay,
+}: {
+    start: Date
+    end: Date
+    allDay: boolean
+}) {
+    if (allDay) {
+        if (isSameScheduleDay(start, end)) {
+            return dayjs(start).format("YYYY년 M월 D일")
+        }
+
+        return `${dayjs(start).format("YYYY년 M월 D일")} ~ ${dayjs(end).format("YYYY년 M월 D일")}`
+    }
+
+    if (isSameScheduleDay(start, end)) {
+        return `${dayjs(start).format("YYYY년 M월 D일 HH:mm")} - ${dayjs(end).format("HH:mm")}`
+    }
+
+    return `${dayjs(start).format("YYYY년 M월 D일 HH:mm")} ~ ${dayjs(end).format("YYYY년 M월 D일 HH:mm")}`
 }
 
 const EMPTY_MEMBER_DIRECTORY: CalendarMemberDirectoryItem[] = []
@@ -403,6 +431,16 @@ export function EventForm({
     const wasBootstrappedWithEventRef = useRef(Boolean(event))
     const initializedEventIdRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
+    const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false)
+    const [activeScheduleBoundary, setActiveScheduleBoundary] =
+        useState<ScheduleBoundary>("start")
+    const [schedulePickerMonth, setSchedulePickerMonth] = useState<Date>(() =>
+        form.getValues("start")
+    )
+    const [scheduleStart, scheduleEnd, scheduleAllDay] = useWatch({
+        control: form.control,
+        name: ["start", "end", "allDay"],
+    })
 
     const getDraftCategoryColor = useCallback((name: string) => {
         const trimmedName = name.trim()
@@ -717,6 +755,14 @@ export function EventForm({
                 return
             }
 
+            const isValid = await form.trigger(undefined, {
+                shouldFocus: false,
+            })
+
+            if (!isValid) {
+                return
+            }
+
             const nextCategoryNames = normalizeNames(values.categoryNames)
             const sourceCategoryNames = normalizeNames(
                 event.categories.map((category) => category.name)
@@ -752,7 +798,7 @@ export function EventForm({
         ]
     )
 
-    const autoSave = () => {
+    const autoSave = useCallback(() => {
         if (timer.current) clearTimeout(timer.current)
 
         if (activeCalendar?.id === "demo") return
@@ -764,7 +810,193 @@ export function EventForm({
         timer.current = setTimeout(() => {
             void saveNow()
         }, 350)
-    }
+    }, [activeCalendar?.id, disabled, saveNow])
+
+    const updateScheduleValues = useCallback(
+        (nextStart: Date, nextEnd: Date, changedBoundary: ScheduleBoundary) => {
+            const normalized = normalizeScheduleRange(
+                nextStart,
+                nextEnd,
+                changedBoundary
+            )
+
+            form.setValue("start", normalized.start, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            form.setValue("end", normalized.end, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            autoSave()
+        },
+        [autoSave, form]
+    )
+
+    const focusScheduleBoundary = useCallback(
+        (boundary: ScheduleBoundary) => {
+            const targetDate =
+                boundary === "start"
+                    ? form.getValues("start")
+                    : form.getValues("end")
+
+            setActiveScheduleBoundary(boundary)
+            setSchedulePickerMonth(targetDate)
+        },
+        [form]
+    )
+
+    const handleScheduleDateChange = useCallback(
+        (
+            boundary: ScheduleBoundary,
+            value: string,
+            options?: { syncSameDayRange?: boolean }
+        ) => {
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+
+            if (!value) {
+                return
+            }
+
+            const shouldSyncSameDayRange =
+                options?.syncSameDayRange &&
+                isSameScheduleDay(currentStart, currentEnd)
+
+            const nextStart =
+                boundary === "start" || shouldSyncSameDayRange
+                    ? setDateParts(currentStart, value)
+                    : currentStart
+            const nextEnd =
+                boundary === "end" || shouldSyncSameDayRange
+                    ? setDateParts(currentEnd, value)
+                    : currentEnd
+
+            setSchedulePickerMonth(boundary === "end" ? nextEnd : nextStart)
+            updateScheduleValues(nextStart, nextEnd, boundary)
+        },
+        [form, updateScheduleValues]
+    )
+
+    const handleScheduleTimeChange = useCallback(
+        (boundary: ScheduleBoundary, value: string) => {
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+
+            if (!value) {
+                return
+            }
+
+            const nextStart =
+                boundary === "start"
+                    ? setTimeParts(currentStart, value)
+                    : currentStart
+            const nextEnd =
+                boundary === "end"
+                    ? setTimeParts(currentEnd, value)
+                    : currentEnd
+
+            updateScheduleValues(nextStart, nextEnd, boundary)
+        },
+        [form, updateScheduleValues]
+    )
+
+    const handleScheduleDaySelect = useCallback(
+        (date: Date | undefined) => {
+            if (!date) {
+                return
+            }
+
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+            const shouldSyncSameDayRange = isSameScheduleDay(
+                currentStart,
+                currentEnd
+            )
+            const nextDateValue = formatDateInputValue(date)
+
+            const nextStart =
+                activeScheduleBoundary === "start" || shouldSyncSameDayRange
+                    ? setDateParts(currentStart, nextDateValue)
+                    : currentStart
+            const nextEnd =
+                activeScheduleBoundary === "end" || shouldSyncSameDayRange
+                    ? setDateParts(currentEnd, nextDateValue)
+                    : currentEnd
+
+            setSchedulePickerMonth(date)
+            updateScheduleValues(nextStart, nextEnd, activeScheduleBoundary)
+        },
+        [activeScheduleBoundary, form, updateScheduleValues]
+    )
+
+    const handleScheduleRangeSelect = useCallback(
+        (range: DateRange | undefined) => {
+            if (!range?.from) {
+                return
+            }
+
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+
+            if (range.to) {
+                const nextStart = setDateParts(
+                    currentStart,
+                    formatDateInputValue(range.from)
+                )
+                const nextEnd = setDateParts(
+                    currentEnd,
+                    formatDateInputValue(range.to)
+                )
+
+                setActiveScheduleBoundary("end")
+                setSchedulePickerMonth(range.to)
+                updateScheduleValues(nextStart, nextEnd, "end")
+                return
+            }
+
+            handleScheduleDateChange(
+                activeScheduleBoundary,
+                formatDateInputValue(range.from),
+                {
+                    syncSameDayRange: isSameScheduleDay(
+                        currentStart,
+                        currentEnd
+                    ),
+                }
+            )
+        },
+        [
+            activeScheduleBoundary,
+            form,
+            handleScheduleDateChange,
+            updateScheduleValues,
+        ]
+    )
+
+    const handleSchedulePopoverOpenChange = useCallback(
+        (open: boolean) => {
+            if (open) {
+                const boundary =
+                    activeScheduleBoundary === "end" ? "end" : "start"
+                focusScheduleBoundary(boundary)
+            }
+
+            setIsSchedulePopoverOpen(open)
+        },
+        [activeScheduleBoundary, focusScheduleBoundary]
+    )
+
+    const handleAllDayToggle = useCallback(
+        (checked: boolean) => {
+            form.setValue("allDay", checked, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            autoSave()
+        },
+        [autoSave, form]
+    )
 
     useEffect(() => {
         if (!event) return
@@ -1222,73 +1454,267 @@ export function EventForm({
         const propertyMenuItems = getPropertyMenuItems(propertyField.id)
 
         if (propertyField.id === "schedule") {
+            const start = scheduleStart ?? form.getValues("start")
+            const end = scheduleEnd ?? form.getValues("end")
+            const allDay = scheduleAllDay ?? false
+            const scheduleModifiers = {
+                ...getRangeModifiers(start, end),
+                focused: [activeScheduleBoundary === "end" ? end : start],
+            }
+
+            const scheduleInputClassName =
+                "h-9 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:border-0 focus-visible:ring-0"
+            const scheduleFieldBlockClassName =
+                "flex min-w-0 items-center gap-2 rounded-lg border border-input/70 bg-background px-3 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/20"
+            const scheduleRowClassName = "flex items-center gap-2"
+            const scheduleRange = {
+                from: start,
+                to: end,
+            }
+
             return (
-                <Controller
+                <EventFormPropertyRow
                     key={propertyField.id}
-                    name="start"
-                    control={form.control}
-                    render={() => {
-                        const start = form.getValues("start")
-                        const end = form.getValues("end")
-
-                        return (
-                            <EventFormPropertyRow
-                                fieldId={propertyField.id}
-                                label={propertyField.definition.label}
-                                icon={Icon}
+                    fieldId={propertyField.id}
+                    label={propertyField.definition.label}
+                    icon={Icon}
+                    disabled={disabled}
+                    visibility={visibility}
+                    onVisibilityChange={handleVisibilityChange}
+                    propertyMenuItems={propertyMenuItems}
+                >
+                    <Popover
+                        open={isSchedulePopoverOpen && !disabled}
+                        onOpenChange={handleSchedulePopoverOpenChange}
+                    >
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="ghost"
                                 disabled={disabled}
-                                visibility={visibility}
-                                onVisibilityChange={handleVisibilityChange}
-                                propertyMenuItems={propertyMenuItems}
+                                className="h-auto w-full justify-start px-1.5 py-1 text-left text-sm font-normal hover:bg-muted/50"
                             >
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="w-full justify-start border-0! bg-transparent! px-1.5"
-                                            disabled={disabled}
-                                        >
-                                            {`${dayjs(start).format("YYYY-MM-DD HH:mm")} ~ ${dayjs(end).format("YYYY-MM-DD HH:mm")}`}
-                                        </Button>
-                                    </PopoverTrigger>
+                                {formatScheduleTriggerLabel({
+                                    start,
+                                    end,
+                                    allDay,
+                                })}
+                            </Button>
+                        </PopoverTrigger>
 
-                                    <PopoverContent
-                                        className="w-auto overflow-hidden p-0"
-                                        align="start"
-                                        alignOffset={4}
-                                    >
-                                        <CalendarPicker
-                                            className="dark:bg-muted"
-                                            mode="range"
-                                            selected={{
-                                                from: start,
-                                                to: end,
-                                            }}
-                                            onSelect={(range) => {
-                                                if (disabled || !range?.from) {
-                                                    return
-                                                }
+                        <PopoverContent
+                            className="w-58 overflow-hidden p-0"
+                            align="start"
+                            alignOffset={4}
+                        >
+                            <div className="p-2 dark:bg-muted">
+                                {allDay ? (
+                                    <div className="flex gap-2">
+                                        {(["start", "end"] as const).map(
+                                            (boundary) => {
+                                                const value =
+                                                    boundary === "start"
+                                                        ? start
+                                                        : end
 
-                                                form.setValue(
-                                                    "start",
-                                                    range.from
+                                                return (
+                                                    <div
+                                                        key={boundary}
+                                                        className="flex min-w-0 flex-1 flex-col gap-1.5"
+                                                    >
+                                                        <span className="px-0.5 text-xs font-medium text-muted-foreground">
+                                                            {boundary ===
+                                                            "start"
+                                                                ? "시작일"
+                                                                : "종료일"}
+                                                        </span>
+                                                        <div
+                                                            className={
+                                                                scheduleFieldBlockClassName
+                                                            }
+                                                        >
+                                                            <Input
+                                                                type="text"
+                                                                inputMode="numeric"
+                                                                placeholder="26.04.23"
+                                                                value={formatDateInputValue(
+                                                                    value
+                                                                )}
+                                                                aria-label={
+                                                                    boundary ===
+                                                                    "start"
+                                                                        ? "시작 날짜"
+                                                                        : "종료 날짜"
+                                                                }
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                className={
+                                                                    scheduleInputClassName
+                                                                }
+                                                                ref={withMask(
+                                                                    "99.99.99"
+                                                                )}
+                                                                onFocus={() =>
+                                                                    focusScheduleBoundary(
+                                                                        boundary
+                                                                    )
+                                                                }
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    handleScheduleDateChange(
+                                                                        boundary,
+                                                                        event
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 )
-                                                if (range.to) {
-                                                    form.setValue(
-                                                        "end",
-                                                        range.to
-                                                    )
-                                                }
+                                            }
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {(["start", "end"] as const).map(
+                                            (boundary) => {
+                                                const value =
+                                                    boundary === "start"
+                                                        ? start
+                                                        : end
 
-                                                autoSave()
-                                            }}
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </EventFormPropertyRow>
-                        )
-                    }}
-                />
+                                                return (
+                                                    <div
+                                                        key={boundary}
+                                                        className="space-y-1.5"
+                                                    >
+                                                        <span className="px-0.5 text-xs font-medium text-muted-foreground">
+                                                            {boundary ===
+                                                            "start"
+                                                                ? "시작일"
+                                                                : "종료일"}
+                                                        </span>
+                                                        <div
+                                                            className={
+                                                                scheduleRowClassName
+                                                            }
+                                                        >
+                                                            <div
+                                                                className={`${scheduleFieldBlockClassName} flex-1`}
+                                                            >
+                                                                <Input
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    placeholder="26.04.23"
+                                                                    value={formatDateInputValue(
+                                                                        value
+                                                                    )}
+                                                                    aria-label={
+                                                                        boundary ===
+                                                                        "start"
+                                                                            ? "시작 날짜"
+                                                                            : "종료 날짜"
+                                                                    }
+                                                                    disabled={
+                                                                        disabled
+                                                                    }
+                                                                    className={
+                                                                        scheduleInputClassName
+                                                                    }
+                                                                    ref={withMask(
+                                                                        "99.99.99"
+                                                                    )}
+                                                                    onFocus={() =>
+                                                                        focusScheduleBoundary(
+                                                                            boundary
+                                                                        )
+                                                                    }
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        handleScheduleDateChange(
+                                                                            boundary,
+                                                                            event
+                                                                                .target
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            <div
+                                                                className={`${scheduleFieldBlockClassName} flex-1`}
+                                                            >
+                                                                <Input
+                                                                    type="time"
+                                                                    step={60}
+                                                                    value={formatTimeInputValue(
+                                                                        value
+                                                                    )}
+                                                                    aria-label={
+                                                                        boundary ===
+                                                                        "start"
+                                                                            ? "시작 시간"
+                                                                            : "종료 시간"
+                                                                    }
+                                                                    disabled={
+                                                                        disabled
+                                                                    }
+                                                                    className={
+                                                                        `${scheduleInputClassName} appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none`
+                                                                    }
+                                                                    onFocus={() =>
+                                                                        focusScheduleBoundary(
+                                                                            boundary
+                                                                        )
+                                                                    }
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        handleScheduleTimeChange(
+                                                                            boundary,
+                                                                            event
+                                                                                .target
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+                                        )}
+                                    </div>
+                                )}
+
+                                <CalendarPicker
+                                    className="-mx-1 dark:bg-muted p-0 w-full max-w-full mx-auto"
+                                    mode="range"
+                                    month={schedulePickerMonth}
+                                    onMonthChange={setSchedulePickerMonth}
+                                    selected={scheduleRange}
+                                    modifiers={scheduleModifiers}
+                                    onSelect={handleScheduleRangeSelect}
+                                />
+                                <Separator className="-mx-3 w-auto" />
+                                <div className="flex items-center justify-between px-0.5">
+                                    <span className="text-sm font-medium">
+                                        하루종일
+                                    </span>
+                                    <Switch
+                                        size="sm"
+                                        checked={allDay}
+                                        disabled={disabled}
+                                        aria-label="하루종일 일정"
+                                        onCheckedChange={handleAllDayToggle}
+                                    />
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                </EventFormPropertyRow>
             )
         }
 
@@ -1645,460 +2071,22 @@ export function EventForm({
 
         if (propertyField.id === "recurrence") {
             return (
-                <Controller
+                <EventFormRecurrenceField
                     key={propertyField.id}
-                    name="recurrence"
                     control={form.control}
-                    render={({ field }) => {
-                        const startWeekday = dayjs
-                            .tz(watchedStart ?? new Date(), watchedTimezone)
-                            .day()
-                        const recurrenceValue = field.value
-                        const recurrenceEndMode =
-                            getRecurrenceEndMode(recurrenceValue)
-
-                        const updateRecurrence = (
-                            nextRecurrence: EventFormValues["recurrence"]
-                        ) => {
-                            field.onChange(nextRecurrence)
-                            void saveNow({
-                                ...form.getValues(),
-                                recurrence: nextRecurrence,
-                            })
-                        }
-
-                        return (
-                            <EventFormPropertyRow
-                                fieldId={propertyField.id}
-                                label={propertyField.definition.label}
-                                icon={Icon}
-                                disabled={disabled}
-                                visibility={visibility}
-                                onVisibilityChange={handleVisibilityChange}
-                                propertyMenuItems={propertyMenuItems}
-                            >
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            disabled={disabled}
-                                            className={cn(
-                                                "w-full justify-start px-1.5 [word-spacing:-1px] hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50",
-                                                !recurrenceValue &&
-                                                    "text-muted-foreground"
-                                            )}
-                                        >
-                                            {formatRecurrenceSummary(
-                                                recurrenceValue,
-                                                startWeekday
-                                            )}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                        align="start"
-                                        className="w-[min(23rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0"
-                                        sideOffset={8}
-                                    >
-                                        <div>
-                                            <ToggleGroup
-                                                type="single"
-                                                size="default"
-                                                defaultValue="top"
-                                                variant="outline"
-                                                className="w-full overflow-hidden rounded-none! [&_button]:flex-1 [&_button]:rounded-l-none! [&_button]:rounded-r-none! [&_button]:border-t-0 [&_button]:py-4.5 [&_button]:tracking-wide [&_button]:[word-spacing:-2px] [&_button]:first:border-l-0! [&_button]:last:border-r-0!"
-                                                value={
-                                                    recurrenceValue?.type ??
-                                                    "none"
-                                                }
-                                                onValueChange={(value) => {
-                                                    const nextRecurrence =
-                                                        value === "none"
-                                                            ? undefined
-                                                            : {
-                                                                  type: value as NonNullable<
-                                                                      EventFormValues["recurrence"]
-                                                                  >["type"],
-                                                                  interval:
-                                                                      recurrenceValue?.interval ??
-                                                                      1,
-                                                                  byWeekday:
-                                                                      value ===
-                                                                      "weekly"
-                                                                          ? normalizeRecurrenceWeekdays(
-                                                                                recurrenceValue?.byWeekday,
-                                                                                startWeekday
-                                                                            )
-                                                                          : undefined,
-                                                                  until: recurrenceValue?.until,
-                                                                  count: recurrenceValue?.count,
-                                                              }
-
-                                                    updateRecurrence(
-                                                        nextRecurrence
-                                                    )
-                                                }}
-                                                disabled={disabled}
-                                            >
-                                                <ToggleGroupItem
-                                                    value="none"
-                                                    aria-label="반복 안 함"
-                                                >
-                                                    반복 안 함
-                                                </ToggleGroupItem>
-                                                <ToggleGroupItem
-                                                    value="daily"
-                                                    aria-label="매일"
-                                                >
-                                                    매일
-                                                </ToggleGroupItem>
-                                                <ToggleGroupItem
-                                                    value="weekly"
-                                                    aria-label="매주"
-                                                >
-                                                    매주
-                                                </ToggleGroupItem>
-                                                <ToggleGroupItem
-                                                    value="monthly"
-                                                    aria-label="매월"
-                                                >
-                                                    매월
-                                                </ToggleGroupItem>
-                                                <ToggleGroupItem
-                                                    value="yearly"
-                                                    aria-label="매년"
-                                                >
-                                                    매년
-                                                </ToggleGroupItem>
-                                            </ToggleGroup>
-                                            {recurrenceValue?.type ===
-                                                "weekly" && (
-                                                <ToggleGroup
-                                                    type="multiple"
-                                                    value={normalizeRecurrenceWeekdays(
-                                                        recurrenceValue.byWeekday,
-                                                        startWeekday
-                                                    ).map(String)}
-                                                    onValueChange={(values) => {
-                                                        updateRecurrence({
-                                                            ...recurrenceValue,
-                                                            byWeekday:
-                                                                normalizeRecurrenceWeekdays(
-                                                                    values.map(
-                                                                        Number
-                                                                    ),
-                                                                    startWeekday
-                                                                ),
-                                                        })
-                                                    }}
-                                                    className="w-full overflow-hidden rounded-none! [&_button]:flex-1 [&_button]:rounded-l-none! [&_button]:rounded-r-none! [&_button]:border-t-0 [&_button]:py-4.5 [&_button]:tracking-wide [&_button]:[word-spacing:-2px] [&_button]:first:border-l-0! [&_button]:last:border-r-0!"
-                                                    disabled={disabled}
-                                                >
-                                                    {recurrenceWeekdayItems.map(
-                                                        (weekday) => (
-                                                            <ToggleGroupItem
-                                                                key={
-                                                                    weekday.value
-                                                                }
-                                                                value={String(
-                                                                    weekday.value
-                                                                )}
-                                                                variant="outline"
-                                                            >
-                                                                {weekday.label}
-                                                            </ToggleGroupItem>
-                                                        )
-                                                    )}
-                                                </ToggleGroup>
-                                            )}
-                                        </div>
-                                        {recurrenceValue && (
-                                            <div className="flex items-center gap-1.5 p-2">
-                                                <InputGroup className="w-26 shrink-0 gap-0">
-                                                    <InputGroupInput
-                                                        type="number"
-                                                        min={1}
-                                                        inputMode="numeric"
-                                                        value={String(
-                                                            recurrenceValue.interval ??
-                                                                1
-                                                        )}
-                                                        disabled={disabled}
-                                                        onChange={(e) => {
-                                                            updateRecurrence({
-                                                                ...recurrenceValue,
-                                                                interval:
-                                                                    Math.max(
-                                                                        1,
-                                                                        Number(
-                                                                            e
-                                                                                .target
-                                                                                .value ||
-                                                                                1
-                                                                        )
-                                                                    ),
-                                                            })
-                                                        }}
-                                                        placeholder="1"
-                                                        className="pr-0! text-right leading-normal"
-                                                    />
-                                                    <InputGroupAddon align="inline-end">
-                                                        <InputGroupText className="leading-normal">
-                                                            {
-                                                                recurrenceIntervalUnitLabelMap[
-                                                                    recurrenceValue
-                                                                        .type
-                                                                ]
-                                                            }
-                                                            마다
-                                                        </InputGroupText>
-                                                    </InputGroupAddon>
-                                                </InputGroup>
-
-                                                <Select
-                                                    value={recurrenceEndMode}
-                                                    onValueChange={(value) => {
-                                                        if (value === "never") {
-                                                            updateRecurrence({
-                                                                ...recurrenceValue,
-                                                                until: undefined,
-                                                                count: undefined,
-                                                            })
-                                                            return
-                                                        }
-
-                                                        if (value === "until") {
-                                                            updateRecurrence({
-                                                                ...recurrenceValue,
-                                                                until:
-                                                                    recurrenceValue.until ??
-                                                                    dayjs
-                                                                        .tz(
-                                                                            watchedStart ??
-                                                                                new Date(),
-                                                                            watchedTimezone
-                                                                        )
-                                                                        .endOf(
-                                                                            "day"
-                                                                        )
-                                                                        .toISOString(),
-                                                                count: undefined,
-                                                            })
-                                                            return
-                                                        }
-
-                                                        updateRecurrence({
-                                                            ...recurrenceValue,
-                                                            count:
-                                                                recurrenceValue.count ??
-                                                                10,
-                                                            until: undefined,
-                                                        })
-                                                    }}
-                                                    disabled={disabled}
-                                                >
-                                                    <SelectTrigger className="hidden h-9 flex-1">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectGroup>
-                                                            <SelectItem value="never">
-                                                                종료 안 함
-                                                            </SelectItem>
-                                                            <SelectItem value="until">
-                                                                날짜 지정
-                                                            </SelectItem>
-                                                            <SelectItem value="count">
-                                                                횟수 지정
-                                                            </SelectItem>
-                                                        </SelectGroup>
-                                                    </SelectContent>
-                                                </Select>
-
-                                                <InputGroup className="flex-1">
-                                                    <InputGroupAddon
-                                                        align="inline-start"
-                                                        className="py-0"
-                                                    >
-                                                        <Select
-                                                            value={
-                                                                recurrenceEndMode
-                                                            }
-                                                            onValueChange={(
-                                                                value
-                                                            ) => {
-                                                                if (
-                                                                    value ===
-                                                                    "never"
-                                                                ) {
-                                                                    updateRecurrence(
-                                                                        {
-                                                                            ...recurrenceValue,
-                                                                            until: undefined,
-                                                                            count: undefined,
-                                                                        }
-                                                                    )
-                                                                    return
-                                                                }
-
-                                                                if (
-                                                                    value ===
-                                                                    "until"
-                                                                ) {
-                                                                    updateRecurrence(
-                                                                        {
-                                                                            ...recurrenceValue,
-                                                                            until:
-                                                                                recurrenceValue.until ??
-                                                                                dayjs
-                                                                                    .tz(
-                                                                                        watchedStart ??
-                                                                                            new Date(),
-                                                                                        watchedTimezone
-                                                                                    )
-                                                                                    .endOf(
-                                                                                        "day"
-                                                                                    )
-                                                                                    .toISOString(),
-                                                                            count: undefined,
-                                                                        }
-                                                                    )
-                                                                    return
-                                                                }
-
-                                                                updateRecurrence(
-                                                                    {
-                                                                        ...recurrenceValue,
-                                                                        count:
-                                                                            recurrenceValue.count ??
-                                                                            10,
-                                                                        until: undefined,
-                                                                    }
-                                                                )
-                                                            }}
-                                                            disabled={disabled}
-                                                        >
-                                                            <SelectTrigger className="h-6.5! border-0 py-0! pl-1.5 hover:bg-muted">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectGroup>
-                                                                    <SelectItem value="never">
-                                                                        종료 안
-                                                                        함
-                                                                    </SelectItem>
-                                                                    <SelectItem value="until">
-                                                                        날짜
-                                                                        지정
-                                                                    </SelectItem>
-                                                                    <SelectItem value="count">
-                                                                        횟수
-                                                                        지정
-                                                                    </SelectItem>
-                                                                </SelectGroup>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </InputGroupAddon>
-
-                                                    {recurrenceEndMode ===
-                                                        "until" && (
-                                                        <>
-                                                            <InputGroupInput
-                                                                className="appearance-none"
-                                                                placeholder="반복 종료"
-                                                                type="date"
-                                                                value={
-                                                                    recurrenceValue.until
-                                                                        ? dayjs
-                                                                              .tz(
-                                                                                  recurrenceValue.until,
-                                                                                  watchedTimezone
-                                                                              )
-                                                                              .format(
-                                                                                  "YYYY-MM-DD"
-                                                                              )
-                                                                        : ""
-                                                                }
-                                                                disabled={
-                                                                    disabled
-                                                                }
-                                                                onChange={(
-                                                                    e
-                                                                ) => {
-                                                                    updateRecurrence(
-                                                                        {
-                                                                            ...recurrenceValue,
-                                                                            until: e
-                                                                                .target
-                                                                                .value
-                                                                                ? dayjs
-                                                                                      .tz(
-                                                                                          `${e.target.value}T23:59:59`,
-                                                                                          watchedTimezone
-                                                                                      )
-                                                                                      .toISOString()
-                                                                                : undefined,
-                                                                            count: undefined,
-                                                                        }
-                                                                    )
-                                                                }}
-                                                            />
-                                                            <InputGroupAddon align="inline-end">
-                                                                <InputGroupText className="leading-normal">
-                                                                    까지
-                                                                </InputGroupText>
-                                                            </InputGroupAddon>
-                                                        </>
-                                                    )}
-                                                    {recurrenceEndMode ===
-                                                        "count" && (
-                                                        <>
-                                                            <InputGroupInput
-                                                                placeholder="반복 종료"
-                                                                type="number"
-                                                                min={1}
-                                                                inputMode="numeric"
-                                                                value={String(
-                                                                    recurrenceValue.count ??
-                                                                        10
-                                                                )}
-                                                                disabled={
-                                                                    disabled
-                                                                }
-                                                                onChange={(
-                                                                    e
-                                                                ) => {
-                                                                    updateRecurrence(
-                                                                        {
-                                                                            ...recurrenceValue,
-                                                                            count: Math.max(
-                                                                                1,
-                                                                                Number(
-                                                                                    e
-                                                                                        .target
-                                                                                        .value ||
-                                                                                        1
-                                                                                )
-                                                                            ),
-                                                                            until: undefined,
-                                                                        }
-                                                                    )
-                                                                }}
-                                                            />
-                                                            <InputGroupAddon align="inline-end">
-                                                                <InputGroupText className="leading-normal">
-                                                                    회
-                                                                </InputGroupText>
-                                                            </InputGroupAddon>
-                                                        </>
-                                                    )}
-                                                </InputGroup>
-                                            </div>
-                                        )}
-                                    </PopoverContent>
-                                </Popover>
-                            </EventFormPropertyRow>
-                        )
+                    disabled={disabled}
+                    label={propertyField.definition.label}
+                    icon={Icon}
+                    visibility={visibility}
+                    onVisibilityChange={handleVisibilityChange}
+                    propertyMenuItems={propertyMenuItems}
+                    watchedStart={watchedStart ?? new Date()}
+                    watchedTimezone={watchedTimezone}
+                    onRecurrenceChange={(nextRecurrence) => {
+                        void saveNow({
+                            ...form.getValues(),
+                            recurrence: nextRecurrence,
+                        })
                     }}
                 />
             )
