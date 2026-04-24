@@ -54,7 +54,12 @@ export const WeekRow = memo(
                     />
                 ))}
 
-                <EventRow events={events} week={week} size={size} />
+                <EventRow
+                    events={events}
+                    week={week}
+                    size={size}
+                    assumeWeekScoped
+                />
             </div>
         )
     }

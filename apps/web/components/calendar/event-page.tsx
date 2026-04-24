@@ -1,7 +1,6 @@
 "use client"
 
 import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
-import { useCreateEvent } from "@/hooks/use-create-event"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
@@ -10,15 +9,21 @@ import {
     getEventShareTitle,
 } from "@/lib/calendar/share-metadata"
 import { APP_NAME } from "@/lib/app-config"
-import { getDefaultNewEventTimedSchedule } from "@/lib/calendar/default-timed-schedule"
-import {
-    defaultContent,
-    type CalendarEvent,
-} from "@/store/calendar-store.types"
+import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { usePathname, useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { EventForm } from "./event-form"
 import { EventHeader } from "./event-header"
@@ -38,80 +43,27 @@ export function EventPage({
     const pathname = usePathname()
     const basePath = getCalendarBasePath(pathname)
 
-    const createEvent = useCreateEvent()
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
     const user = useAuthStore((s) => s.user)
 
-    // 🔥 현재 사용할 id (new 포함)
-    const [localId, setLocalId] = useState<string | undefined>(eventId)
-
-    const effectiveId = eventId ?? localId
-
-    const hasCreatedRef = useRef(false)
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
         null
     )
-
-    // 🔥 최초 생성 (new일 때 1번만)
-    useEffect(() => {
-        if (!eventId && !hasCreatedRef.current) {
-            hasCreatedRef.current = true
-
-            const tz = calendarTimezone || "Asia/Seoul"
-            const { start, end } = getDefaultNewEventTimedSchedule(tz)
-
-            const tempEvent: CalendarEvent = {
-                id: crypto.randomUUID(),
-                title: "",
-                content: defaultContent,
-                start: start.getTime(),
-                end: end.getTime(),
-                allDay: false,
-                timezone: tz,
-                categoryIds: [],
-                categories: [],
-                categoryId: null,
-                category: null,
-                participants: [],
-                status: "scheduled",
-                authorId: user?.id ?? null,
-                author: user
-                    ? {
-                          id: user.id,
-                          name: user.name,
-                          email: user.email,
-                          avatarUrl: user.avatarUrl,
-                      }
-                    : null,
-                updatedById: user?.id ?? null,
-                updatedBy: user
-                    ? {
-                          id: user.id,
-                          name: user.name,
-                          email: user.email,
-                          avatarUrl: user.avatarUrl,
-                      }
-                    : null,
-                isLocked: false,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-            }
-
-            const createdEventId = createEvent(tempEvent)
-
-            if (createdEventId) {
-                setLocalId(createdEventId)
-            }
+    const portalContainerRef = useRef<HTMLElement | null>(null)
+    const handlePortalContainerRef = useCallback((node: HTMLElement | null) => {
+        if (portalContainerRef.current === node) {
+            return
         }
-    }, [calendarTimezone, eventId, createEvent, user])
+        portalContainerRef.current = node
+        setPortalContainer(node)
+    }, [])
 
     const { event, isLoading, isMissing } = useCalendarEventDetail({
-        eventId: effectiveId,
+        eventId,
         occurrenceStart,
         initialEvent,
     })
@@ -134,8 +86,16 @@ export function EventPage({
         }
     }, [activeCalendar, event])
 
-    const handleDeleteEvent = useEventDeleteAction({
-        eventId: effectiveId,
+    const {
+        handleDeleteEvent,
+        isRecurringDeleteDialogOpen,
+        canDeleteSingleOccurrence,
+        closeRecurringDeleteDialog,
+        confirmDeleteOnlyThis,
+        confirmDeleteSeries,
+    } = useEventDeleteAction({
+        eventId,
+        event,
         onSuccess: () => {
             router.replace(basePath)
         },
@@ -169,32 +129,71 @@ export function EventPage({
         canEditCalendarEvent(event, activeCalendarMembership, user?.id)
 
     return (
-        <div
-            className="cb-event-page flex flex-col gap-4"
-            ref={(node) => {
-                setPortalContainer(node)
-            }}
-        >
-            {!modal && (
-                <EventHeader
-                    id={effectiveId}
-                    event={event}
-                    modal={modal}
-                    onDeleteEvent={handleDeleteEvent}
-                    portalContainer={portalContainer}
-                />
-            )}
+        <>
+            <div
+                className="cb-event-page flex flex-col gap-4"
+                ref={handlePortalContainerRef}
+            >
+                {!modal && (
+                    <EventHeader
+                        id={eventId}
+                        event={event}
+                        modal={modal}
+                        onDeleteEvent={handleDeleteEvent}
+                        portalContainer={portalContainer}
+                    />
+                )}
 
-            <EventForm
-                key={event.recurrenceInstance?.key ?? event.id}
-                modal={modal}
-                event={event}
-                disabled={!canEdit}
-                portalContainer={portalContainer}
-                onChange={(patch, options) => {
-                    updateEvent(event.id, patch, options)
+                <EventForm
+                    key={event.recurrenceInstance?.key ?? event.id}
+                    modal={modal}
+                    event={event}
+                    disabled={!canEdit}
+                    portalContainer={portalContainer}
+                    onChange={(patch, options) => {
+                        updateEvent(event.id, patch, options)
+                    }}
+                />
+            </div>
+            <AlertDialog
+                open={isRecurringDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeRecurringDeleteDialog()
+                    }
                 }}
-            />
-        </div>
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>반복 일정을 삭제할까요?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            반복 일정은 현재 선택한 일정만 삭제하거나, 반복 일정
+                            전체를 삭제할 수 있습니다.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={!canDeleteSingleOccurrence}
+                            onClick={(dialogEvent) => {
+                                dialogEvent.preventDefault()
+                                void confirmDeleteOnlyThis()
+                            }}
+                        >
+                            이 일정만 삭제
+                        </AlertDialogAction>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={(dialogEvent) => {
+                                dialogEvent.preventDefault()
+                                void confirmDeleteSeries()
+                            }}
+                        >
+                            전체 반복 일정 삭제
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     )
 }

@@ -37,10 +37,12 @@ export const EventRow = memo(function EventRow({
     events,
     week,
     size,
+    assumeWeekScoped = false,
 }: {
     events: PositionedCalendarEvent[]
     week: Date[]
     size?: number
+    assumeWeekScoped?: boolean
 }) {
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const eventLayout = useCalendarStore((s) => s.eventLayout)
@@ -67,13 +69,14 @@ export const EventRow = memo(function EventRow({
     )
 
     const segments: PositionedSegment[] = useMemo(() => {
-        const visible = events
-            .filter((event) => {
-                return (
-                    event.endCalExclusive > weekStart &&
-                    event.startCal < weekEndExclusive
-                )
-            })
+        const visible = (assumeWeekScoped
+            ? events
+            : events.filter((event) => {
+                  return (
+                      event.endCalExclusive > weekStart &&
+                      event.startCal < weekEndExclusive
+                  )
+              }))
             .map((event) => {
                 const segmentStart = Math.max(event.startCal, weekStart)
                 const segmentEndExclusive = Math.min(
@@ -223,6 +226,7 @@ export const EventRow = memo(function EventRow({
         events,
         resizeLayoutWeekStart,
         resizePinnedLane,
+        assumeWeekScoped,
         weekEndExclusive,
         weekStart,
     ])

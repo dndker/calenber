@@ -25,6 +25,16 @@ import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
 import {
     ContextMenu,
@@ -170,11 +180,6 @@ export const EventItem = memo(
         const startDrag = useCalendarStore((s) => s.startDrag)
         const moveDrag = useCalendarStore((s) => s.moveDrag)
         const endDrag = useCalendarStore((s) => s.endDrag)
-        const sourceEvent = useCalendarStore(
-            (s) =>
-                s.events.find((candidate) => candidate.id === sourceEventId) ??
-                null
-        )
         const dragIndexRef = useRef(0)
         const resizeFrameRef = useRef<number | null>(null)
         const lastResizeDateRef = useRef<string | null>(null)
@@ -183,7 +188,7 @@ export const EventItem = memo(
             id: getCalendarEventRenderId(event),
             disabled: !interactive || overlay,
         })
-        const resolvedSourceEvent = sourceEvent ?? toCalendarEventSource(event)
+        const resolvedSourceEvent = toCalendarEventSource(event)
 
         const thisRenderId = getCalendarEventRenderId(event)
         const isResizeTarget = useCalendarStore((s) => {
@@ -226,8 +231,16 @@ export const EventItem = memo(
                 activeCalendarMembership,
                 user?.id
             )
-        const handleDeleteEvent = useEventDeleteAction({
+        const {
+            handleDeleteEvent,
+            isRecurringDeleteDialogOpen,
+            canDeleteSingleOccurrence,
+            closeRecurringDeleteDialog,
+            confirmDeleteOnlyThis,
+            confirmDeleteSeries,
+        } = useEventDeleteAction({
             eventId: sourceEventId,
+            event,
         })
 
         /**
@@ -237,9 +250,11 @@ export const EventItem = memo(
          */
         type EventCtxRootView = "main" | "status" | "category"
         const [ctxRootView, setCtxRootView] = useState<EventCtxRootView>("main")
+        const [isCtxOpen, setIsCtxOpen] = useState(false)
 
         /** 닫을 때 `main`으로 바꾸면 닫힘 애니메이션 도중 한 프레임 메인 메뉴가 보인다. 열릴 때만 초기화한다. */
         const handleRootCtxOpenChange = useCallback((open: boolean) => {
+            setIsCtxOpen(open)
             if (open) {
                 setCtxRootView("main")
             }
@@ -381,7 +396,7 @@ export const EventItem = memo(
 
                 disposeCalendarEventResizeSession()
                 endDrag()
-                queueMicrotask(() => {
+                requestAnimationFrame(() => {
                     suppressClickRef.current = false
                 })
             }
@@ -559,8 +574,8 @@ export const EventItem = memo(
                                         primaryCategoryColor
                                     ),
                                 resolvedSeriesHoverClassName,
-                                isResizingThis && "bg-muted",
-                                isResizingThis &&
+                                (isResizingThis || isCtxOpen) && "bg-muted",
+                                (isResizingThis || isCtxOpen) &&
                                     getCalendarCategoryEventHoverClassName(
                                         primaryCategoryColor
                                     )
@@ -683,7 +698,7 @@ export const EventItem = memo(
                                     variant="destructive"
                                     disabled={!canDelete}
                                     onSelect={() => {
-                                        void handleDeleteEvent()
+                                        void handleDeleteEvent(undefined, event)
                                     }}
                                 >
                                     <TrashIcon />
@@ -723,6 +738,53 @@ export const EventItem = memo(
                         </ContextMenuGroup>
                     ) : null}
                 </ContextMenuContent>
+                <AlertDialog
+                    open={isRecurringDeleteDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            closeRecurringDeleteDialog()
+                        }
+                    }}
+                >
+                    <AlertDialogContent size="sm">
+                        <AlertDialogCancel
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 z-100 size-7!"
+                        >
+                            <XIcon />
+                        </AlertDialogCancel>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                반복 일정을 삭제할까요?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                현재 선택한 일정만 삭제하거나,
+                                <br /> 반복 일정 전체를 삭제할 수 있습니다.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogAction
+                                disabled={!canDeleteSingleOccurrence}
+                                onClick={(dialogEvent) => {
+                                    dialogEvent.preventDefault()
+                                    void confirmDeleteOnlyThis()
+                                }}
+                            >
+                                이 일정만 삭제
+                            </AlertDialogAction>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={(dialogEvent) => {
+                                    dialogEvent.preventDefault()
+                                    void confirmDeleteSeries()
+                                }}
+                            >
+                                전체 반복 일정 삭제
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </ContextMenu>
         )
     },

@@ -102,7 +102,7 @@ export function useCalendarEventDetail({
             }
         }
 
-        queueMicrotask(() => {
+        const alignId = window.setTimeout(() => {
             if (cancelled) {
                 return
             }
@@ -118,7 +118,7 @@ export function useCalendarEventDetail({
                     status: "loading",
                 }
             })
-        })
+        }, 0)
 
         const supabase = createBrowserSupabase()
 
@@ -148,6 +148,7 @@ export function useCalendarEventDetail({
 
         return () => {
             cancelled = true
+            clearTimeout(alignId)
         }
     }, [eventId, shouldFetch])
 

@@ -135,7 +135,9 @@ export function CalendarDataSettingsPanel() {
     const eventsRef = useRef<CalendarEventRecord[]>([])
     const calendarEventsRef = useRef(calendarEvents)
     const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
-    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+    const [selectedCategoryIdsRaw, setSelectedCategoryIdsRaw] = useState<
+        string[]
+    >([])
     const [selectedStatuses, setSelectedStatuses] = useState<
         CalendarEventStatus[]
     >([])
@@ -152,17 +154,19 @@ export function CalendarDataSettingsPanel() {
         [eventCategories]
     )
 
-    useEffect(() => {
-        eventsRef.current = events
-    }, [events])
+    const selectedCategoryIds = useMemo(
+        () =>
+            selectedCategoryIdsRaw.filter(
+                (categoryId) =>
+                    categoryId === UNCATEGORIZED_FILTER_KEY ||
+                    eventCategoryMap.has(categoryId)
+            ),
+        [eventCategoryMap, selectedCategoryIdsRaw]
+    )
 
-    useEffect(() => {
-        calendarEventsRef.current = calendarEvents
-    }, [calendarEvents])
-
-    useEffect(() => {
-        setEvents((current) =>
-            current.map((event) => ({
+    const eventsWithResolvedCategories = useMemo(
+        () =>
+            events.map((event) => ({
                 ...event,
                 categories: event.categoryIds
                     .map((categoryId) => eventCategoryMap.get(categoryId))
@@ -170,19 +174,17 @@ export function CalendarDataSettingsPanel() {
                         (category): category is NonNullable<typeof category> =>
                             Boolean(category)
                     ),
-            }))
-        )
-    }, [eventCategoryMap])
+            })),
+        [events, eventCategoryMap]
+    )
 
     useEffect(() => {
-        setSelectedCategoryIds((current) =>
-            current.filter(
-                (categoryId) =>
-                    categoryId === UNCATEGORIZED_FILTER_KEY ||
-                    eventCategoryMap.has(categoryId)
-            )
-        )
-    }, [eventCategoryMap])
+        eventsRef.current = events
+    }, [events])
+
+    useEffect(() => {
+        calendarEventsRef.current = calendarEvents
+    }, [calendarEvents])
 
     const withBusyCategory = useCallback(
         async <T,>(categoryId: string, task: () => Promise<T>) => {
@@ -589,7 +591,7 @@ export function CalendarDataSettingsPanel() {
             { key: string; label: string; email: string | null }
         >()
 
-        events.forEach((event) => {
+        eventsWithResolvedCategories.forEach((event) => {
             const key =
                 event.author?.id ??
                 event.author?.email ??
@@ -606,7 +608,7 @@ export function CalendarDataSettingsPanel() {
         })
 
         return Array.from(authorMap.values())
-    }, [events])
+    }, [eventsWithResolvedCategories])
     const categoryOptions = useMemo(
         () =>
             sortCategoriesForSettings(eventCategories).map((category) => ({
@@ -636,10 +638,10 @@ export function CalendarDataSettingsPanel() {
             !selectedCategoryIds.length &&
             !selectedStatuses.length
         ) {
-            return events
+            return eventsWithResolvedCategories
         }
 
-        return events.filter((event) => {
+        return eventsWithResolvedCategories.filter((event) => {
             if (
                 selectedAuthorSet.size > 0 &&
                 !selectedAuthorSet.has(getAuthorFilterKey(event))
@@ -670,7 +672,7 @@ export function CalendarDataSettingsPanel() {
             return true
         })
     }, [
-        events,
+        eventsWithResolvedCategories,
         selectedAuthors.length,
         selectedAuthorSet,
         selectedCategoryIds.length,
@@ -731,7 +733,7 @@ export function CalendarDataSettingsPanel() {
             tone: "category" as const,
             color: category.color,
             onRemove: () => {
-                setSelectedCategoryIds((current) =>
+                setSelectedCategoryIdsRaw((current) =>
                     current.filter((item) => item !== category.id)
                 )
             },
@@ -751,7 +753,7 @@ export function CalendarDataSettingsPanel() {
     const activeFilterCount = activeFilterBadges.length
     const clearAllFilters = useCallback(() => {
         setSelectedAuthors([])
-        setSelectedCategoryIds([])
+        setSelectedCategoryIdsRaw([])
         setSelectedStatuses([])
     }, [])
 
@@ -1050,7 +1052,7 @@ export function CalendarDataSettingsPanel() {
                                                     UNCATEGORIZED_FILTER_KEY
                                                 )}
                                                 onCheckedChange={(checked) => {
-                                                    setSelectedCategoryIds(
+                                                    setSelectedCategoryIdsRaw(
                                                         (current) =>
                                                             checked
                                                                 ? Array.from(
@@ -1080,7 +1082,7 @@ export function CalendarDataSettingsPanel() {
                                                             onCheckedChange={(
                                                                 checked
                                                             ) => {
-                                                                setSelectedCategoryIds(
+                                                                setSelectedCategoryIdsRaw(
                                                                     (
                                                                         current
                                                                     ) =>

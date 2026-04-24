@@ -2,11 +2,7 @@
 
 import { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
 import type { EditorContent } from "@/store/calendar-store.types"
-import {
-    BlockNoteSchema,
-    defaultInlineContentSpecs,
-    filterSuggestionItems,
-} from "@blocknote/core"
+import { BlockNoteSchema, defaultInlineContentSpecs } from "@blocknote/core"
 import { ko } from "@blocknote/core/locales"
 import {
     AddBlockButton,
@@ -15,9 +11,15 @@ import {
     SideMenu,
     SideMenuController,
     SuggestionMenuController,
+    SuggestionMenuProps,
     useCreateBlockNote,
 } from "@blocknote/react"
 import { BlockNoteView } from "@blocknote/shadcn"
+import {
+    Avatar,
+    AvatarFallback,
+    AvatarImage,
+} from "@workspace/ui/components/avatar"
 import * as Button from "@workspace/ui/components/button"
 import * as DropdownMenu from "@workspace/ui/components/dropdown-menu"
 import * as Input from "@workspace/ui/components/input"
@@ -25,6 +27,7 @@ import * as Label from "@workspace/ui/components/label"
 import * as Popover from "@workspace/ui/components/popover"
 import * as Select from "@workspace/ui/components/select"
 import * as Tooltip from "@workspace/ui/components/tooltip"
+import { cn } from "@workspace/ui/lib/utils"
 import { useTheme } from "next-themes"
 import { useEffect, useRef } from "react"
 import { useServerTheme } from "../provider/theme-context"
@@ -47,28 +50,94 @@ const schema = BlockNoteSchema.create({
     },
 })
 
+type MentionSuggestionItem = DefaultReactSuggestionItem & {
+    member: CalendarMemberDirectoryItem
+}
+
+function MentionSuggestionMenu({
+    items,
+    selectedIndex,
+    onItemClick,
+}: SuggestionMenuProps<MentionSuggestionItem>) {
+    return (
+        <div className="max-h-72 min-w-56 overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+            {items.map((item, index) => {
+                const member = item.member
+                const displayName = item.title
+                return (
+                    <button
+                        key={`${member.userId}-${index}`}
+                        type="button"
+                        className={cn(
+                            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left",
+                            selectedIndex === index
+                                ? "bg-accent text-accent-foreground"
+                                : "hover:bg-accent/70"
+                        )}
+                        onClick={() => onItemClick?.(item)}
+                    >
+                        <Avatar className="size-6.5 shrink-0">
+                            <AvatarImage
+                                src={member.avatarUrl ?? undefined}
+                                alt={displayName}
+                            />
+                            <AvatarFallback className="text-xs">
+                                {displayName?.[0]?.toUpperCase() ?? "?"}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                            <div className="truncate text-sm font-medium">
+                                {displayName}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                                {member.email ?? "이메일 정보 없음"}
+                            </div>
+                        </div>
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
 const getMentionMenuItems = (
     editor: typeof schema.BlockNoteEditor,
     members: CalendarMemberDirectoryItem[]
-): DefaultReactSuggestionItem[] => {
-    const users = members.map(
-        (member) => member.name || member.email || member.userId
-    )
+): MentionSuggestionItem[] => {
+    return members.map((member) => {
+        const displayName = member.name || member.email || member.userId
 
-    return users.map((user) => ({
-        title: user,
-        onItemClick: () => {
-            editor.insertInlineContent([
-                {
-                    type: "mention",
-                    props: {
-                        user,
+        return {
+            title: displayName,
+            subtext: member.email ?? undefined,
+            icon: (
+                <Avatar className="size-7">
+                    <AvatarImage
+                        src={member.avatarUrl ?? undefined}
+                        alt={displayName}
+                    />
+                    <AvatarFallback className="text-[10px]">
+                        {displayName?.[0]?.toUpperCase() ?? "?"}
+                    </AvatarFallback>
+                </Avatar>
+            ),
+            onItemClick: () => {
+                editor.insertInlineContent([
+                    {
+                        type: "mention",
+                        props: {
+                            user: displayName,
+                            userId: member.userId,
+                            email: member.email ?? "",
+                            avatarUrl: member.avatarUrl ?? "",
+                        },
                     },
-                },
-                " ",
-            ])
-        },
-    }))
+                    " ",
+                ])
+            },
+            member,
+        }
+    })
 }
 
 export default function ContentEditor({
@@ -216,14 +285,31 @@ function ContentEditorClient({
                 )}
             />
 
-            <SuggestionMenuController
+            <SuggestionMenuController<
+                (query: string) => Promise<MentionSuggestionItem[]>
+            >
                 triggerCharacter="@"
-                getItems={async (query) =>
-                    filterSuggestionItems(
-                        getMentionMenuItems(editor, members!),
-                        query
+                getItems={async (query) => {
+                    const mentionItems = getMentionMenuItems(
+                        editor,
+                        members ?? []
                     )
-                }
+                    const normalizedQuery = query.trim().toLowerCase()
+
+                    if (!normalizedQuery) {
+                        return mentionItems
+                    }
+
+                    return mentionItems.filter((item) => {
+                        const title = item.title.toLowerCase()
+                        const email = item.member.email?.toLowerCase() ?? ""
+                        return (
+                            title.includes(normalizedQuery) ||
+                            email.includes(normalizedQuery)
+                        )
+                    })
+                }}
+                suggestionMenuComponent={MentionSuggestionMenu}
             />
         </BlockNoteView>
     )

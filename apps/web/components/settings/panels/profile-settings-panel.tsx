@@ -7,6 +7,7 @@ import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
 import { deleteCurrentUserAccount } from "@/lib/calendar/mutations"
 import { MAX_USER_NAME_LENGTH, MIN_DISPLAY_NAME_LENGTH } from "@/lib/validation"
 import { useAuthStore } from "@/store/useAuthStore"
+import type { AppUser } from "@workspace/lib/supabase/map-user"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
@@ -38,27 +39,13 @@ import { useRouter } from "next/navigation"
 import { ChangeEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-export function ProfileSettingsPanel() {
-    const router = useRouter()
-    const { closeSettings } = useSettingsModal()
-    const user = useAuthStore((s) => s.user)
+function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
     const setUser = useAuthStore((s) => s.setUser)
-    const setMyCalendars = useCalendarStore((s) => s.setMyCalendars)
-    const clearActiveCalendarContext = useCalendarStore(
-        (s) => s.clearActiveCalendarContext
-    )
     const fileInputRef = useRef<HTMLInputElement | null>(null)
-    const [name, setName] = useState(user?.name ?? "")
+    const [name, setName] = useState(user.name ?? "")
     const [isSavingName, setIsSavingName] = useState(false)
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
     const [isRemovingAvatar, setIsRemovingAvatar] = useState(false)
-    const [isDeletingAccount, setIsDeletingAccount] = useState(false)
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-    const [deleteConfirmation, setDeleteConfirmation] = useState("")
-
-    useEffect(() => {
-        setName(user?.name ?? "")
-    }, [user?.name])
 
     const trimmedName = name.trim()
     const hasNameLengthError =
@@ -66,10 +53,6 @@ export function ProfileSettingsPanel() {
         trimmedName.length > MAX_USER_NAME_LENGTH
 
     useEffect(() => {
-        if (!user) {
-            return
-        }
-
         const nextName = trimmedName
         const currentName = user.name?.trim() ?? ""
 
@@ -112,12 +95,6 @@ export function ProfileSettingsPanel() {
 
         return () => window.clearTimeout(timeout)
     }, [setUser, trimmedName, user])
-
-    if (!user) return null
-
-    const deleteConfirmationTarget = user.email ?? "계정 삭제"
-    const isDeleteConfirmationMatched =
-        deleteConfirmation.trim() === deleteConfirmationTarget
 
     const getAuthenticatedUserId = async () => {
         const supabase = createBrowserSupabase()
@@ -191,7 +168,7 @@ export function ProfileSettingsPanel() {
             const { data, error: updateError } = await supabase.auth.updateUser(
                 {
                     data: {
-                        name: name.trim(),
+                        name: trimmedName,
                         avatar_url: avatarUrl,
                     },
                 }
@@ -232,7 +209,7 @@ export function ProfileSettingsPanel() {
             const { data, error: updateError } = await supabase.auth.updateUser(
                 {
                     data: {
-                        name: name.trim(),
+                        name: trimmedName,
                         avatar_url: null,
                     },
                 }
@@ -249,6 +226,82 @@ export function ProfileSettingsPanel() {
             toast.error("프로필 이미지 삭제에 실패했습니다.")
         } finally {
             setIsRemovingAvatar(false)
+        }
+    }
+
+    return (
+        <Field orientation="horizontal" className="items-center! gap-4">
+            <AvatarUploadControl
+                fileInputRef={fileInputRef}
+                imageUrl={user.avatarUrl}
+                name={user.name}
+                isUploading={isUploadingAvatar}
+                isRemoving={isRemovingAvatar}
+                onFileChange={handleAvatarUpload}
+                onRemove={() => {
+                    void handleAvatarRemove()
+                }}
+            />
+            <div className="flex flex-col gap-2">
+                <NameInputControl
+                    value={name}
+                    placeholder="이름 입력.."
+                    onChange={setName}
+                    invalid={hasNameLengthError}
+                    isSaving={isSavingName}
+                    disabled={isSavingName}
+                    minLength={MIN_DISPLAY_NAME_LENGTH}
+                    maxLength={MAX_USER_NAME_LENGTH}
+                    className="w-46"
+                />
+                {hasNameLengthError && (
+                    <p className="text-xs text-destructive">
+                        {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_USER_NAME_LENGTH}자
+                        이하로 입력해 주세요.
+                    </p>
+                )}
+            </div>
+        </Field>
+    )
+}
+
+export function ProfileSettingsPanel() {
+    const router = useRouter()
+    const { closeSettings } = useSettingsModal()
+    const user = useAuthStore((s) => s.user)
+    const setUser = useAuthStore((s) => s.setUser)
+    const setMyCalendars = useCalendarStore((s) => s.setMyCalendars)
+    const clearActiveCalendarContext = useCalendarStore(
+        (s) => s.clearActiveCalendarContext
+    )
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false)
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [deleteConfirmation, setDeleteConfirmation] = useState("")
+
+    if (!user) return null
+
+    const deleteConfirmationTarget = user.email ?? "계정 삭제"
+    const isDeleteConfirmationMatched =
+        deleteConfirmation.trim() === deleteConfirmationTarget
+
+    const getAuthenticatedUserId = async () => {
+        const supabase = createBrowserSupabase()
+        const {
+            data: { user: authUser },
+            error,
+        } = await supabase.auth.getUser()
+
+        if (error) {
+            throw error
+        }
+
+        if (!authUser) {
+            throw new Error("로그인 정보를 확인하지 못했습니다.")
+        }
+
+        return {
+            supabase,
+            authUserId: authUser.id,
         }
     }
 
@@ -340,42 +393,10 @@ export function ProfileSettingsPanel() {
                         All transactions are secure and encrypted
                     </FieldDescription> */}
                     <FieldGroup>
-                        <Field
-                            orientation="horizontal"
-                            className="items-center! gap-4"
-                        >
-                            <AvatarUploadControl
-                                fileInputRef={fileInputRef}
-                                imageUrl={user.avatarUrl}
-                                name={user.name}
-                                isUploading={isUploadingAvatar}
-                                isRemoving={isRemovingAvatar}
-                                onFileChange={handleAvatarUpload}
-                                onRemove={() => {
-                                    void handleAvatarRemove()
-                                }}
-                            />
-                            <div className="flex flex-col gap-2">
-                                <NameInputControl
-                                    value={name}
-                                    placeholder="이름 입력.."
-                                    onChange={setName}
-                                    invalid={hasNameLengthError}
-                                    isSaving={isSavingName}
-                                    disabled={isSavingName}
-                                    minLength={MIN_DISPLAY_NAME_LENGTH}
-                                    maxLength={MAX_USER_NAME_LENGTH}
-                                    className="w-46"
-                                />
-                                {hasNameLengthError && (
-                                    <p className="text-xs text-destructive">
-                                        {MIN_DISPLAY_NAME_LENGTH}자 이상{" "}
-                                        {MAX_USER_NAME_LENGTH}자 이하로 입력해
-                                        주세요.
-                                    </p>
-                                )}
-                            </div>
-                        </Field>
+                        <ProfileSettingsAccountIdentity
+                            key={user.id}
+                            user={user}
+                        />
                         <Field
                             orientation="horizontal"
                             className="items-center!"

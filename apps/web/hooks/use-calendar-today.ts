@@ -18,13 +18,18 @@ export function useCalendarToday(timezone?: string) {
     const [today, setToday] = useState(() => getCalendarToday(timezone))
 
     useEffect(() => {
-        setToday(getCalendarToday(timezone))
-
         let timeoutId: ReturnType<typeof setTimeout> | null = null
+        let alignId: ReturnType<typeof setTimeout> | null = null
+
+        const sync = () => {
+            setToday(getCalendarToday(timezone))
+        }
+
+        alignId = setTimeout(sync, 0)
 
         const schedule = () => {
             timeoutId = setTimeout(() => {
-                setToday(getCalendarToday(timezone))
+                sync()
                 schedule()
             }, getMsUntilNextCalendarDay(timezone))
         }
@@ -32,6 +37,9 @@ export function useCalendarToday(timezone?: string) {
         schedule()
 
         return () => {
+            if (alignId) {
+                clearTimeout(alignId)
+            }
             if (timeoutId) {
                 clearTimeout(timeoutId)
             }

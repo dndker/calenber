@@ -68,6 +68,7 @@ export function MonthList({
         overscan: 10,
         gap: 1,
     })
+    const items = virtualizer.getVirtualItems()
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -116,7 +117,6 @@ export function MonthList({
 
     // 현재 월 계산
     useEffect(() => {
-        const items = virtualizer.getVirtualItems()
         if (!items.length) return
 
         const middle = items[Math.floor(items.length / 2)]
@@ -135,8 +135,7 @@ export function MonthList({
             dayjs.tz(date, calendarTz).startOf("month").toDate()
         )
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [virtualizer.getVirtualItems()])
+    }, [calendarTz, items, onVisibleMonthChange])
 
     // 스크롤 끝나면 스냅
     useEffect(() => {
@@ -189,7 +188,6 @@ export function MonthList({
             if (timeout) clearTimeout(timeout)
         }
     }, [virtualizer, parentRef])
-    const items = virtualizer.getVirtualItems()
     const visibleRange = useMemo(() => {
         const currentMonth = dayjs
             .tz(`${currentMonthKey}-01`, calendarTz)
@@ -279,6 +277,32 @@ export function MonthList({
         () => positionCalendarEvents(dragAdjustedEvents, calendarTz),
         [calendarTz, dragAdjustedEvents]
     )
+    const positionedEventsByWeek = useMemo(() => {
+        const buckets = new Map<number, PositionedCalendarEvent[]>()
+
+        for (const item of items) {
+            const weekOffset = item.index - CENTER_INDEX
+            const weekDate = getWeekOffset(baseDateRef.current, weekOffset, calendarTz)
+            const week = getWeek(weekDate, calendarTz)
+            const weekStart = dayjs(week[0]!).tz(calendarTz).startOf("day").valueOf()
+            const weekEndExclusive = dayjs(week[6]!)
+                .tz(calendarTz)
+                .startOf("day")
+                .add(1, "day")
+                .valueOf()
+
+            buckets.set(
+                item.index,
+                positionedEvents.filter(
+                    (event) =>
+                        event.endCalExclusive > weekStart &&
+                        event.startCal < weekEndExclusive
+                )
+            )
+        }
+
+        return buckets
+    }, [calendarTz, items, positionedEvents])
 
     const handleDragOver = useCallback(
         ({ over }: { over: { id: string | number } | null }) => {
@@ -374,7 +398,7 @@ export function MonthList({
                     return (
                         <WeekRow
                             key={item.key}
-                            events={positionedEvents}
+                            events={positionedEventsByWeek.get(item.index) ?? []}
                             start={item.start}
                             size={item.size}
                             weekDate={weekDate}

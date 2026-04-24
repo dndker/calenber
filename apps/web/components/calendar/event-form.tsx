@@ -29,6 +29,7 @@ import {
     Settings2Icon,
     TagsIcon,
     UsersIcon,
+    XIcon,
 } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
@@ -443,6 +444,14 @@ function formatScheduleTriggerLabel({
     return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} ~ ${zonedEnd.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedEnd)}`
 }
 
+function formatExceptionDateTagLabel(
+    exceptionDateIso: string,
+    timezone: string
+) {
+    const parsed = dayjs(exceptionDateIso).tz(timezone)
+    return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
+}
+
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
     const normalizedStart = dayjs(start).tz(timezone).startOf("day")
     const normalizedEnd = dayjs(end).tz(timezone).endOf("day")
@@ -725,7 +734,8 @@ export function EventForm({
         name: ["start", "end", "allDay"],
     })
 
-    const getDraftCategoryColor = useEventFormDraftCategoryColor(eventCategories)
+    const getDraftCategoryColor =
+        useEventFormDraftCategoryColor(eventCategories)
     const memberDirectory =
         !activeCalendar?.id ||
         activeCalendar.id === "demo" ||
@@ -2243,7 +2253,9 @@ export function EventForm({
                                     invalid={fieldState.invalid}
                                     value={field.value ?? []}
                                     eventCategories={eventCategories}
-                                    getDraftCategoryColor={getDraftCategoryColor}
+                                    getDraftCategoryColor={
+                                        getDraftCategoryColor
+                                    }
                                     onChange={(nextCategoryNames) => {
                                         field.onChange(nextCategoryNames)
                                         void saveNow({
@@ -2339,10 +2351,50 @@ export function EventForm({
                             onVisibilityChange={handleVisibilityChange}
                             propertyMenuItems={propertyMenuItems}
                         >
-                            <div className="flex min-h-9 items-center px-1.5 text-sm text-muted-foreground">
-                                {field.value?.length
-                                    ? `제외 날짜 ${field.value.length}개`
-                                    : "설정된 제외 날짜가 없습니다."}
+                            <div className="flex h-8 flex-wrap items-center gap-1.5 px-1.5 py-0.75">
+                                {(field.value ?? []).length > 0 ? (
+                                    (field.value ?? []).map((exception) => (
+                                        <div
+                                            key={exception}
+                                            className="flex h-6.5 w-fit items-center justify-center gap-1 rounded-sm bg-muted px-1.5 pr-0 text-sm leading-normal font-medium whitespace-nowrap text-foreground has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 has-data-[slot=combobox-chip-remove]:pr-0"
+                                        >
+                                            {formatExceptionDateTagLabel(
+                                                exception,
+                                                watchedTimezone
+                                            )}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                disabled={disabled}
+                                                className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-normal aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
+                                                aria-label={`${formatExceptionDateTagLabel(exception, watchedTimezone)} 제외 삭제`}
+                                                onClick={() => {
+                                                    const nextExceptions = (
+                                                        field.value ?? []
+                                                    ).filter(
+                                                        (value) =>
+                                                            value !== exception
+                                                    )
+
+                                                    field.onChange(
+                                                        nextExceptions
+                                                    )
+                                                    void saveNow({
+                                                        ...form.getValues(),
+                                                        exceptions:
+                                                            nextExceptions,
+                                                    })
+                                                }}
+                                            >
+                                                <XIcon />
+                                            </Button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <span className="text-sm text-muted-foreground">
+                                        설정된 제외 날짜가 없습니다.
+                                    </span>
+                                )}
                             </div>
                         </EventFormPropertyRow>
                     )}
