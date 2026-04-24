@@ -15,25 +15,27 @@ import {
     FieldSeparator,
     FieldSet,
 } from "@workspace/ui/components/field"
-import { useRef } from "react"
+import { useCallback, useState } from "react"
 
 export function ProfileGeneralSettingsPanel() {
     const user = useAuthStore((s) => s.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setCalendarTimezone = useCalendarStore((s) => s.setCalendarTimezone)
-    const portalContainerRef = useRef<HTMLElement | null>(null)
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+        null
+    )
+    const handleContainerRef = useCallback((node: HTMLDivElement | null) => {
+        setPortalContainer(
+            (node?.closest(
+                '[data-slot="dialog-content"]'
+            ) as HTMLElement | null) ?? null
+        )
+    }, [])
 
     if (!user) return null
 
     return (
-        <div
-            ref={(node) => {
-                portalContainerRef.current =
-                    (node?.closest(
-                        '[data-slot="dialog-content"]'
-                    ) as HTMLElement | null) ?? null
-            }}
-        >
+        <div ref={handleContainerRef}>
             <FieldGroup>
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
@@ -70,9 +72,7 @@ export function ProfileGeneralSettingsPanel() {
                                     Calenber에서 사용할 언어를 선택합니다.
                                 </FieldDescription>
                             </FieldContent>
-                            <CountrySelect
-                                portalContainer={portalContainerRef}
-                            />
+                            <CountrySelect portalContainer={portalContainer} />
                         </Field>
                         <Field
                             orientation="horizontal"
@@ -83,7 +83,7 @@ export function ProfileGeneralSettingsPanel() {
                                 <FieldDescription>시간대 선택</FieldDescription>
                             </FieldContent>
                             <TimezoneSelect
-                                portalContainer={portalContainerRef}
+                                portalContainer={portalContainer}
                                 value={calendarTimezone}
                                 onChange={(value) => {
                                     if (!value) return

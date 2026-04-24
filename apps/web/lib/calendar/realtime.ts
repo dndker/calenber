@@ -4,6 +4,10 @@ export const CALENDAR_WORKSPACE_REALTIME_EVENTS = {
     created: "calendar.event.created",
     updated: "calendar.event.updated",
     deleted: "calendar.event.deleted",
+    categoryCreated: "calendar.event-category.created",
+    categoryUpdated: "calendar.event-category.updated",
+    categoryDeleted: "calendar.event-category.deleted",
+    settingsUpdated: "calendar.settings.updated",
     cursorUpdated: "calendar.cursor.updated",
     cursorSnapshotRequested: "calendar.cursor.snapshot.requested",
     cursorSnapshotResponded: "calendar.cursor.snapshot.responded",
@@ -36,6 +40,38 @@ export type CalendarEventRealtimePayload = {
     eventId: string
     occurredAt: string
     record?: (Partial<CalendarEventRecord> & { id: string }) | null
+}
+
+export type CalendarEventCategoryRealtimePayload = {
+    entity: "event_category"
+    operation: "insert" | "update" | "delete"
+    calendarId: string
+    categoryId: string
+    occurredAt: string
+    record?: {
+        id: string
+        calendar_id: string
+        name: string
+        options: {
+            visibleByDefault?: boolean
+            color?: string
+        } | null
+        created_by: string | null
+        created_at: string
+        updated_at: string
+    } | null
+}
+
+export type CalendarSettingsRealtimePayload = {
+    entity: "calendar_settings"
+    operation: "update"
+    calendarId: string
+    occurredAt: string
+    record?: {
+        id: string
+        event_field_settings: unknown
+        updated_at: string | null
+    } | null
 }
 
 export type CalendarWorkspacePresencePayload = {

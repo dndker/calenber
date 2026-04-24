@@ -5,7 +5,7 @@ import { toast } from "sonner"
 export function useCreateEvent() {
     const createEvent = useCalendarStore((s) => s.createEvent)
 
-    return async (event: CalendarEvent) => {
+    return (event: CalendarEvent) => {
         try {
             const createdEventId = createEvent(event)
 

@@ -1,6 +1,7 @@
 import type { CalendarEventLayout } from "@/lib/calendar/types"
-import { toCalendarDay, toCalendarRange } from "@/lib/date"
+import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
+import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -36,19 +37,20 @@ export const EventRow = memo(function EventRow({
     events,
     week,
     size,
+    assumeWeekScoped = false,
 }: {
     events: PositionedCalendarEvent[]
     week: Date[]
     size?: number
+    assumeWeekScoped?: boolean
 }) {
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
     const eventLayout = useCalendarStore((s) => s.eventLayout)
-    const dragEventId = useCalendarStore((s) => s.drag.eventId)
     const dragMode = useCalendarStore((s) => s.drag.mode)
-    const dragStart = useCalendarStore((s) => s.drag.start)
-    const dragEnd = useCalendarStore((s) => s.drag.end)
-    const draggingEvent = useCalendarStore((s) =>
-        s.drag.eventId ? s.events.find((event) => event.id === s.drag.eventId) : null
+    const dragRenderId = useCalendarStore((s) => s.drag.renderId)
+    const resizePinnedLane = useCalendarStore((s) => s.drag.resizePinnedLane)
+    const resizeLayoutWeekStart = useCalendarStore(
+        (s) => s.drag.resizeLayoutWeekStart
     )
 
     const weekStart = useMemo(
@@ -67,13 +69,14 @@ export const EventRow = memo(function EventRow({
     )
 
     const segments: PositionedSegment[] = useMemo(() => {
-        const visible = events
-            .filter((event) => {
-                return (
-                    event.endCalExclusive > weekStart &&
-                    event.startCal < weekEndExclusive
-                )
-            })
+        const visible = (assumeWeekScoped
+            ? events
+            : events.filter((event) => {
+                  return (
+                      event.endCalExclusive > weekStart &&
+                      event.startCal < weekEndExclusive
+                  )
+              }))
             .map((event) => {
                 const segmentStart = Math.max(event.startCal, weekStart)
                 const segmentEndExclusive = Math.min(
@@ -111,7 +114,9 @@ export const EventRow = memo(function EventRow({
                     return b.span - a.span
                 }
 
-                return a.event.id.localeCompare(b.event.id)
+                return getCalendarEventRenderId(a.event).localeCompare(
+                    getCalendarEventRenderId(b.event)
+                )
             })
 
         const result: PositionedSegment[] = []
@@ -139,7 +144,33 @@ export const EventRow = memo(function EventRow({
             const laneEndsExclusive: number[] = []
             const groupRows: PositionedSegment[] = []
 
-            group.forEach((segment) => {
+            const isResizePinForThisWeek =
+                resizePinnedLane !== null &&
+                resizeLayoutWeekStart !== null &&
+                weekStart === resizeLayoutWeekStart &&
+                dragRenderId !== null &&
+                (dragMode === "resize-start" || dragMode === "resize-end")
+
+            const pinnedInGroup = isResizePinForThisWeek
+                ? group.find(
+                      (segment) =>
+                          getCalendarEventRenderId(segment.event) === dragRenderId
+                  )
+                : null
+
+            const pinLane = resizePinnedLane ?? 0
+            const othersOrdered = pinnedInGroup
+                ? group.filter((segment) => segment !== pinnedInGroup)
+                : group
+
+            if (pinnedInGroup && resizePinnedLane !== null) {
+                while (laneEndsExclusive.length <= pinLane) {
+                    laneEndsExclusive.push(0)
+                }
+                laneEndsExclusive[pinLane] = pinnedInGroup.endExclusiveIndex
+            }
+
+            othersOrdered.forEach((segment) => {
                 let lane = laneEndsExclusive.findIndex(
                     (laneEndExclusive) => segment.startIndex >= laneEndExclusive
                 )
@@ -163,6 +194,19 @@ export const EventRow = memo(function EventRow({
                 })
             })
 
+            if (pinnedInGroup && resizePinnedLane !== null) {
+                groupRows.push({
+                    event: pinnedInGroup.event,
+                    lane: resizePinnedLane,
+                    laneCount: 1,
+                    startIndex: pinnedInGroup.startIndex,
+                    endIndex: pinnedInGroup.endIndex,
+                    continuesFromPrevWeek: pinnedInGroup.continuesFromPrevWeek,
+                    continuesToNextWeek: pinnedInGroup.continuesToNextWeek,
+                    dragOffsetStart: pinnedInGroup.dragOffsetStart,
+                })
+            }
+
             const laneCount = laneEndsExclusive.length || 1
 
             groupRows.forEach((row) => {
@@ -176,7 +220,16 @@ export const EventRow = memo(function EventRow({
         }
 
         return result
-    }, [events, weekStart, weekEndExclusive])
+    }, [
+        dragMode,
+        dragRenderId,
+        events,
+        resizeLayoutWeekStart,
+        resizePinnedLane,
+        assumeWeekScoped,
+        weekEndExclusive,
+        weekStart,
+    ])
 
     const laneCapacity = useMemo(() => {
         if (eventLayout === "split") {
@@ -226,14 +279,6 @@ export const EventRow = memo(function EventRow({
         )
 
         segments.forEach((segment) => {
-            if (
-                dragMode &&
-                dragMode !== "move" &&
-                dragEventId === segment.event.id
-            ) {
-                return
-            }
-
             if (segment.lane < visibleLaneLimit) {
                 nextVisible.push(segment)
                 return
@@ -252,67 +297,7 @@ export const EventRow = memo(function EventRow({
             visibleSegments: nextVisible,
             overflowByDay: nextOverflowByDay,
         }
-    }, [dragEventId, dragMode, segments, visibleLaneLimit])
-
-    const resizePreviewSegment = useMemo(() => {
-        if (
-            !dragEventId ||
-            !draggingEvent ||
-            !dragStart ||
-            !dragEnd ||
-            (dragMode !== "resize-start" && dragMode !== "resize-end")
-        ) {
-            return null
-        }
-
-        const { startDay, endDay } = toCalendarRange(
-            {
-                ...draggingEvent,
-                start: dragStart,
-                end: dragEnd,
-            },
-            calendarTz
-        )
-        const previewStart = startDay.valueOf()
-        const previewEndExclusive = endDay.add(1, "day").valueOf()
-
-        if (
-            previewEndExclusive <= weekStart ||
-            previewStart >= weekEndExclusive
-        ) {
-            return null
-        }
-
-        const segmentStart = Math.max(previewStart, weekStart)
-        const segmentEndExclusive = Math.min(previewEndExclusive, weekEndExclusive)
-        const startIndex = dayjs(segmentStart).diff(dayjs(weekStart), "day")
-        const endIndex =
-            dayjs(segmentEndExclusive).diff(dayjs(weekStart), "day") - 1
-        const baseSegment = segments.find(
-            (segment) => segment.event.id === dragEventId
-        )
-
-        return {
-            event: draggingEvent,
-            lane: baseSegment?.lane ?? 0,
-            laneCount: baseSegment?.laneCount ?? 1,
-            startIndex,
-            endIndex,
-            continuesFromPrevWeek: previewStart < weekStart,
-            continuesToNextWeek: previewEndExclusive > weekEndExclusive,
-            dragOffsetStart: dayjs(segmentStart).diff(dayjs(previewStart), "day"),
-        }
-    }, [
-        calendarTz,
-        dragEnd,
-        dragEventId,
-        dragMode,
-        dragStart,
-        draggingEvent,
-        segments,
-        weekEndExclusive,
-        weekStart,
-    ])
+    }, [segments, visibleLaneLimit])
 
     return (
         <div className={memoEventRowClass()}>
@@ -328,7 +313,7 @@ export const EventRow = memo(function EventRow({
                     dragOffsetStart,
                 }) => (
                     <EventItem
-                        key={`${event.id}-${startIndex}-${endIndex}`}
+                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                         event={event}
                         top={lane}
                         startIndex={startIndex}
@@ -338,26 +323,9 @@ export const EventRow = memo(function EventRow({
                         dragOffsetStart={dragOffsetStart}
                         laneCount={laneCount}
                         displayLaneCount={splitDisplayLaneCount}
+                        layoutWeekStart={weekStart}
                     />
                 )
-            )}
-            {resizePreviewSegment && (
-                <EventItem
-                    key={`resize-preview-${resizePreviewSegment.event.id}-${resizePreviewSegment.startIndex}-${resizePreviewSegment.endIndex}`}
-                    event={resizePreviewSegment.event}
-                    top={resizePreviewSegment.lane}
-                    startIndex={resizePreviewSegment.startIndex}
-                    endIndex={resizePreviewSegment.endIndex}
-                    continuesFromPrevWeek={
-                        resizePreviewSegment.continuesFromPrevWeek
-                    }
-                    continuesToNextWeek={
-                        resizePreviewSegment.continuesToNextWeek
-                    }
-                    dragOffsetStart={resizePreviewSegment.dragOffsetStart}
-                    laneCount={resizePreviewSegment.laneCount}
-                    interactive={false}
-                />
             )}
             {overflowByDay.map((hiddenSegments, dayIndex) => {
                 if (hiddenSegments.length === 0) {
@@ -456,7 +424,7 @@ const OverflowButton = memo(function OverflowButton({
                                     dragOffsetStart,
                                 }) => (
                                     <div
-                                        key={`${event.id}-${startIndex}-${endIndex}`}
+                                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                                         className="relative"
                                     >
                                         <EventItem

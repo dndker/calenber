@@ -1,12 +1,17 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
+import {
+    type OpenEventSchedulePayload,
+    resolveOpenEventSchedule,
+} from "@/lib/calendar/default-timed-schedule"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     type CalendarEvent,
     defaultContent,
 } from "@/store/calendar-store.types"
 import { usePathname, useRouter } from "next/navigation"
+import { startTransition } from "react"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 
@@ -16,19 +21,23 @@ export function useOpenEvent() {
     const createEvent = useCreateEvent()
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
     const setViewEvent = useCalendarStore((s) => s.setViewEvent)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const user = useAuthStore((s) => s.user)
 
-    return async (payload?: { start?: number; end?: number }) => {
+    return (payload?: OpenEventSchedulePayload) => {
         const id = crypto.randomUUID()
         const now = Date.now()
+        const tz = calendarTimezone || "Asia/Seoul"
+        const range = resolveOpenEventSchedule(tz, payload)
 
         const event: CalendarEvent = {
             id,
             title: "",
             content: defaultContent,
-            start: payload?.start ?? now,
-            end: payload?.end ?? now,
-            timezone: "Asia/Seoul",
+            start: range.start.getTime(),
+            end: range.end.getTime(),
+            allDay: false,
+            timezone: tz,
             categoryIds: [],
             categories: [],
             categoryId: null,
@@ -58,7 +67,7 @@ export function useOpenEvent() {
             updatedAt: now,
         }
 
-        const createdEventId = await createEvent(event)
+        const createdEventId = createEvent(event)
 
         if (!createdEventId) {
             return
@@ -69,11 +78,13 @@ export function useOpenEvent() {
             ...event,
             id: createdEventId,
         })
-        router.push(
-            getCalendarModalOpenPath({
-                pathname,
-                eventId: createdEventId,
-            })
-        )
+        startTransition(() => {
+            router.push(
+                getCalendarModalOpenPath({
+                    pathname,
+                    eventId: createdEventId,
+                })
+            )
+        })
     }
 }

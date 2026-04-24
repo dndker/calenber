@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
 import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     mapCalendarEventRecordToCalendarEvent,
     type CalendarEventRecord,
@@ -9,6 +10,7 @@ import type { CalendarAccessMode } from "@/lib/calendar/permissions"
 import type { CalendarMembership } from "@/lib/calendar/queries"
 import type {
     CalendarEvent,
+    CalendarEventPatch,
     CalendarEventCategory,
 } from "@/store/calendar-store.types"
 import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
@@ -305,6 +307,8 @@ export async function createCalendarEvent(
             content: serializeEventContent(event.content),
             start_at: new Date(event.start).toISOString(),
             end_at: new Date(event.end).toISOString(),
+            all_day: event.allDay ?? false,
+            timezone: event.timezone || "Asia/Seoul",
         })
         .select("id")
         .single()
@@ -367,6 +371,7 @@ export async function createCalendar(
             name: input.name,
             access_mode: input.accessMode,
             created_by: user.id,
+            event_field_settings: getDefaultCalendarEventFieldSettings(),
         })
 
     if (error) {
@@ -397,7 +402,7 @@ export async function createCalendar(
 export async function updateCalendarEvent(
     supabase: SupabaseClient,
     eventId: string,
-    patch: Partial<CalendarEvent>,
+    patch: CalendarEventPatch,
     options?: {
         expectedUpdatedAt?: number
     }
@@ -425,6 +430,16 @@ export async function updateCalendarEvent(
     if (patch.end !== undefined) {
         updates.end_at = new Date(patch.end).toISOString()
         changedFields.push("end_at")
+    }
+
+    if (patch.allDay !== undefined) {
+        updates.all_day = patch.allDay
+        changedFields.push("all_day")
+    }
+
+    if (patch.timezone !== undefined) {
+        updates.timezone = patch.timezone || "Asia/Seoul"
+        changedFields.push("timezone")
     }
 
     if (

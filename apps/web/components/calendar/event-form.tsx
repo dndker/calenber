@@ -1,11 +1,15 @@
 "use client"
 
 import {
-    getCalendarCategoryDotClassName,
-    getCalendarCategoryLabelClassName,
-    randomCalendarCategoryColor,
-    type CalendarCategoryColor,
-} from "@/lib/calendar/category-color"
+    getDefaultNewEventTimedSchedule,
+    getTimedScheduleRangeAfterAllDayOff,
+} from "@/lib/calendar/default-timed-schedule"
+import {
+    normalizeCategoryName,
+    normalizeNames,
+} from "@/lib/calendar/event-form-names"
+import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
+import { createCalendarEventCategory } from "@/lib/calendar/mutations"
 import {
     getCalendarMemberDirectory,
     type CalendarMemberDirectoryItem,
@@ -14,24 +18,38 @@ import dayjs from "@/lib/dayjs"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
-    CalendarIcon,
+    BellIcon,
+    CalendarRangeIcon,
     ChevronDownIcon,
     CircleCheckBigIcon,
+    ClockAlertIcon,
+    EarthIcon,
+    MapPinIcon,
+    Repeat2Icon,
+    Settings2Icon,
     TagsIcon,
     UsersIcon,
+    XIcon,
 } from "lucide-react"
+import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
+import { useEventFormDraftCategoryColor } from "@/hooks/use-event-form-draft-category-color"
+import { EventCategorySettingsPanel } from "./event-category-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
+import { EventFormCategoryChipsField } from "./event-form-category-field"
+import {
+    EventFormPropertyRow,
+    type EventFormPropertyMenuItem,
+    type EventFormPropertyVisibility,
+} from "./event-form-property-row"
+import { EventFormRecurrenceField } from "./event-form-recurrence-field"
+import { EventFormStatusChipsField } from "./event-form-status-field"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
+import { TimezoneSelect } from "./timezone-select"
 
 import { Button } from "@workspace/ui/components/button"
-import {
-    Field,
-    FieldError,
-    FieldGroup,
-    FieldLabel,
-} from "@workspace/ui/components/field"
+import { Field, FieldError, FieldGroup } from "@workspace/ui/components/field"
 
 import { CalendarPicker } from "@workspace/ui/components/calendar-picker"
 import {
@@ -40,17 +58,33 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
+import {
+    calendarEventFieldDefinitions,
+    isCalendarEventFieldVisible,
+    moveCalendarEventFieldSettings,
+    setCalendarEventFieldVisibility,
+} from "@/lib/calendar/event-field-settings"
 import {
     defaultContent,
     eventStatus,
-    eventStatusLabel,
     type CalendarEvent,
-    type CalendarEventCategory,
     type CalendarEventParticipant,
+    type CalendarEventPatch,
     type EditorContent,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import {
+    closestCenter,
+    DndContext,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core"
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
     Avatar,
     AvatarFallback,
@@ -68,69 +102,55 @@ import {
     HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { Separator } from "@workspace/ui/components/separator"
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarMenu,
+    SidebarMenuButton,
+} from "@workspace/ui/components/sidebar"
+import { Switch } from "@workspace/ui/components/switch"
 import dynamic from "next/dynamic"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
+import {
+    WheelPicker,
+    WheelPickerOption,
+    WheelPickerWrapper,
+} from "../wheel-picker"
+
+const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
+    Array.from({ length }, (_, i) => {
+        const value = i + add
+        return {
+            label: value.toString().padStart(2, "0"),
+            value: value,
+        }
+    })
+
+const hourOptions = createArray(12, 1)
+const minuteOptions = createArray(60)
+const meridiemOptions: WheelPickerOption<"am" | "pm">[] = [
+    { label: "오전", value: "am" },
+    { label: "오후", value: "pm" },
+]
 
 const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
     ssr: false,
 })
 
-const statusItems = eventStatus.map((status) => ({
-    value: status,
-    label: eventStatusLabel[status],
-}))
-
-type StatusOption = (typeof statusItems)[number]
-
-const statusLabelClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled:
-        "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
-        "blue",
-        "[&_button]:hidden border-0"
-    ),
-    completed: getCalendarCategoryLabelClassName(
-        "green",
-        "[&_button]:hidden border-0"
-    ),
-    cancelled: getCalendarCategoryLabelClassName(
-        "red",
-        "[&_button]:hidden border-0"
-    ),
-}
-
-const statusItemClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled:
-        "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
-        "blue",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-    completed: getCalendarCategoryLabelClassName(
-        "green",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-    cancelled: getCalendarCategoryLabelClassName(
-        "red",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-}
-
-const statusDotClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled: "bg-muted-foreground/70",
-    in_progress: getCalendarCategoryDotClassName("blue"),
-    completed: getCalendarCategoryDotClassName("green"),
-    cancelled: getCalendarCategoryDotClassName("red"),
-}
-
-type CategoryOption = {
-    value: string
-    label: string
-    color?: CalendarCategoryColor
-    isCreate?: boolean
-    data?: CalendarEventCategory
-}
+const eventFieldIconMap = {
+    schedule: CalendarRangeIcon,
+    participants: UsersIcon,
+    categories: TagsIcon,
+    status: CircleCheckBigIcon,
+    recurrence: Repeat2Icon,
+    exceptions: ClockAlertIcon,
+    timezone: EarthIcon,
+    place: MapPinIcon,
+    notification: BellIcon,
+} as const
 
 type ParticipantOption = {
     value: string
@@ -145,15 +165,454 @@ type ParticipantOption = {
     }
 }
 
-function normalizeNames(values: string[]) {
-    return Array.from(
-        new Set(values.map((value) => value.trim()).filter(Boolean))
-    )
-}
-
 function normalizeIds(values: string[]) {
     return Array.from(new Set(values.filter(Boolean)))
 }
+
+type ScheduleBoundary = "start" | "end"
+type SchedulePickerPanel = "date" | "time"
+type ScheduleChangeKind = "date" | "time"
+type WheelTimeValue = ReturnType<typeof getMeridiemHourMinute>
+
+const MINIMUM_END_MINUTES = 5
+const START_BOUNDARY_FALLBACK_HOURS = 1
+const WHEEL_COMMIT_DELAY_MS = 500
+
+function toMinuteOfDay(value: WheelTimeValue) {
+    return toHour24(value.meridiem, value.hour12) * 60 + value.minute
+}
+
+function isWheelTimeAllowed({
+    boundary,
+    candidate,
+    start,
+    end,
+    timezone,
+}: {
+    boundary: ScheduleBoundary
+    candidate: WheelTimeValue
+    start: Date
+    end: Date
+    timezone: string
+}) {
+    if (!isSameScheduleDay(start, end, timezone)) {
+        return true
+    }
+
+    const startValue = getMeridiemHourMinute(start, timezone)
+    const endValue = getMeridiemHourMinute(end, timezone)
+    const candidateMinute = toMinuteOfDay(candidate)
+    const startMinute = toMinuteOfDay(startValue)
+    const endMinute = toMinuteOfDay(endValue)
+
+    if (boundary === "start") {
+        return candidateMinute < endMinute
+    }
+
+    return candidateMinute > startMinute
+}
+
+function isSameScheduleDay(start: Date, end: Date, timezone: string) {
+    return dayjs(start).tz(timezone).isSame(dayjs(end).tz(timezone), "day")
+}
+
+function formatDateInputValue(date: Date, timezone: string) {
+    return dayjs(date).tz(timezone).format("YY.MM.DD")
+}
+
+function getMeridiemHourMinute(
+    date: Date,
+    timezone: string
+): {
+    meridiem: "am" | "pm"
+    hour12: number
+    minute: number
+} {
+    const zoned = dayjs(date).tz(timezone)
+    const hour24 = zoned.hour()
+    const meridiem = hour24 < 12 ? "am" : "pm"
+    const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+
+    return {
+        meridiem,
+        hour12,
+        minute: zoned.minute(),
+    }
+}
+
+function toHour24(meridiem: "am" | "pm", hour12: number) {
+    const normalizedHour = hour12 === 12 ? 0 : hour12
+    return meridiem === "pm" ? normalizedHour + 12 : normalizedHour
+}
+
+function getMinimumEndDate(start: Date, timezone: string) {
+    return dayjs(start).tz(timezone).add(MINIMUM_END_MINUTES, "minute").toDate()
+}
+
+function addScheduleTime(
+    date: Date,
+    amount: number,
+    unit: "day" | "hour" | "minute",
+    timezone: string
+) {
+    return dayjs(date)
+        .tz(timezone)
+        .add(amount, unit)
+        .second(0)
+        .millisecond(0)
+        .toDate()
+}
+
+function setDateParts(baseDate: Date, value: string, timezone: string) {
+    const normalized = value.trim()
+    let year = NaN
+    let month = NaN
+    let day = NaN
+
+    if (/^\d{2}\.\d{2}\.\d{2}$/.test(normalized)) {
+        const parts = normalized.split(".")
+        year = 2000 + Number(parts[0] ?? NaN)
+        month = Number(parts[1] ?? NaN)
+        day = Number(parts[2] ?? NaN)
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+        const parts = normalized.split("-")
+        year = Number(parts[0] ?? NaN)
+        month = Number(parts[1] ?? NaN)
+        day = Number(parts[2] ?? NaN)
+    }
+
+    if (!year || !month || !day) {
+        return baseDate
+    }
+
+    const zonedBaseDate = dayjs(baseDate).tz(timezone)
+    const candidate = zonedBaseDate
+        .year(year)
+        .month(month - 1)
+        .date(day)
+        .second(0)
+        .millisecond(0)
+    const isValidDate =
+        candidate.year() === year &&
+        candidate.month() === month - 1 &&
+        candidate.date() === day
+
+    if (!isValidDate) {
+        return baseDate
+    }
+
+    return candidate.toDate()
+}
+
+function setTimeParts(baseDate: Date, value: string, timezone: string) {
+    const [hour = NaN, minute = NaN] = value.split(":").map(Number)
+
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+        return baseDate
+    }
+
+    return dayjs(baseDate)
+        .tz(timezone)
+        .hour(hour)
+        .minute(minute)
+        .second(0)
+        .millisecond(0)
+        .toDate()
+}
+
+function normalizeTimedScheduleRange({
+    start,
+    end,
+    changedBoundary,
+    changeKind,
+    timezone,
+}: {
+    start: Date
+    end: Date
+    changedBoundary: ScheduleBoundary
+    changeKind: ScheduleChangeKind
+    timezone: string
+}) {
+    if (start.getTime() <= end.getTime()) {
+        return { start, end, didCoerce: false }
+    }
+
+    if (changedBoundary === "start") {
+        if (changeKind === "time") {
+            const previousDayStart = addScheduleTime(start, -1, "day", timezone)
+
+            if (previousDayStart.getTime() <= end.getTime()) {
+                return {
+                    start: previousDayStart,
+                    end,
+                    didCoerce: true,
+                }
+            }
+        }
+
+        return {
+            start: addScheduleTime(
+                end,
+                -START_BOUNDARY_FALLBACK_HOURS,
+                "hour",
+                timezone
+            ),
+            end,
+            didCoerce: true,
+        }
+    }
+
+    if (changeKind === "time") {
+        const nextDayEnd = addScheduleTime(end, 1, "day", timezone)
+
+        if (nextDayEnd.getTime() >= start.getTime()) {
+            return {
+                start,
+                end: nextDayEnd,
+                didCoerce: true,
+            }
+        }
+    }
+
+    return {
+        start,
+        end: getMinimumEndDate(start, timezone),
+        didCoerce: true,
+    }
+}
+
+function getRangeModifiers(start: Date, end: Date, timezone: string) {
+    if (isSameScheduleDay(start, end, timezone)) {
+        return {
+            selected: [start],
+            range_start: [start],
+            range_end: [end],
+            range_middle: [],
+        }
+    }
+
+    return {
+        selected: {
+            from: start,
+            to: end,
+        },
+        range_start: [start],
+        range_end: [end],
+        range_middle: [
+            {
+                after: start,
+                before: end,
+            },
+        ],
+    }
+}
+
+function formatScheduleTriggerLabel({
+    start,
+    end,
+    allDay,
+    timezone,
+}: {
+    start: Date
+    end: Date
+    allDay: boolean
+    timezone: string
+}) {
+    const zonedStart = dayjs(start).tz(timezone)
+    const zonedEnd = dayjs(end).tz(timezone)
+    const formatMeridiemHour = (target: dayjs.Dayjs) => {
+        const hour = target.hour()
+        const minute = target.minute()
+        const meridiem = hour < 12 ? "오전" : "오후"
+        const hour12 = hour % 12 === 0 ? 12 : hour % 12
+        const minuteTime = minute !== 0 ? ` ${minute}분` : ""
+        return `${meridiem} ${hour12}시${minuteTime}`
+    }
+
+    if (allDay) {
+        if (zonedStart.isSame(zonedEnd, "day")) {
+            return zonedStart.format("YYYY년 M월 D일")
+        }
+
+        return `${zonedStart.format("YYYY년 M월 D일")} ~ ${zonedEnd.format("YYYY년 M월 D일")}`
+    }
+
+    if (zonedStart.isSame(zonedEnd, "day")) {
+        return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} - ${formatMeridiemHour(zonedEnd)}`
+    }
+
+    return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} ~ ${zonedEnd.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedEnd)}`
+}
+
+function formatExceptionDateTagLabel(
+    exceptionDateIso: string,
+    timezone: string
+) {
+    const parsed = dayjs(exceptionDateIso).tz(timezone)
+    return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
+}
+
+function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
+    const normalizedStart = dayjs(start).tz(timezone).startOf("day")
+    const normalizedEnd = dayjs(end).tz(timezone).endOf("day")
+    const safeEnd = normalizedEnd.isBefore(normalizedStart)
+        ? normalizedStart.endOf("day")
+        : normalizedEnd
+
+    return {
+        start: normalizedStart.toDate(),
+        end: safeEnd.toDate(),
+    }
+}
+
+function preserveDateTimeInTimezone(
+    date: Date,
+    fromTimezone: string,
+    toTimezone: string
+) {
+    if (fromTimezone === toTimezone) {
+        return new Date(date)
+    }
+
+    const localDateTime = dayjs(date)
+        .tz(fromTimezone)
+        .format("YYYY-MM-DDTHH:mm:ss.SSS")
+
+    return dayjs.tz(localDateTime, toTimezone).toDate()
+}
+
+function normalizeValuesForPersistence(
+    values: EventFormValues
+): EventFormValues {
+    if (!values.allDay) {
+        return values
+    }
+
+    const normalized = normalizeAllDaySchedule(
+        values.start,
+        values.end,
+        values.timezone || "Asia/Seoul"
+    )
+    return {
+        ...values,
+        start: normalized.start,
+        end: normalized.end,
+    }
+}
+
+const ScheduleTimeWheelPicker = memo(function ScheduleTimeWheelPicker({
+    value,
+    disabled,
+    meridiemOptions,
+    hourOptions,
+    minuteOptions,
+    onCommit,
+}: {
+    value: WheelTimeValue
+    disabled?: boolean
+    meridiemOptions: WheelPickerOption<"am" | "pm">[]
+    hourOptions: WheelPickerOption<number>[]
+    minuteOptions: WheelPickerOption<number>[]
+    onCommit: (value: WheelTimeValue) => {
+        value: WheelTimeValue
+        locked: boolean
+    }
+}) {
+    const [draft, setDraft] = useState<WheelTimeValue>(value)
+    const draftRef = useRef(value)
+    const commitTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (commitTimerRef.current) {
+                clearTimeout(commitTimerRef.current)
+            }
+        }
+    }, [])
+
+    const queueCommit = useCallback(
+        (nextDraft: WheelTimeValue) => {
+            if (commitTimerRef.current) {
+                clearTimeout(commitTimerRef.current)
+            }
+
+            commitTimerRef.current = setTimeout(() => {
+                const result = onCommit(nextDraft)
+                draftRef.current = result.value
+                setDraft(result.value)
+            }, WHEEL_COMMIT_DELAY_MS)
+        },
+        [onCommit]
+    )
+
+    const handlePartChange = useCallback(
+        (nextPart: Partial<WheelTimeValue>) => {
+            if (disabled) {
+                return
+            }
+
+            const nextDraft = {
+                ...draftRef.current,
+                ...nextPart,
+            }
+            const isSameDraft =
+                nextDraft.meridiem === draftRef.current.meridiem &&
+                nextDraft.hour12 === draftRef.current.hour12 &&
+                nextDraft.minute === draftRef.current.minute
+
+            if (isSameDraft) {
+                return
+            }
+
+            draftRef.current = nextDraft
+            setDraft(nextDraft)
+            queueCommit(nextDraft)
+        },
+        [disabled, queueCommit]
+    )
+
+    return (
+        <div className="w-full">
+            <WheelPickerWrapper
+                className={`w-full border-0 p-0 shadow-none ${disabled ? "pointer-events-none opacity-80" : ""}`}
+            >
+                <WheelPicker
+                    options={meridiemOptions}
+                    value={draft.meridiem}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            meridiem: nextValue as "am" | "pm",
+                        })
+                    }}
+                />
+                <WheelPicker
+                    options={hourOptions}
+                    value={draft.hour12}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            hour12: nextValue as number,
+                        })
+                    }}
+                />
+                <WheelPicker
+                    options={minuteOptions}
+                    value={draft.minute}
+                    dragSensitivity={160}
+                    scrollSensitivity={10}
+                    onValueChange={(nextValue) => {
+                        handlePartChange({
+                            minute: nextValue as number,
+                        })
+                    }}
+                />
+            </WheelPickerWrapper>
+        </div>
+    )
+})
 
 const EMPTY_MEMBER_DIRECTORY: CalendarMemberDirectoryItem[] = []
 
@@ -181,18 +640,21 @@ export function EventForm({
     onChange,
     disabled = false,
     modal = false,
+    portalContainer,
 }: {
     event?: CalendarEvent
     onChange?: (
-        patch: Partial<CalendarEvent>,
+        patch: CalendarEventPatch,
         options?: {
             expectedUpdatedAt?: number
         }
     ) => void
     disabled?: boolean
     modal?: boolean
+    portalContainer?: HTMLElement | null
 }) {
     const user = useAuthStore((a) => a.user)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const defaultParticipantIds = useMemo(
         () => getDefaultParticipantIds({ event, currentUserId: user?.id }),
         [event, user?.id]
@@ -206,31 +668,42 @@ export function EventForm({
                   content: event.content,
                   start: new Date(event.start),
                   end: new Date(event.end),
-                  timezone: event.timezone,
+                  timezone: event.timezone || calendarTimezone || "Asia/Seoul",
                   categoryNames: event.categories.map(
                       (category) => category.name
                   ),
                   participantIds: defaultParticipantIds,
-                  allDay: event.allDay,
+                  allDay: event.allDay ?? false,
                   recurrence: event.recurrence,
                   exceptions: event.exceptions,
                   status: event.status,
               }
-            : {
-                  title: "",
-                  content: defaultContent,
-                  start: new Date(),
-                  end: new Date(),
-                  timezone: "Asia/Seoul",
-                  categoryNames: [],
-                  participantIds: defaultParticipantIds,
-                  allDay: false,
-                  status: eventStatus[0],
-              },
+            : (() => {
+                  const tz = calendarTimezone || "Asia/Seoul"
+                  const { start, end } = getDefaultNewEventTimedSchedule(tz)
+
+                  return {
+                      title: "",
+                      content: defaultContent,
+                      start,
+                      end,
+                      timezone: tz,
+                      categoryNames: [],
+                      participantIds: defaultParticipantIds,
+                      allDay: false,
+                      status: eventStatus[0],
+                  }
+              })(),
     })
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const upsertEventCategorySnapshot = useCalendarStore(
+        (s) => s.upsertEventCategorySnapshot
+    )
+    const { eventFieldSettings, saveEventFieldSettings } =
+        useCalendarEventFieldSettings()
+    const [areHiddenFieldsOpen, setAreHiddenFieldsOpen] = useState(false)
     const [memberDirectoryState, setMemberDirectoryState] = useState<{
         calendarId: string | null
         members: CalendarMemberDirectoryItem[]
@@ -240,30 +713,35 @@ export function EventForm({
     })
 
     const timer = useRef<NodeJS.Timeout | null>(null)
-    const draftCategoryColorsRef = useRef<Map<string, CalendarCategoryColor>>(
-        new Map()
-    )
     const wasBootstrappedWithEventRef = useRef(Boolean(event))
     const initializedEventIdRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
+    const [isSchedulePopoverOpen, setIsSchedulePopoverOpen] = useState(false)
+    const [activeScheduleBoundary, setActiveScheduleBoundary] =
+        useState<ScheduleBoundary>("start")
+    const [schedulePickerPanel, setSchedulePickerPanel] =
+        useState<SchedulePickerPanel>("date")
+    const [pendingScheduleRange, setPendingScheduleRange] = useState<
+        DateRange | undefined
+    >(undefined)
+    const scheduleSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const hasPendingScheduleSaveRef = useRef(false)
+    const [schedulePickerMonth, setSchedulePickerMonth] = useState<Date>(() =>
+        form.getValues("start")
+    )
+    const [scheduleStart, scheduleEnd, scheduleAllDay] = useWatch({
+        control: form.control,
+        name: ["start", "end", "allDay"],
+    })
 
-    const getDraftCategoryColor = useCallback((name: string) => {
-        const trimmedName = name.trim()
-
-        if (!trimmedName) {
-            return randomCalendarCategoryColor()
-        }
-
-        const existingColor = draftCategoryColorsRef.current.get(trimmedName)
-
-        if (existingColor) {
-            return existingColor
-        }
-
-        const nextColor = randomCalendarCategoryColor()
-        draftCategoryColorsRef.current.set(trimmedName, nextColor)
-        return nextColor
-    }, [])
+    const getDraftCategoryColor =
+        useEventFormDraftCategoryColor(eventCategories)
+    const memberDirectory =
+        !activeCalendar?.id ||
+        activeCalendar.id === "demo" ||
+        memberDirectoryState.calendarId !== activeCalendar.id
+            ? EMPTY_MEMBER_DIRECTORY
+            : memberDirectoryState.members
 
     const resetFormWithEvent = useCallback(
         (targetEvent: CalendarEvent) => {
@@ -272,7 +750,8 @@ export function EventForm({
                 content: targetEvent.content,
                 start: new Date(targetEvent.start),
                 end: new Date(targetEvent.end),
-                timezone: targetEvent.timezone,
+                timezone:
+                    targetEvent.timezone || calendarTimezone || "Asia/Seoul",
                 categoryNames: targetEvent.categories.map(
                     (category) => category.name
                 ),
@@ -280,13 +759,13 @@ export function EventForm({
                     event: targetEvent,
                     currentUserId: user?.id,
                 }),
-                allDay: targetEvent.allDay,
+                allDay: targetEvent.allDay ?? false,
                 recurrence: targetEvent.recurrence,
                 exceptions: targetEvent.exceptions,
                 status: targetEvent.status,
             })
         },
-        [form, user?.id]
+        [calendarTimezone, form, user?.id]
     )
 
     const isSameValue = (
@@ -312,175 +791,291 @@ export function EventForm({
         return prevValue === nextValue
     }
 
-    const buildPatchFromValues = (
-        sourceEvent: CalendarEvent,
-        values: EventFormValues
-    ): Partial<CalendarEvent> => {
-        const normalizedTitle =
-            values.title && values.title.trim() !== "" ? values.title : ""
-        const patch: Partial<CalendarEvent> = {}
+    const buildPatchFromValues = useCallback(
+        (
+            sourceEvent: CalendarEvent,
+            values: EventFormValues,
+            categorySource = eventCategories
+        ): CalendarEventPatch => {
+            const normalizedTitle =
+                values.title && values.title.trim() !== "" ? values.title : ""
+            const patch: CalendarEventPatch = {}
 
-        if (!isSameValue(sourceEvent.title, normalizedTitle)) {
-            patch.title = normalizedTitle
-        }
+            if (!isSameValue(sourceEvent.title, normalizedTitle)) {
+                patch.title = normalizedTitle
+            }
 
-        if (!isSameValue(sourceEvent.content, values.content, "json")) {
-            patch.content = values.content
-        }
+            if (!isSameValue(sourceEvent.content, values.content, "json")) {
+                patch.content = values.content
+            }
 
-        if (
-            !isSameValue(sourceEvent.start, values.start.getTime(), "primitive")
-        ) {
-            patch.start = values.start.getTime()
-        }
+            if (
+                !isSameValue(
+                    sourceEvent.start,
+                    values.start.getTime(),
+                    "primitive"
+                )
+            ) {
+                patch.start = values.start.getTime()
+            }
 
-        if (!isSameValue(sourceEvent.end, values.end.getTime(), "primitive")) {
-            patch.end = values.end.getTime()
-        }
+            if (
+                !isSameValue(sourceEvent.end, values.end.getTime(), "primitive")
+            ) {
+                patch.end = values.end.getTime()
+            }
 
-        if (!isSameValue(sourceEvent.allDay, values.allDay)) {
-            patch.allDay = values.allDay
-        }
+            if (!isSameValue(sourceEvent.allDay, values.allDay)) {
+                patch.allDay = values.allDay
+            }
 
-        if (!isSameValue(sourceEvent.timezone, values.timezone)) {
-            patch.timezone = values.timezone
-        }
+            if (!isSameValue(sourceEvent.timezone, values.timezone)) {
+                patch.timezone = values.timezone
+            }
 
-        const nextCategoryNames = normalizeNames(values.categoryNames)
-        const sourceCategoryNames = normalizeNames(
-            sourceEvent.categories.map((category) => category.name)
-        )
+            const categoryPatch = buildEventCategoriesAssignmentPatch(
+                sourceEvent,
+                values.categoryNames,
+                categorySource,
+                getDraftCategoryColor,
+                activeCalendar?.id ?? ""
+            )
 
-        if (!isSameValue(sourceCategoryNames, nextCategoryNames, "json")) {
-            const nextCategories = nextCategoryNames.map(
-                (categoryName): CalendarEventCategory => {
-                    const matchedCategory =
-                        eventCategories.find(
-                            (category) => category.name.trim() === categoryName
-                        ) ?? null
+            if (categoryPatch) {
+                patch.categories = categoryPatch.categories
+                patch.category = categoryPatch.category
+            }
 
-                    return (
-                        matchedCategory ?? {
-                            id: "",
-                            calendarId: activeCalendar?.id ?? "",
-                            name: categoryName,
-                            options: {
-                                visibleByDefault: true,
-                                color: getDraftCategoryColor(categoryName),
-                            },
-                            createdById: null,
-                            createdAt: Date.now(),
-                            updatedAt: Date.now(),
+            const nextParticipantIds = normalizeIds(values.participantIds)
+            const sourceParticipantIds = normalizeIds(
+                sourceEvent.participants.map(
+                    (participant) => participant.userId
+                )
+            )
+
+            if (
+                !isSameValue(sourceParticipantIds, nextParticipantIds, "json")
+            ) {
+                const memberMap = new Map(
+                    memberDirectory.map((member) => [member.userId, member])
+                )
+
+                const nextParticipants = nextParticipantIds.flatMap(
+                    (participantId): CalendarEventParticipant[] => {
+                        const sourceParticipant = sourceEvent.participants.find(
+                            (participant) =>
+                                participant.userId === participantId
+                        )
+
+                        if (sourceParticipant) {
+                            return [sourceParticipant]
                         }
-                    )
-                }
-            )
 
-            patch.categories = nextCategories
-            patch.category = nextCategories[0] ?? null
-        }
+                        const member = memberMap.get(participantId)
 
-        const nextParticipantIds = normalizeIds(values.participantIds)
-        const sourceParticipantIds = normalizeIds(
-            sourceEvent.participants.map((participant) => participant.userId)
-        )
-
-        if (!isSameValue(sourceParticipantIds, nextParticipantIds, "json")) {
-            const memberMap = new Map(
-                memberDirectory.map((member) => [member.userId, member])
-            )
-
-            const nextParticipants = nextParticipantIds.flatMap(
-                (participantId): CalendarEventParticipant[] => {
-                    const sourceParticipant = sourceEvent.participants.find(
-                        (participant) => participant.userId === participantId
-                    )
-
-                    if (sourceParticipant) {
-                        return [sourceParticipant]
-                    }
-
-                    const member = memberMap.get(participantId)
-
-                    if (member) {
-                        return [
-                            {
-                                id: member.id,
-                                eventId: sourceEvent.id,
-                                userId: member.userId,
-                                role: "participant",
-                                createdAt: Date.now(),
-                                user: {
-                                    id: member.userId,
-                                    name: member.name,
-                                    email: member.email,
-                                    avatarUrl: member.avatarUrl,
+                        if (member) {
+                            return [
+                                {
+                                    id: member.id,
+                                    eventId: sourceEvent.id,
+                                    userId: member.userId,
+                                    role: "participant",
+                                    createdAt: Date.now(),
+                                    user: {
+                                        id: member.userId,
+                                        name: member.name,
+                                        email: member.email,
+                                        avatarUrl: member.avatarUrl,
+                                    },
                                 },
-                            },
-                        ]
-                    }
+                            ]
+                        }
 
-                    if (participantId === user?.id) {
-                        return [
-                            {
-                                id: `local:${participantId}`,
-                                eventId: sourceEvent.id,
-                                userId: participantId,
-                                role: "participant",
-                                createdAt: Date.now(),
-                                user: {
-                                    id: participantId,
-                                    name: user.name,
-                                    email: user.email,
-                                    avatarUrl: user.avatarUrl,
+                        if (participantId === user?.id) {
+                            return [
+                                {
+                                    id: `local:${participantId}`,
+                                    eventId: sourceEvent.id,
+                                    userId: participantId,
+                                    role: "participant",
+                                    createdAt: Date.now(),
+                                    user: {
+                                        id: participantId,
+                                        name: user.name,
+                                        email: user.email,
+                                        avatarUrl: user.avatarUrl,
+                                    },
                                 },
-                            },
-                        ]
-                    }
+                            ]
+                        }
 
-                    return []
-                }
+                        return []
+                    }
+                )
+
+                patch.participants = nextParticipants
+            }
+
+            if (
+                !isSameValue(sourceEvent.recurrence, values.recurrence, "json")
+            ) {
+                patch.recurrence = values.recurrence ?? null
+            }
+
+            if (
+                !isSameValue(sourceEvent.exceptions, values.exceptions, "json")
+            ) {
+                patch.exceptions = values.exceptions
+            }
+
+            if (!isSameValue(sourceEvent.status, values.status)) {
+                patch.status = values.status
+            }
+
+            return patch
+        },
+        [
+            activeCalendar?.id,
+            eventCategories,
+            getDraftCategoryColor,
+            memberDirectory,
+            user,
+        ]
+    )
+
+    const ensureEventCategories = useCallback(
+        async (categoryNames: string[]) => {
+            if (
+                !activeCalendar?.id ||
+                activeCalendar.id === "demo" ||
+                disabled ||
+                categoryNames.length === 0
+            ) {
+                return eventCategories
+            }
+
+            const supabase = createBrowserSupabase()
+            const categoryMap = new Map(
+                eventCategories.map((category) => [
+                    normalizeCategoryName(category.name),
+                    category,
+                ])
             )
 
-            patch.participants = nextParticipants
-        }
+            for (const categoryName of categoryNames) {
+                const categoryKey = normalizeCategoryName(categoryName)
 
-        if (!isSameValue(sourceEvent.recurrence, values.recurrence, "json")) {
-            patch.recurrence = values.recurrence
-        }
+                if (!categoryKey || categoryMap.has(categoryKey)) {
+                    continue
+                }
 
-        if (!isSameValue(sourceEvent.exceptions, values.exceptions, "json")) {
-            patch.exceptions = values.exceptions
-        }
+                const createdCategory = await createCalendarEventCategory(
+                    supabase,
+                    activeCalendar.id,
+                    {
+                        name: categoryName,
+                        options: {
+                            visibleByDefault: true,
+                            color: getDraftCategoryColor(categoryName),
+                        },
+                    }
+                )
 
-        if (!isSameValue(sourceEvent.status, values.status)) {
-            patch.status = values.status
-        }
+                if (!createdCategory) {
+                    continue
+                }
 
-        return patch
-    }
+                categoryMap.set(categoryKey, createdCategory)
+                upsertEventCategorySnapshot(createdCategory)
+            }
 
-    const saveNow = (values: EventFormValues = form.getValues()) => {
-        if (timer.current) {
-            clearTimeout(timer.current)
-        }
+            return Array.from(categoryMap.values())
+        },
+        [
+            activeCalendar?.id,
+            disabled,
+            eventCategories,
+            getDraftCategoryColor,
+            upsertEventCategorySnapshot,
+        ]
+    )
 
-        if (activeCalendar?.id === "demo" || disabled || !event) {
-            return
-        }
+    const saveNow = useCallback(
+        async (
+            values: EventFormValues = form.getValues(),
+            options?: {
+                skipValidation?: boolean
+            }
+        ) => {
+            if (timer.current) {
+                clearTimeout(timer.current)
+            }
 
-        const patch = buildPatchFromValues(event, values)
+            if (activeCalendar?.id === "demo" || disabled || !event) {
+                return
+            }
 
-        if (Object.keys(patch).length === 0) {
-            return
-        }
+            const normalizedValues = normalizeValuesForPersistence(values)
 
-        onChange?.(patch, {
-            expectedUpdatedAt: event.updatedAt,
-        })
-    }
+            if (normalizedValues !== values) {
+                form.setValue("start", normalizedValues.start, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", normalizedValues.end, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+            }
 
-    const autoSave = () => {
+            if (!options?.skipValidation) {
+                const isValid = await form.trigger(undefined, {
+                    shouldFocus: false,
+                })
+
+                if (!isValid) {
+                    return
+                }
+            }
+
+            const nextCategoryNames = normalizeNames(
+                normalizedValues.categoryNames
+            )
+            const sourceCategoryNames = normalizeNames(
+                event.categories.map((category) => category.name)
+            )
+            const resolvedCategories =
+                JSON.stringify(sourceCategoryNames) ===
+                JSON.stringify(nextCategoryNames)
+                    ? eventCategories
+                    : await ensureEventCategories(nextCategoryNames)
+            const patch = buildPatchFromValues(
+                event,
+                normalizedValues,
+                resolvedCategories
+            )
+
+            if (Object.keys(patch).length === 0) {
+                return
+            }
+
+            onChange?.(patch, {
+                expectedUpdatedAt: event.updatedAt,
+            })
+        },
+        [
+            activeCalendar?.id,
+            buildPatchFromValues,
+            disabled,
+            ensureEventCategories,
+            event,
+            eventCategories,
+            form,
+            onChange,
+        ]
+    )
+
+    const autoSave = useCallback(() => {
         if (timer.current) clearTimeout(timer.current)
 
         if (activeCalendar?.id === "demo") return
@@ -490,9 +1085,280 @@ export function EventForm({
         }
 
         timer.current = setTimeout(() => {
-            saveNow()
+            void saveNow()
         }, 350)
-    }
+    }, [activeCalendar?.id, disabled, saveNow])
+
+    const queueScheduleDebouncedSave = useCallback(() => {
+        hasPendingScheduleSaveRef.current = true
+        if (scheduleSaveTimerRef.current) {
+            clearTimeout(scheduleSaveTimerRef.current)
+        }
+        scheduleSaveTimerRef.current = setTimeout(() => {
+            if (!isSchedulePopoverOpen) {
+                hasPendingScheduleSaveRef.current = false
+                void saveNow(form.getValues(), {
+                    skipValidation: true,
+                })
+            }
+        }, 450)
+    }, [form, isSchedulePopoverOpen, saveNow])
+
+    const triggerDatePickerDebouncedSave = useCallback(() => {
+        queueScheduleDebouncedSave()
+    }, [queueScheduleDebouncedSave])
+
+    const triggerTimePickerDebouncedSave = useCallback(() => {
+        queueScheduleDebouncedSave()
+    }, [queueScheduleDebouncedSave])
+
+    const updateScheduleValues = useCallback(
+        (
+            nextStart: Date,
+            nextEnd: Date,
+            changedBoundary: ScheduleBoundary,
+            options?: {
+                skipAutoSave?: boolean
+                changeKind?: ScheduleChangeKind
+            }
+        ) => {
+            const currentAllDay = form.getValues("allDay")
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+            const normalized = currentAllDay
+                ? normalizeAllDaySchedule(nextStart, nextEnd, timezone)
+                : normalizeTimedScheduleRange({
+                      start: nextStart,
+                      end: nextEnd,
+                      changedBoundary,
+                      changeKind: options?.changeKind ?? "date",
+                      timezone,
+                  })
+
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+
+            if (
+                currentStart.getTime() === normalized.start.getTime() &&
+                currentEnd.getTime() === normalized.end.getTime()
+            ) {
+                return normalized
+            }
+
+            form.setValue("start", normalized.start, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            form.setValue("end", normalized.end, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            if (!options?.skipAutoSave) {
+                autoSave()
+            }
+
+            return normalized
+        },
+        [autoSave, calendarTimezone, form]
+    )
+
+    const focusScheduleBoundary = useCallback(
+        (boundary: ScheduleBoundary) => {
+            const targetDate =
+                boundary === "start"
+                    ? form.getValues("start")
+                    : form.getValues("end")
+
+            setActiveScheduleBoundary(boundary)
+            setSchedulePickerMonth(targetDate)
+        },
+        [form]
+    )
+
+    const handleSchedulePickerButtonClick = useCallback(
+        (boundary: ScheduleBoundary, panel: SchedulePickerPanel) => {
+            setActiveScheduleBoundary(boundary)
+            setSchedulePickerPanel(panel)
+            const targetDate =
+                boundary === "start"
+                    ? form.getValues("start")
+                    : form.getValues("end")
+            setSchedulePickerMonth(targetDate)
+        },
+        [form]
+    )
+
+    const handleWheelTimeCommit = useCallback(
+        (boundary: ScheduleBoundary, nextValue: WheelTimeValue) => {
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+            const nextTime = `${String(toHour24(nextValue.meridiem, nextValue.hour12)).padStart(2, "0")}:${String(nextValue.minute).padStart(2, "0")}`
+            const nextBoundaryDate = setTimeParts(
+                boundary === "start" ? currentStart : currentEnd,
+                nextTime,
+                timezone
+            )
+            const normalized =
+                updateScheduleValues(
+                    boundary === "start" ? nextBoundaryDate : currentStart,
+                    boundary === "end" ? nextBoundaryDate : currentEnd,
+                    boundary,
+                    {
+                        skipAutoSave: true,
+                        changeKind: "time",
+                    }
+                ) ??
+                ({
+                    start: currentStart,
+                    end: currentEnd,
+                    didCoerce: false,
+                } as const)
+
+            triggerTimePickerDebouncedSave()
+
+            const resolvedBoundaryDate =
+                boundary === "start" ? normalized.start : normalized.end
+
+            return {
+                value: getMeridiemHourMinute(resolvedBoundaryDate, timezone),
+                locked:
+                    resolvedBoundaryDate.getTime() !==
+                    nextBoundaryDate.getTime(),
+            }
+        },
+        [
+            calendarTimezone,
+            form,
+            triggerTimePickerDebouncedSave,
+            updateScheduleValues,
+        ]
+    )
+
+    const handleScheduleRangeSelect = useCallback(
+        (range: DateRange | undefined) => {
+            if (!range?.from) {
+                setPendingScheduleRange(undefined)
+                return
+            }
+
+            const currentStart = form.getValues("start")
+            const currentEnd = form.getValues("end")
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+
+            if (range.to) {
+                setPendingScheduleRange(undefined)
+                const nextStart = setDateParts(
+                    currentStart,
+                    formatDateInputValue(range.from, timezone),
+                    timezone
+                )
+                const nextEnd = setDateParts(
+                    currentEnd,
+                    formatDateInputValue(range.to, timezone),
+                    timezone
+                )
+
+                setActiveScheduleBoundary("end")
+                setSchedulePickerMonth(range.to)
+                updateScheduleValues(nextStart, nextEnd, "end", {
+                    skipAutoSave: true,
+                })
+                triggerDatePickerDebouncedSave()
+                return
+            }
+
+            setPendingScheduleRange({
+                from: range.from,
+                to: undefined,
+            })
+            setActiveScheduleBoundary("end")
+            setSchedulePickerMonth(range.from)
+        },
+        [
+            calendarTimezone,
+            form,
+            triggerDatePickerDebouncedSave,
+            updateScheduleValues,
+        ]
+    )
+
+    const handleSchedulePopoverOpenChange = useCallback(
+        (open: boolean) => {
+            if (open) {
+                setPendingScheduleRange(undefined)
+                setSchedulePickerPanel("date")
+                const boundary =
+                    activeScheduleBoundary === "end" ? "end" : "start"
+                focusScheduleBoundary(boundary)
+            } else {
+                setPendingScheduleRange(undefined)
+                setSchedulePickerPanel("date")
+                if (hasPendingScheduleSaveRef.current) {
+                    hasPendingScheduleSaveRef.current = false
+                    if (scheduleSaveTimerRef.current) {
+                        clearTimeout(scheduleSaveTimerRef.current)
+                    }
+                    void saveNow(form.getValues(), {
+                        skipValidation: true,
+                    })
+                }
+            }
+
+            setIsSchedulePopoverOpen(open)
+        },
+        [activeScheduleBoundary, focusScheduleBoundary, form, saveNow]
+    )
+
+    const handleAllDayToggle = useCallback(
+        (checked: boolean) => {
+            const timezone =
+                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+
+            if (checked) {
+                const currentStart = form.getValues("start")
+                const currentEnd = form.getValues("end")
+                const normalized = normalizeAllDaySchedule(
+                    currentStart,
+                    currentEnd,
+                    timezone
+                )
+                form.setValue("start", normalized.start, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", normalized.end, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+            } else {
+                setSchedulePickerPanel("date")
+                const { start: nextStart, end: nextEnd } =
+                    getTimedScheduleRangeAfterAllDayOff(
+                        timezone,
+                        form.getValues("start")
+                    )
+
+                form.setValue("start", nextStart, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+                form.setValue("end", nextEnd, {
+                    shouldDirty: true,
+                    shouldTouch: true,
+                })
+            }
+
+            form.setValue("allDay", checked, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            autoSave()
+        },
+        [autoSave, calendarTimezone, form]
+    )
 
     useEffect(() => {
         if (!event) return
@@ -581,78 +1447,82 @@ export function EventForm({
         }
     }, [activeCalendar?.id])
 
-    const memberDirectory =
-        !activeCalendar?.id ||
-        activeCalendar.id === "demo" ||
-        memberDirectoryState.calendarId !== activeCalendar.id
-            ? EMPTY_MEMBER_DIRECTORY
-            : memberDirectoryState.members
-
     useEffect(() => {
-        eventCategories.forEach((category) => {
-            if (category.options.color) {
-                draftCategoryColorsRef.current.set(
-                    category.name.trim(),
-                    category.options.color
-                )
-            }
+        if (!event || event.categoryIds.length === 0) {
+            return
+        }
+
+        const nextCategoryNames = event.categoryIds
+            .map(
+                (categoryId) =>
+                    eventCategories.find(
+                        (category) => category.id === categoryId
+                    )?.name ??
+                    event.categories.find(
+                        (category) => category.id === categoryId
+                    )?.name ??
+                    null
+            )
+            .filter((name): name is string => Boolean(name))
+        const currentCategoryNames = normalizeNames(
+            form.getValues("categoryNames") ?? []
+        )
+        const currentCategoryIds = currentCategoryNames
+            .map(
+                (categoryName) =>
+                    eventCategories.find(
+                        (category) =>
+                            normalizeCategoryName(category.name) ===
+                            normalizeCategoryName(categoryName)
+                    )?.id ??
+                    event.categories.find(
+                        (category) =>
+                            normalizeCategoryName(category.name) ===
+                            normalizeCategoryName(categoryName)
+                    )?.id ??
+                    null
+            )
+            .filter((categoryId): categoryId is string => Boolean(categoryId))
+
+        if (
+            nextCategoryNames.length !== event.categoryIds.length ||
+            JSON.stringify(currentCategoryIds.sort()) !==
+                JSON.stringify([...event.categoryIds].sort()) ||
+            JSON.stringify(currentCategoryNames) ===
+                JSON.stringify(normalizeNames(nextCategoryNames))
+        ) {
+            return
+        }
+
+        form.setValue("categoryNames", normalizeNames(nextCategoryNames), {
+            shouldDirty: false,
+            shouldTouch: false,
         })
-    }, [eventCategories])
+    }, [event, eventCategories, form])
 
     useEffect(() => {
         return () => {
             if (timer.current) {
                 clearTimeout(timer.current)
             }
+            if (scheduleSaveTimerRef.current) {
+                clearTimeout(scheduleSaveTimerRef.current)
+            }
         }
     }, [])
 
-    const watchedCategoryNames = useWatch({
-        control: form.control,
-        name: "categoryNames",
-    })
     const watchedParticipantIds = useWatch({
         control: form.control,
         name: "participantIds",
     })
-    const watchedStatus = useWatch({
+    const watchedStart = useWatch({
         control: form.control,
-        name: "status",
+        name: "start",
     })
-    const selectedCategories = useMemo<CategoryOption[]>(
-        () =>
-            normalizeNames(watchedCategoryNames ?? []).map((categoryName) => {
-                const matchedCategory =
-                    eventCategories.find(
-                        (category) => category.name.trim() === categoryName
-                    ) ?? null
-
-                return matchedCategory
-                    ? {
-                          value: matchedCategory.name,
-                          label: matchedCategory.name,
-                          color: matchedCategory.options.color,
-                          data: matchedCategory,
-                      }
-                    : {
-                          value: categoryName,
-                          label: categoryName,
-                          color: getDraftCategoryColor(categoryName),
-                          isCreate: true,
-                      }
-            }),
-        [eventCategories, getDraftCategoryColor, watchedCategoryNames]
-    )
-    const categoryItems = useMemo<CategoryOption[]>(
-        () =>
-            eventCategories.map((category) => ({
-                value: category.name,
-                label: category.name,
-                color: category.options.color,
-                data: category,
-            })),
-        [eventCategories]
-    )
+    const watchedTimezone = useWatch({
+        control: form.control,
+        name: "timezone",
+    })
     const selectedParticipants = useMemo<ParticipantOption[]>(() => {
         const memberMap = new Map(
             memberDirectory.map((member) => [member.userId, member])
@@ -743,21 +1613,6 @@ export function EventForm({
             })),
         [memberDirectory]
     )
-    const categoryOptions = useMemo<CategoryOption[]>(() => {
-        const optionMap = new Map<string, CategoryOption>()
-
-        for (const option of categoryItems) {
-            optionMap.set(option.value, option)
-        }
-
-        for (const option of selectedCategories) {
-            if (!optionMap.has(option.value)) {
-                optionMap.set(option.value, option)
-            }
-        }
-
-        return Array.from(optionMap.values())
-    }, [categoryItems, selectedCategories])
     const participantOptions = useMemo<ParticipantOption[]>(() => {
         const optionMap = new Map<string, ParticipantOption>()
 
@@ -773,7 +1628,891 @@ export function EventForm({
 
         return Array.from(optionMap.values())
     }, [participantItems, selectedParticipants])
-    const statusValue = watchedStatus ? [watchedStatus] : []
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        })
+    )
+    const orderedFields = useMemo(
+        () =>
+            eventFieldSettings.items
+                .map((item) => ({
+                    ...item,
+                    definition: calendarEventFieldDefinitions.find(
+                        (field) => field.id === item.id
+                    ),
+                }))
+                .filter(
+                    (
+                        item
+                    ): item is (typeof eventFieldSettings.items)[number] & {
+                        definition: (typeof calendarEventFieldDefinitions)[number]
+                    } => Boolean(item.definition)
+                ),
+        [eventFieldSettings]
+    )
+    const hiddenFieldCount = useMemo(
+        () =>
+            orderedFields.filter(
+                (field) =>
+                    !isCalendarEventFieldVisible(eventFieldSettings, field.id)
+            ).length,
+        [eventFieldSettings, orderedFields]
+    )
+    const resolvedWatchedTimezone =
+        watchedTimezone || calendarTimezone || "Asia/Seoul"
+    const scheduleUiState = useMemo(() => {
+        const start = scheduleStart ?? form.getValues("start")
+        const end = scheduleEnd ?? form.getValues("end")
+        const allDay = scheduleAllDay ?? false
+        const timezone = resolvedWatchedTimezone
+        const activeBoundaryDate =
+            activeScheduleBoundary === "start" ? start : end
+        const activeBoundaryTime = getMeridiemHourMinute(
+            activeBoundaryDate,
+            timezone
+        )
+
+        const filteredMeridiemOptions = meridiemOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    meridiem: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+        const filteredHourOptions = hourOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    hour12: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+        const filteredMinuteOptions = minuteOptions.filter((option) =>
+            isWheelTimeAllowed({
+                boundary: activeScheduleBoundary,
+                candidate: {
+                    ...activeBoundaryTime,
+                    minute: option.value,
+                },
+                start,
+                end,
+                timezone,
+            })
+        )
+
+        return {
+            start,
+            end,
+            allDay,
+            timezone,
+            activeBoundaryDate,
+            activeBoundaryTime,
+            filteredMeridiemOptions:
+                filteredMeridiemOptions.length > 0
+                    ? filteredMeridiemOptions
+                    : meridiemOptions,
+            filteredHourOptions:
+                filteredHourOptions.length > 0
+                    ? filteredHourOptions
+                    : hourOptions,
+            filteredMinuteOptions:
+                filteredMinuteOptions.length > 0
+                    ? filteredMinuteOptions
+                    : minuteOptions,
+        }
+    }, [
+        activeScheduleBoundary,
+        form,
+        resolvedWatchedTimezone,
+        scheduleAllDay,
+        scheduleEnd,
+        scheduleStart,
+    ])
+    const handleFieldVisibilityChange = useCallback(
+        async (
+            fieldId: (typeof orderedFields)[number]["id"],
+            visible: boolean
+        ) => {
+            await saveEventFieldSettings(
+                setCalendarEventFieldVisibility(
+                    eventFieldSettings,
+                    fieldId,
+                    visible
+                )
+            )
+        },
+        [eventFieldSettings, saveEventFieldSettings]
+    )
+
+    const handleFieldDragEnd = useCallback(
+        async (dragEvent: DragEndEvent) => {
+            const activeId = String(dragEvent.active.id)
+            const overId = dragEvent.over?.id ? String(dragEvent.over.id) : null
+
+            if (!overId || activeId === overId) {
+                return
+            }
+
+            await saveEventFieldSettings(
+                moveCalendarEventFieldSettings(
+                    eventFieldSettings,
+                    activeId as (typeof orderedFields)[number]["id"],
+                    overId as (typeof orderedFields)[number]["id"]
+                )
+            )
+        },
+        [eventFieldSettings, saveEventFieldSettings]
+    )
+
+    const getPropertyMenuItems = useCallback(
+        (
+            fieldId: (typeof orderedFields)[number]["id"]
+        ): EventFormPropertyMenuItem[] => {
+            switch (fieldId) {
+                case "categories":
+                    return [
+                        {
+                            type: "panel",
+                            key: "edit-category-property",
+                            label: "속성 편집",
+                            icon: Settings2Icon,
+                            content: (
+                                <EventCategorySettingsPanel
+                                    disabled={disabled}
+                                />
+                            ),
+                            contentClassName: "w-auto",
+                            disabled:
+                                disabled ||
+                                !activeCalendar?.id ||
+                                activeCalendar.id === "demo",
+                        },
+                    ]
+                default:
+                    return []
+            }
+        },
+        [activeCalendar?.id, disabled]
+    )
+
+    const renderPropertyField = (
+        propertyField: (typeof orderedFields)[number]
+    ) => {
+        const Icon = eventFieldIconMap[propertyField.id]
+        const isVisible = propertyField.visible !== false
+        const visibility: EventFormPropertyVisibility = isVisible
+            ? "visible"
+            : "hidden"
+        const handleVisibilityChange = (
+            nextVisibility: EventFormPropertyVisibility
+        ) => {
+            void handleFieldVisibilityChange(
+                propertyField.id,
+                nextVisibility === "visible"
+            )
+        }
+        const propertyMenuItems = getPropertyMenuItems(propertyField.id)
+
+        if (propertyField.id === "schedule") {
+            const {
+                start,
+                end,
+                allDay,
+                timezone,
+                activeBoundaryTime,
+                filteredMeridiemOptions,
+                filteredHourOptions,
+                filteredMinuteOptions,
+            } = scheduleUiState
+            const scheduleModifiers = {
+                ...getRangeModifiers(start, end, timezone),
+                focused: [activeScheduleBoundary === "end" ? end : start],
+            }
+
+            const scheduleButtonClassName =
+                "h-7 flex-1 justify-start px-1.5 text-sm font-normal shadow-none"
+            const scheduleRange = pendingScheduleRange ?? {
+                from: start,
+                to: end,
+            }
+
+            return (
+                <EventFormPropertyRow
+                    key={propertyField.id}
+                    fieldId={propertyField.id}
+                    label={propertyField.definition.label}
+                    icon={Icon}
+                    disabled={disabled}
+                    visibility={visibility}
+                    onVisibilityChange={handleVisibilityChange}
+                    propertyMenuItems={propertyMenuItems}
+                >
+                    <Popover
+                        open={isSchedulePopoverOpen && !disabled}
+                        onOpenChange={handleSchedulePopoverOpenChange}
+                    >
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                disabled={disabled}
+                                className="h-auto w-full justify-start rounded-md px-1.5 py-1 text-left text-sm font-normal hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50"
+                            >
+                                {formatScheduleTriggerLabel({
+                                    start,
+                                    end,
+                                    allDay,
+                                    timezone,
+                                })}
+                            </Button>
+                        </PopoverTrigger>
+
+                        <PopoverContent
+                            className="w-56 overflow-hidden p-0"
+                            align="start"
+                            sideOffset={8}
+                        >
+                            <Sidebar
+                                collapsible="none"
+                                className="bg-transparent dark:bg-muted"
+                            >
+                                <SidebarContent className="p-0">
+                                    <SidebarGroup className="pb-0">
+                                        {allDay ? (
+                                            <div className="flex rounded-lg border border-border p-0.5">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    disabled={disabled}
+                                                    className={
+                                                        scheduleButtonClassName
+                                                    }
+                                                    onClick={() =>
+                                                        handleSchedulePickerButtonClick(
+                                                            "start",
+                                                            "date"
+                                                        )
+                                                    }
+                                                >
+                                                    {`시작일 ${dayjs(start).tz(timezone).format("YYYY.MM.DD")}`}
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-1.5">
+                                                {(
+                                                    ["start", "end"] as const
+                                                ).map((boundary) => {
+                                                    const value =
+                                                        boundary === "start"
+                                                            ? start
+                                                            : end
+
+                                                    return (
+                                                        <div
+                                                            key={boundary}
+                                                            className="flex items-center gap-0.5 rounded-lg border border-border p-0.5"
+                                                        >
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                className={
+                                                                    scheduleButtonClassName
+                                                                }
+                                                                onClick={() =>
+                                                                    handleSchedulePickerButtonClick(
+                                                                        boundary,
+                                                                        "date"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {dayjs(value)
+                                                                    .tz(
+                                                                        timezone
+                                                                    )
+                                                                    .format(
+                                                                        "YYYY.MM.DD"
+                                                                    )}
+                                                            </Button>
+                                                            <Separator
+                                                                orientation="vertical"
+                                                                className="h-5 self-center! bg-border/55"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                disabled={
+                                                                    disabled
+                                                                }
+                                                                className={`${scheduleButtonClassName} ${schedulePickerPanel === "time" && activeScheduleBoundary === boundary ? "bg-muted/70" : ""}`}
+                                                                onClick={() =>
+                                                                    handleSchedulePickerButtonClick(
+                                                                        boundary,
+                                                                        "time"
+                                                                    )
+                                                                }
+                                                            >
+                                                                {dayjs(value)
+                                                                    .tz(
+                                                                        timezone
+                                                                    )
+                                                                    .format(
+                                                                        "A h:mm"
+                                                                    )
+                                                                    .replace(
+                                                                        "AM",
+                                                                        "오전"
+                                                                    )
+                                                                    .replace(
+                                                                        "PM",
+                                                                        "오후"
+                                                                    )}
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </SidebarGroup>
+
+                                    <SidebarGroup className="py-0">
+                                        {schedulePickerPanel === "time" &&
+                                        !allDay ? (
+                                            <div className="w-full">
+                                                <ScheduleTimeWheelPicker
+                                                    key={activeScheduleBoundary}
+                                                    value={activeBoundaryTime}
+                                                    disabled={disabled}
+                                                    meridiemOptions={
+                                                        filteredMeridiemOptions
+                                                    }
+                                                    hourOptions={
+                                                        filteredHourOptions
+                                                    }
+                                                    minuteOptions={
+                                                        filteredMinuteOptions
+                                                    }
+                                                    onCommit={(
+                                                        nextValue: WheelTimeValue
+                                                    ) =>
+                                                        handleWheelTimeCommit(
+                                                            activeScheduleBoundary,
+                                                            nextValue
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="py-1.5">
+                                                <CalendarPicker
+                                                    className="mx-auto w-full max-w-full p-0 dark:bg-muted"
+                                                    mode="range"
+                                                    month={schedulePickerMonth}
+                                                    timeZone={timezone}
+                                                    noonSafe
+                                                    onMonthChange={
+                                                        setSchedulePickerMonth
+                                                    }
+                                                    selected={scheduleRange}
+                                                    modifiers={
+                                                        scheduleModifiers
+                                                    }
+                                                    onSelect={
+                                                        handleScheduleRangeSelect
+                                                    }
+                                                />
+                                            </div>
+                                        )}
+                                    </SidebarGroup>
+
+                                    <SidebarGroup className="border-t">
+                                        <SidebarGroupContent>
+                                            <SidebarMenu>
+                                                <SidebarMenuButton asChild>
+                                                    <label className="flex cursor-pointer items-center justify-between">
+                                                        하루종일
+                                                        <Switch
+                                                            size="sm"
+                                                            checked={allDay}
+                                                            disabled={disabled}
+                                                            aria-label="하루종일 일정"
+                                                            onCheckedChange={
+                                                                handleAllDayToggle
+                                                            }
+                                                        />
+                                                    </label>
+                                                </SidebarMenuButton>
+                                            </SidebarMenu>
+                                        </SidebarGroupContent>
+                                    </SidebarGroup>
+                                </SidebarContent>
+                            </Sidebar>
+                        </PopoverContent>
+                    </Popover>
+                </EventFormPropertyRow>
+            )
+        }
+
+        if (propertyField.id === "participants") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="participantIds"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                            >
+                                <div className="flex w-full flex-wrap justify-start gap-1.5">
+                                    <EventChipsCombobox
+                                        portalContainer={portalContainer}
+                                        disabled={disabled}
+                                        options={participantOptions}
+                                        value={normalizeIds(field.value ?? [])}
+                                        emptyText="표시할 멤버가 없습니다."
+                                        onValueChange={(values) => {
+                                            const nextParticipantIds =
+                                                normalizeIds(values)
+
+                                            field.onChange(nextParticipantIds)
+                                            void saveNow({
+                                                ...form.getValues(),
+                                                participantIds:
+                                                    nextParticipantIds,
+                                            })
+                                        }}
+                                        invalid={fieldState.invalid}
+                                        placeholder="멤버 선택"
+                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
+                                        renderChipContent={(participant) => (
+                                            <HoverCard
+                                                openDelay={10}
+                                                closeDelay={100}
+                                            >
+                                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
+                                                    <Avatar className="size-4.5">
+                                                        <AvatarImage
+                                                            src={
+                                                                participant.data
+                                                                    ?.avatarUrl ??
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                participant.data
+                                                                    ?.name ??
+                                                                "참가자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback className="text-xs">
+                                                            {participant.data?.name?.[0]?.toUpperCase() ??
+                                                                "?"}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    {participant.label}
+                                                </HoverCardTrigger>
+                                                <HoverCardContent
+                                                    className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
+                                                    align="start"
+                                                    alignOffset={-4}
+                                                    sideOffset={7}
+                                                >
+                                                    <Avatar className="shrink-0">
+                                                        <AvatarImage
+                                                            src={
+                                                                participant.data
+                                                                    ?.avatarUrl ||
+                                                                undefined
+                                                            }
+                                                            alt={
+                                                                participant.data
+                                                                    ?.name ||
+                                                                "사용자"
+                                                            }
+                                                        />
+                                                        <AvatarFallback className="text-sm">
+                                                            {participant.data?.name?.[0]?.toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
+                                                        <div className="flex flex-1 items-center gap-1">
+                                                            <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
+                                                                {
+                                                                    participant
+                                                                        .data
+                                                                        ?.name
+                                                                }
+                                                            </span>
+                                                            {user?.id ===
+                                                            participant?.data
+                                                                ?.userId ? (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="shrink-0 px-1.75 leading-normal"
+                                                                >
+                                                                    나
+                                                                </Badge>
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="truncate text-xs text-muted-foreground">
+                                                            {
+                                                                participant
+                                                                    ?.data
+                                                                    ?.email
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </HoverCardContent>
+                                            </HoverCard>
+                                        )}
+                                        renderItemContent={(participant) => (
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <Avatar className="size-6">
+                                                    <AvatarImage
+                                                        src={
+                                                            participant.data
+                                                                ?.avatarUrl ??
+                                                            undefined
+                                                        }
+                                                        alt={
+                                                            participant.data
+                                                                ?.name ?? "멤버"
+                                                        }
+                                                    />
+                                                    <AvatarFallback className="text-xs">
+                                                        {participant.data?.name?.[0]?.toUpperCase() ??
+                                                            "?"}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="min-w-0">
+                                                    <div className="truncate">
+                                                        {participant.data
+                                                            ?.name ??
+                                                            "이름 없음"}
+                                                    </div>
+                                                    <div className="truncate text-xs text-muted-foreground">
+                                                        {participant.data
+                                                            ?.email ??
+                                                            participant.value}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    />
+                                </div>
+                                {fieldState.invalid ? (
+                                    <FieldError errors={[fieldState.error]} />
+                                ) : null}
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "categories") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="categoryNames"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                                propertyMenuItemsPlacement="before-common"
+                            >
+                                <EventFormCategoryChipsField
+                                    portalContainer={portalContainer}
+                                    disabled={disabled}
+                                    invalid={fieldState.invalid}
+                                    value={field.value ?? []}
+                                    eventCategories={eventCategories}
+                                    getDraftCategoryColor={
+                                        getDraftCategoryColor
+                                    }
+                                    onChange={(nextCategoryNames) => {
+                                        field.onChange(nextCategoryNames)
+                                        void saveNow({
+                                            ...form.getValues(),
+                                            categoryNames: nextCategoryNames,
+                                        })
+                                    }}
+                                    errors={
+                                        fieldState.invalid
+                                            ? [fieldState.error]
+                                            : undefined
+                                    }
+                                />
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "status") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="status"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                        <div data-invalid={fieldState.invalid}>
+                            <EventFormPropertyRow
+                                fieldId={propertyField.id}
+                                label={propertyField.definition.label}
+                                icon={Icon}
+                                disabled={disabled}
+                                visibility={visibility}
+                                onVisibilityChange={handleVisibilityChange}
+                                propertyMenuItems={propertyMenuItems}
+                            >
+                                <EventFormStatusChipsField
+                                    portalContainer={portalContainer}
+                                    disabled={disabled}
+                                    value={field.value ?? eventStatus[0]}
+                                    onChange={(nextStatus) => {
+                                        field.onChange(nextStatus)
+                                        void saveNow({
+                                            ...form.getValues(),
+                                            status: nextStatus,
+                                        })
+                                    }}
+                                />
+                            </EventFormPropertyRow>
+                        </div>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "recurrence") {
+            return (
+                <EventFormRecurrenceField
+                    key={propertyField.id}
+                    control={form.control}
+                    disabled={disabled}
+                    label={propertyField.definition.label}
+                    icon={Icon}
+                    visibility={visibility}
+                    onVisibilityChange={handleVisibilityChange}
+                    propertyMenuItems={propertyMenuItems}
+                    watchedStart={watchedStart ?? new Date()}
+                    watchedTimezone={watchedTimezone}
+                    onRecurrenceChange={(nextRecurrence) => {
+                        void saveNow({
+                            ...form.getValues(),
+                            recurrence: nextRecurrence,
+                        })
+                    }}
+                />
+            )
+        }
+
+        if (propertyField.id === "exceptions") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="exceptions"
+                    control={form.control}
+                    render={({ field }) => (
+                        <EventFormPropertyRow
+                            fieldId={propertyField.id}
+                            label={propertyField.definition.label}
+                            icon={Icon}
+                            disabled={disabled}
+                            visibility={visibility}
+                            onVisibilityChange={handleVisibilityChange}
+                            propertyMenuItems={propertyMenuItems}
+                        >
+                            <div className="flex h-8 flex-wrap items-center gap-1.5 px-1.5 py-0.75">
+                                {(field.value ?? []).length > 0 ? (
+                                    (field.value ?? []).map((exception) => (
+                                        <div
+                                            key={exception}
+                                            className="flex h-6.5 w-fit items-center justify-center gap-1 rounded-sm bg-muted px-1.5 pr-0 text-sm leading-normal font-medium whitespace-nowrap text-foreground has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 has-data-[slot=combobox-chip-remove]:pr-0"
+                                        >
+                                            {formatExceptionDateTagLabel(
+                                                exception,
+                                                watchedTimezone
+                                            )}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                disabled={disabled}
+                                                className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-normal aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
+                                                aria-label={`${formatExceptionDateTagLabel(exception, watchedTimezone)} 제외 삭제`}
+                                                onClick={() => {
+                                                    const nextExceptions = (
+                                                        field.value ?? []
+                                                    ).filter(
+                                                        (value) =>
+                                                            value !== exception
+                                                    )
+
+                                                    field.onChange(
+                                                        nextExceptions
+                                                    )
+                                                    void saveNow({
+                                                        ...form.getValues(),
+                                                        exceptions:
+                                                            nextExceptions,
+                                                    })
+                                                }}
+                                            >
+                                                <XIcon />
+                                            </Button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <span className="text-sm text-muted-foreground">
+                                        설정된 제외 날짜가 없습니다.
+                                    </span>
+                                )}
+                            </div>
+                        </EventFormPropertyRow>
+                    )}
+                />
+            )
+        }
+
+        if (propertyField.id === "timezone") {
+            return (
+                <Controller
+                    key={propertyField.id}
+                    name="timezone"
+                    control={form.control}
+                    render={({ field }) => (
+                        <EventFormPropertyRow
+                            fieldId={propertyField.id}
+                            label={propertyField.definition.label}
+                            icon={Icon}
+                            disabled={disabled}
+                            visibility={visibility}
+                            onVisibilityChange={handleVisibilityChange}
+                            propertyMenuItems={propertyMenuItems}
+                        >
+                            <TimezoneSelect
+                                icon={false}
+                                alignOffset={0}
+                                value={field.value}
+                                contentClassName="w-(--anchor-width) min-w-full"
+                                portalContainer={portalContainer}
+                                className="w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent! [&_button]:hidden [&_input]:px-1.5"
+                                disabled={disabled}
+                                onChange={(nextTimezone) => {
+                                    const currentTimezone =
+                                        field.value ||
+                                        calendarTimezone ||
+                                        "Asia/Seoul"
+                                    const currentValues = form.getValues()
+                                    const nextStart =
+                                        preserveDateTimeInTimezone(
+                                            currentValues.start,
+                                            currentTimezone,
+                                            nextTimezone
+                                        )
+                                    const nextEnd = preserveDateTimeInTimezone(
+                                        currentValues.end,
+                                        currentTimezone,
+                                        nextTimezone
+                                    )
+                                    const nextScheduleValues =
+                                        currentValues.allDay
+                                            ? normalizeAllDaySchedule(
+                                                  nextStart,
+                                                  nextEnd,
+                                                  nextTimezone
+                                              )
+                                            : {
+                                                  start: nextStart,
+                                                  end: nextEnd,
+                                              }
+
+                                    form.setValue(
+                                        "start",
+                                        nextScheduleValues.start,
+                                        {
+                                            shouldDirty: true,
+                                            shouldTouch: true,
+                                        }
+                                    )
+                                    form.setValue(
+                                        "end",
+                                        nextScheduleValues.end,
+                                        {
+                                            shouldDirty: true,
+                                            shouldTouch: true,
+                                        }
+                                    )
+                                    field.onChange(nextTimezone)
+                                    void saveNow({
+                                        ...currentValues,
+                                        start: nextScheduleValues.start,
+                                        end: nextScheduleValues.end,
+                                        timezone: nextTimezone,
+                                    })
+                                }}
+                            />
+                        </EventFormPropertyRow>
+                    )}
+                />
+            )
+        }
+
+        return null
+    }
+
+    const renderSortablePropertyField = (
+        propertyField: (typeof orderedFields)[number]
+    ) => {
+        const content = renderPropertyField(propertyField)
+
+        if (!content) {
+            return null
+        }
+
+        if (propertyField.visible !== false) {
+            return content
+        }
+
+        return (
+            <CollapsibleContent
+                key={propertyField.id}
+                className="space-y-0"
+                forceMount
+                hidden={!areHiddenFieldsOpen}
+            >
+                {content}
+            </CollapsibleContent>
+        )
+    }
 
     return (
         <form
@@ -814,562 +2553,59 @@ export function EventForm({
                                     autoSave()
                                 }}
                             /> */}
-                            {fieldState.invalid && (
+                            {/* {fieldState.invalid && (
                                 <FieldError errors={[fieldState.error]} />
-                            )}
+                            )} */}
                         </Field>
                     )}
                 />
 
-                <Collapsible className="flex flex-col gap-3">
-                    {/* 기간 */}
-                    <Controller
-                        name="start"
-                        control={form.control}
-                        render={() => {
-                            const start = form.getValues("start")
-                            const end = form.getValues("end")
-
-                            return (
-                                <Field className="h-8.5 md:flex-row md:gap-3">
-                                    <FieldLabel className="flex items-center md:w-32.5">
-                                        <CalendarIcon className="size-4" />
-                                        기간
-                                    </FieldLabel>
-
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full justify-start border-0! bg-transparent! px-1.5 md:flex-1"
-                                                disabled={disabled}
-                                            >
-                                                {`${dayjs(start).format(
-                                                    "YYYY-MM-DD HH:mm"
-                                                )} ~ ${dayjs(end).format(
-                                                    "YYYY-MM-DD HH:mm"
-                                                )}`}
-                                            </Button>
-                                        </PopoverTrigger>
-
-                                        <PopoverContent
-                                            className="w-auto overflow-hidden p-0"
-                                            align="start"
-                                            alignOffset={4}
-                                        >
-                                            <CalendarPicker
-                                                className="dark:bg-muted"
-                                                mode="range"
-                                                selected={{
-                                                    from: start,
-                                                    to: end,
-                                                }}
-                                                onSelect={(r) => {
-                                                    if (disabled) return
-                                                    if (!r?.from) return
-
-                                                    form.setValue(
-                                                        "start",
-                                                        r.from
-                                                    )
-                                                    if (r.to)
-                                                        form.setValue(
-                                                            "end",
-                                                            r.to
-                                                        )
-
-                                                    autoSave()
-                                                }}
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                </Field>
-                            )
+                <Collapsible
+                    open={areHiddenFieldsOpen}
+                    onOpenChange={setAreHiddenFieldsOpen}
+                    className="flex flex-col gap-3"
+                >
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        modifiers={[restrictToVerticalAxis]}
+                        onDragEnd={(dragEvent) => {
+                            void handleFieldDragEnd(dragEvent)
                         }}
-                    />
-
-                    {/* 참가자 */}
-                    <Controller
-                        name="participantIds"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                            <Field
-                                className="md:flex-row md:gap-3"
-                                data-invalid={fieldState.invalid}
-                            >
-                                <FieldLabel className="flex h-8.5 items-center md:w-32.5">
-                                    <UsersIcon className="size-4" />
-                                    참가자
-                                </FieldLabel>
-
-                                <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
-                                    <EventChipsCombobox
-                                        disabled={disabled}
-                                        options={participantOptions}
-                                        value={normalizeIds(field.value ?? [])}
-                                        emptyText="표시할 멤버가 없습니다."
-                                        onValueChange={(values) => {
-                                            const nextParticipantIds =
-                                                normalizeIds(values)
-
-                                            field.onChange(nextParticipantIds)
-                                            saveNow({
-                                                ...form.getValues(),
-                                                participantIds:
-                                                    nextParticipantIds,
-                                            })
-                                        }}
-                                        invalid={fieldState.invalid}
-                                        placeholder="멤버 선택"
-                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
-                                        renderChipContent={(participant) => (
-                                            <>
-                                                <HoverCard
-                                                    openDelay={10}
-                                                    closeDelay={100}
-                                                >
-                                                    <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
-                                                        <Avatar className="size-4.5">
-                                                            <AvatarImage
-                                                                src={
-                                                                    participant
-                                                                        .data
-                                                                        ?.avatarUrl ??
-                                                                    undefined
-                                                                }
-                                                                alt={
-                                                                    participant
-                                                                        .data
-                                                                        ?.name ??
-                                                                    "참가자"
-                                                                }
-                                                            />
-                                                            <AvatarFallback className="text-xs">
-                                                                {participant.data?.name?.[0]?.toUpperCase() ??
-                                                                    "?"}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        {participant.label}
-                                                    </HoverCardTrigger>
-                                                    <HoverCardContent
-                                                        className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
-                                                        align="start"
-                                                        alignOffset={-4}
-                                                        sideOffset={7}
-                                                    >
-                                                        <Avatar className="shrink-0">
-                                                            <AvatarImage
-                                                                src={
-                                                                    participant
-                                                                        .data
-                                                                        ?.avatarUrl ||
-                                                                    undefined
-                                                                }
-                                                                alt={
-                                                                    participant
-                                                                        .data
-                                                                        ?.name ||
-                                                                    "사용자"
-                                                                }
-                                                            />
-                                                            <AvatarFallback className="text-sm">
-                                                                {participant.data?.name?.[0]?.toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                                            <div className="flex flex-1 items-center gap-1">
-                                                                <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                                                    {
-                                                                        participant
-                                                                            .data
-                                                                            ?.name
-                                                                    }
-                                                                </span>
-                                                                {user?.id ===
-                                                                    participant
-                                                                        ?.data
-                                                                        ?.userId && (
-                                                                    <Badge
-                                                                        variant="outline"
-                                                                        className="shrink-0 px-1.75 leading-normal"
-                                                                    >
-                                                                        나
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <div className="truncate text-xs text-muted-foreground">
-                                                                {
-                                                                    participant
-                                                                        ?.data
-                                                                        ?.email
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    </HoverCardContent>
-                                                </HoverCard>
-                                            </>
-                                        )}
-                                        renderItemContent={(participant) => (
-                                            <div className="flex min-w-0 items-center gap-2">
-                                                <Avatar className="size-6">
-                                                    <AvatarImage
-                                                        src={
-                                                            participant.data
-                                                                ?.avatarUrl ??
-                                                            undefined
-                                                        }
-                                                        alt={
-                                                            participant.data
-                                                                ?.name ?? "멤버"
-                                                        }
-                                                    />
-                                                    <AvatarFallback className="text-xs">
-                                                        {participant.data?.name?.[0]?.toUpperCase() ??
-                                                            "?"}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="min-w-0">
-                                                    <div className="truncate">
-                                                        {participant.data
-                                                            ?.name ??
-                                                            "이름 없음"}
-                                                    </div>
-                                                    <div className="truncate text-xs text-muted-foreground">
-                                                        {participant.data
-                                                            ?.email ??
-                                                            participant.value}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
-                            </Field>
-                        )}
-                    />
-
-                    {/* <Field className="md:flex-row md:gap-3">
-                        <FieldLabel className="flex h-8.5 items-center md:w-32.5">
-                            작성자
-                        </FieldLabel>
-
-                        <div className="flex w-full flex-wrap justify-start gap-1.5 px-1 md:flex-1">
-                            <HoverCard openDelay={10} closeDelay={100}>
-                                <HoverCardTrigger className="flex cursor-default items-center gap-1.25 rounded-full text-sm select-none">
-                                    <Avatar className="size-5">
-                                        <AvatarImage
-                                            src={
-                                                event?.author?.avatarUrl ??
-                                                undefined
-                                            }
-                                            alt={
-                                                event?.author?.name ?? "작성자"
-                                            }
-                                        />
-                                        <AvatarFallback className="text-xs">
-                                            {event?.author?.name?.[0]?.toUpperCase() ??
-                                                "?"}
-                                        </AvatarFallback>
-                                    </Avatar>
-
-                                    {event?.author?.name}
-                                </HoverCardTrigger>
-                                <HoverCardContent
-                                    className="flex w-auto items-center gap-2 overflow-hidden shadow-sm"
-                                    align="start"
-                                >
-                                    <Avatar className="shrink-0">
-                                        <AvatarImage
-                                            src={
-                                                event?.author?.avatarUrl ||
-                                                undefined
-                                            }
-                                            alt={
-                                                event?.author?.name || "사용자"
-                                            }
-                                        />
-                                        <AvatarFallback className="text-sm">
-                                            {event?.author?.name?.[0]?.toUpperCase()}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex flex-1 flex-col gap-1 overflow-hidden text-start">
-                                        <div className="flex flex-1 items-center gap-1">
-                                            <span className="flex-initial truncate text-sm font-medium tracking-tight [word-spacing:-1px]">
-                                                {event?.author?.name}
-                                            </span>
-                                            {user?.id === event?.authorId && (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="shrink-0 px-1.75 leading-normal"
-                                                >
-                                                    나
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <EventUpdatedAtText
-                                            value={event?.updatedAt}
-                                        />
-                                    </div>
-                                </HoverCardContent>
-                            </HoverCard>
-                        </div>
-                    </Field> */}
-
-                    <CollapsibleContent>
-                        <div className="flex flex-col gap-3">
-                            <Controller
-                                name="categoryNames"
-                                control={form.control}
-                                render={({ field, fieldState }) => (
-                                    <Field
-                                        className="h-8.5 md:flex-row md:gap-3"
-                                        data-invalid={fieldState.invalid}
-                                    >
-                                        <FieldLabel className="flex items-center md:w-32.5">
-                                            <TagsIcon className="size-4" />
-                                            카테고리
-                                        </FieldLabel>
-
-                                        <div className="flex w-full flex-col gap-2 md:flex-1">
-                                            <EventChipsCombobox
-                                                disabled={disabled}
-                                                options={categoryOptions}
-                                                value={normalizeNames(
-                                                    field.value ?? []
-                                                )}
-                                                emptyText="카테고리를 입력해 생성할 수 있습니다."
-                                                onValueChange={(values) => {
-                                                    const nextCategoryNames =
-                                                        normalizeNames(values)
-
-                                                    field.onChange(
-                                                        nextCategoryNames
-                                                    )
-
-                                                    console.log(
-                                                        nextCategoryNames
-                                                    )
-                                                    saveNow({
-                                                        ...form.getValues(),
-                                                        categoryNames:
-                                                            nextCategoryNames,
-                                                    })
-                                                }}
-                                                invalid={fieldState.invalid}
-                                                placeholder="카테고리 추가"
-                                                chipClassName={(category) =>
-                                                    getCalendarCategoryLabelClassName(
-                                                        category.color,
-                                                        "h-6.5 gap-0 [&_button]:hover:bg-transparent leading-normal"
-                                                    )
-                                                }
-                                                renderChipContent={(
-                                                    category
-                                                ) => (
-                                                    <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
-                                                        {category.label}
-                                                    </span>
-                                                )}
-                                                renderItemContent={(
-                                                    category
-                                                ) => (
-                                                    <span className="inline-flex items-center gap-2">
-                                                        <span
-                                                            className={getCalendarCategoryLabelClassName(
-                                                                category.color,
-                                                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
-                                                            )}
-                                                        >
-                                                            {category.label}
-                                                        </span>
-                                                        {category.isCreate
-                                                            ? "새 카테고리 생성"
-                                                            : null}
-                                                    </span>
-                                                )}
-                                                createOptionFromQuery={(
-                                                    query
-                                                ) =>
-                                                    query
-                                                        ? {
-                                                              value: query,
-                                                              label: query,
-                                                              color: getDraftCategoryColor(
-                                                                  query
-                                                              ),
-                                                              isCreate: true,
-                                                          }
-                                                        : null
-                                                }
-                                            />
-                                            {fieldState.invalid && (
-                                                <FieldError
-                                                    errors={[fieldState.error]}
-                                                />
-                                            )}
-                                        </div>
-                                    </Field>
-                                )}
-                            />
-
-                            {/* 상태 */}
-                            <Controller
-                                name="status"
-                                control={form.control}
-                                render={({ field, fieldState }) => (
-                                    <Field
-                                        className="h-8.5 md:flex-row md:gap-3"
-                                        data-invalid={fieldState.invalid}
-                                    >
-                                        <FieldLabel className="flex items-center md:w-32.5">
-                                            <CircleCheckBigIcon className="size-4" />
-                                            상태
-                                        </FieldLabel>
-
-                                        <div className="flex w-full flex-wrap justify-start gap-1.5 md:flex-1">
-                                            <EventChipsCombobox
-                                                disabled={disabled}
-                                                options={statusItems.map(
-                                                    (status) => ({
-                                                        value: status.value,
-                                                        label: status.label,
-                                                    })
-                                                )}
-                                                value={statusValue}
-                                                emptyText="No items found."
-                                                onValueChange={(values) => {
-                                                    const last =
-                                                        values[
-                                                            values.length - 1
-                                                        ]
-
-                                                    if (!last) {
-                                                        return
-                                                    }
-
-                                                    const nextStatus =
-                                                        last as StatusOption["value"]
-
-                                                    field.onChange(nextStatus)
-                                                    saveNow({
-                                                        ...form.getValues(),
-                                                        status: nextStatus,
-                                                    })
-                                                }}
-                                                closeOnSelect
-                                                showRemove={false}
-                                                renderChipContent={(status) => (
-                                                    <span className="inline-flex items-center gap-1.5">
-                                                        <span
-                                                            className={[
-                                                                statusDotClassNameMap[
-                                                                    status.value as StatusOption["value"]
-                                                                ],
-                                                                "size-2 rounded-full",
-                                                            ].join(" ")}
-                                                        />
-                                                        {status.label}
-                                                    </span>
-                                                )}
-                                                renderItemContent={(status) => (
-                                                    <span
-                                                        className={[
-                                                            statusItemClassNameMap[
-                                                                status.value as StatusOption["value"]
-                                                            ],
-                                                            "inline-flex h-6.5 items-center gap-1.5 text-sm",
-                                                        ].join(" ")}
-                                                    >
-                                                        <span
-                                                            className={[
-                                                                statusDotClassNameMap[
-                                                                    status.value as StatusOption["value"]
-                                                                ],
-                                                                "inline-block size-2 rounded-full",
-                                                            ].join(" ")}
-                                                        />
-                                                        {status.label}
-                                                    </span>
-                                                )}
-                                                chipClassName={(status) =>
-                                                    [
-                                                        "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
-                                                        statusLabelClassNameMap[
-                                                            status.value as StatusOption["value"]
-                                                        ],
-                                                    ].join(" ")
-                                                }
-                                            />
-                                        </div>
-                                    </Field>
-                                )}
-                            />
-                        </div>
-                    </CollapsibleContent>
-
-                    <CollapsibleTrigger className="w-auto self-start" asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="group justify-center pl-1.5 leading-normal text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                    >
+                        <SortableContext
+                            disabled={disabled}
+                            items={orderedFields.map(
+                                (propertyField) => propertyField.id
+                            )}
+                            strategy={verticalListSortingStrategy}
                         >
-                            <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
-                            일정 속성{" "}
-                            <span className="group-data-[state=open]:hidden">
-                                더 보기
-                            </span>
-                            <span className="hidden group-data-[state=open]:inline">
-                                숨기기
-                            </span>
-                        </Button>
-                    </CollapsibleTrigger>
-
-                    {/* 색상 */}
-                    {/* <Controller
-                        name="color"
-                        control={form.control}
-                        render={({ field }) => (
-                            <Field className="md:flex-row md:gap-3">
-                                <FieldLabel className="flex justify-between bg-background! md:w-32.5">
-                                    색상
-                                </FieldLabel>
-                                <Input
-                                    {...field}
-                                    className="md:flex-1"
-                                    disabled={disabled}
-                                    onChange={(e) => {
-                                        if (disabled) return
-                                        field.onChange(e)
-                                        autoSave()
-                                    }}
-                                />
-                            </Field>
-                        )}
-                    /> */}
-
-                    {/* 타임존 */}
-                    {/* <Controller
-                        name="timezone"
-                        control={form.control}
-                        render={({ field }) => (
-                            <Field className="md:flex-row md:gap-3">
-                                <FieldLabel className="flex justify-between bg-background! md:w-32.5">
-                                    타임존
-                                </FieldLabel>
-    
-                                <TimezoneSelect
-                                    value={field.value}
-                                    className="flex-1"
-                                    disabled={disabled}
-                                    onChange={(tz) => {
-                                        if (disabled) return
-                                        field.onChange(tz)
-                                        autoSave()
-                                    }}
-                                />
-                            </Field>
-                        )}
-                    /> */}
+                            <div className="flex flex-col gap-3">
+                                {orderedFields.map(renderSortablePropertyField)}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
+                    {hiddenFieldCount > 0 ? (
+                        <CollapsibleTrigger
+                            className="w-auto self-start"
+                            asChild
+                        >
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="group justify-center pl-1.5 leading-normal text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                            >
+                                <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
+                                속성 {hiddenFieldCount}개{" "}
+                                <span className="group-data-[state=open]:hidden">
+                                    더 보기
+                                </span>
+                                <span className="hidden group-data-[state=open]:inline">
+                                    숨기기
+                                </span>
+                            </Button>
+                        </CollapsibleTrigger>
+                    ) : null}
                 </Collapsible>
 
                 <Separator />
@@ -1391,6 +2627,7 @@ export function EventForm({
                                         field.onChange(val)
                                         autoSave()
                                     }}
+                                    members={memberDirectoryState.members}
                                 />
                             ) : (
                                 <ContentEditorCSR
@@ -1404,6 +2641,7 @@ export function EventForm({
                                         field.onChange(val)
                                         autoSave()
                                     }}
+                                    members={memberDirectoryState.members}
                                 />
                             )}
                         </Field>

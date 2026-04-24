@@ -4,7 +4,7 @@ import { useOpenEvent } from "@/hooks/use-open-event"
 import { canCreateCalendarEvents } from "@/lib/calendar/permissions"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
-import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
+import { shallow } from "@/store/createSSRStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDroppable } from "@dnd-kit/core"
@@ -18,20 +18,7 @@ import { DayCellMemberHoverCard } from "./day-cell-member-hover-card"
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
         const createEvent = useOpenEvent()
-
-        const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-        const activeCalendarMembership = useCalendarStore(
-            (s) => s.activeCalendarMembership
-        )
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-        const startSelection = useCalendarStore((s) => s.startSelection)
-        const updateSelection = useCalendarStore((s) => s.updateSelection)
-        const endSelectionStore = useCalendarStore((s) => s.endSelection)
-        const selection = useCalendarStore((s) => s.selection)
-        const isSelecting = useCalendarStore((s) => s.selection.isSelecting)
-        const workspacePresence = useCalendarStore(
-            (s): CalendarWorkspacePresenceMember[] => s.workspacePresence
-        )
         const user = useAuthStore((s) => s.user)
 
         const isDraggingRef = useRef(false)
@@ -46,12 +33,57 @@ export const DayCell = memo(
         const dayValue = useMemo(() => {
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
+        const dayOfMonth = useMemo(
+            () => dayjs(day).tz(calendarTz).date(),
+            [calendarTz, day]
+        )
         const { todayDate } = useCalendarToday(calendarTz)
 
-        const isSelected = useCalendarStore((s) => s.selectedDate === dayValue)
-        const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
-        const setViewportMiniDate = useCalendarStore(
-            (s) => s.setViewportMiniDate
+        const {
+            activeCalendar,
+            activeCalendarMembership,
+            startSelection,
+            updateSelection,
+            endSelectionStore,
+            selection,
+            isSelecting,
+            isSelected,
+            setSelectedDate,
+            setViewportMiniDate,
+            isHover,
+            isSelectingRange,
+        } = useCalendarStore(
+            (s) => {
+                const isHoverState =
+                    Boolean(s.drag.eventId) &&
+                    s.drag.mode === "move" &&
+                    (s.drag.hoveredDateKeys.length > 0
+                        ? s.drag.hoveredDateKeys.includes(cellDate)
+                        : dayValue >= s.drag.start && dayValue <= s.drag.end)
+                const isSelectingRangeState =
+                    s.selection.isSelecting &&
+                    Boolean(s.selection.start) &&
+                    Boolean(s.selection.end) &&
+                    s.selection.start !== s.selection.end &&
+                    dayValue >= s.selection.start! &&
+                    dayValue <= s.selection.end!
+
+                return {
+                    activeCalendar: s.activeCalendar,
+                    activeCalendarMembership: s.activeCalendarMembership,
+                    startSelection: s.startSelection,
+                    updateSelection: s.updateSelection,
+                    endSelectionStore: s.endSelection,
+                    selection: s.selection,
+                    isSelecting: s.selection.isSelecting,
+                    isSelected: s.selectedDate === dayValue,
+                    setSelectedDate: s.setSelectedDate,
+                    setViewportMiniDate: s.setViewportMiniDate,
+                    isHover: isHoverState,
+                    isSelectingRange: isSelectingRangeState,
+                }
+            },
+            shallow
         )
 
         const cellMembers = useCellMembers(cellDate, user?.id)
@@ -77,14 +109,8 @@ export const DayCell = memo(
             const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
             const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
 
-            createEvent({ start, end })
+            createEvent({ fromCalendarGrid: true, start, end })
         }
-
-        const isHover = useCalendarStore((s) => {
-            if (!s.drag.eventId) return false
-            if (s.drag.mode !== "move") return false
-            return dayValue >= s.drag.start && dayValue <= s.drag.end
-        })
 
         const handlePointerDown = (e: React.PointerEvent) => {
             // 🔥 이벤트 클릭이면 무시
@@ -122,19 +148,12 @@ export const DayCell = memo(
                     canCreateCalendarEvents(activeCalendarMembership))
             ) {
                 createEvent({
+                    fromCalendarGrid: true,
                     start: selection.start,
                     end: selection.end,
                 })
             }
         }
-
-        const isSelectingRange = useCalendarStore((s) => {
-            if (!s.selection.isSelecting) return false
-            if (!s.selection.start || !s.selection.end) return false
-            if (s.selection.start === s.selection.end) return false
-
-            return dayValue >= s.selection.start && dayValue <= s.selection.end
-        })
 
         const isCellMember = useMemo(
             () => cellMembers.length > 0,
@@ -163,15 +182,17 @@ export const DayCell = memo(
                 <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
                     <div className="flex items-center">
                         <>
-                            <Button
-                                size="icon"
-                                variant="outline"
-                                className="hidden size-8 text-muted-foreground group-hover/day:flex"
-                                onClick={handleDoubleClick}
-                            >
-                                <PlusIcon />
-                            </Button>
-                            {day.getDate() === 1 && (
+                            {!isHover && !isSelectingRange && (
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="hidden size-8 text-muted-foreground group-hover/day:flex"
+                                    onClick={handleDoubleClick}
+                                >
+                                    <PlusIcon />
+                                </Button>
+                            )}
+                            {dayOfMonth === 1 && (
                                 <span className="text-sm text-muted-foreground/80 group-hover/day:hidden">
                                     {dayjs.tz(day, calendarTz).format("M월")}
                                 </span>
@@ -194,7 +215,7 @@ export const DayCell = memo(
                                     isCellMember,
                             })}
                         >
-                            {day.getDate()}
+                            {dayOfMonth}
                         </span>
                     </DayCellMemberHoverCard>
                 </div>

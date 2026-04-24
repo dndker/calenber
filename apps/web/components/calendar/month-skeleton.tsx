@@ -1,26 +1,17 @@
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey } from "@/utils/calendar"
-import { useMemo } from "react"
-import { positionCalendarEvents } from "./event-positioning"
 import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
-    const events = useCalendarStore((s) => s.events)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const today = dayjs(selectedDate).tz(calendarTimezone).add(12, "hour")
     const startOfMonth = today.startOf("month")
 
-    // 달력 시작 주 (일요일 or 월요일 기준)
     const calendarStart = startOfMonth.startOf("week")
 
     const monthKey = getMonthKey(startOfMonth.toDate(), calendarTimezone)
-
-    const positionedEvents = useMemo(
-        () => positionCalendarEvents(events, calendarTimezone),
-        [calendarTimezone, events]
-    )
 
     return (
         <div className="relative flex h-full flex-col gap-px">
@@ -30,7 +21,7 @@ export function MonthSkeleton() {
                 return (
                     <WeekRow
                         key={i}
-                        events={positionedEvents}
+                        events={[]}
                         weekDate={weekDate}
                         currentMonthKey={monthKey}
                         skeleton

@@ -53,6 +53,108 @@ import { useRouter } from "next/navigation"
 import { ChangeEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
+function CalendarGeneralCalendarNameField({
+    calendarId,
+    serverName,
+    isDemoCalendar,
+    canManageSettings,
+}: {
+    calendarId: string
+    serverName: string
+    isDemoCalendar: boolean
+    canManageSettings: boolean
+}) {
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
+    const updateCalendarSnapshot = useCalendarStore(
+        (s) => s.updateCalendarSnapshot
+    )
+    const [calendarName, setCalendarName] = useState(serverName)
+    const [isSavingName, setIsSavingName] = useState(false)
+
+    const trimmedCalendarName = calendarName.trim()
+    const hasCalendarNameLengthError =
+        trimmedCalendarName.length < MIN_DISPLAY_NAME_LENGTH ||
+        trimmedCalendarName.length > MAX_CALENDAR_NAME_LENGTH
+
+    useEffect(() => {
+        if (isDemoCalendar || !canManageCalendar(activeCalendarMembership)) {
+            return
+        }
+
+        const nextName = trimmedCalendarName
+        const currentName = serverName.trim()
+
+        if (
+            !nextName ||
+            nextName.length < MIN_DISPLAY_NAME_LENGTH ||
+            nextName.length > MAX_CALENDAR_NAME_LENGTH ||
+            nextName === currentName
+        ) {
+            return
+        }
+
+        const timeout = window.setTimeout(async () => {
+            setIsSavingName(true)
+
+            try {
+                const supabase = createBrowserSupabase()
+                const { error } = await supabase
+                    .from("calendars")
+                    .update({ name: nextName })
+                    .eq("id", calendarId)
+
+                if (error) {
+                    throw error
+                }
+
+                updateCalendarSnapshot(calendarId, { name: nextName })
+            } catch (error) {
+                console.error("Failed to update calendar name:", error)
+                toast.error("캘린더 이름을 저장하지 못했습니다.")
+            } finally {
+                setIsSavingName(false)
+            }
+        }, 500)
+
+        return () => window.clearTimeout(timeout)
+    }, [
+        activeCalendarMembership,
+        calendarId,
+        isDemoCalendar,
+        serverName,
+        trimmedCalendarName,
+        updateCalendarSnapshot,
+    ])
+
+    return (
+        <Field>
+            <FieldContent>
+                <FieldLabel>캘린더 이름</FieldLabel>
+            </FieldContent>
+
+            <NameInputControl
+                value={calendarName}
+                placeholder="캘린더 이름 입력.."
+                onChange={setCalendarName}
+                invalid={hasCalendarNameLengthError}
+                isSaving={isSavingName}
+                disabled={!canManageSettings || isSavingName}
+                minLength={MIN_DISPLAY_NAME_LENGTH}
+                maxLength={MAX_CALENDAR_NAME_LENGTH}
+                className="w-100!"
+            />
+            {hasCalendarNameLengthError && (
+                <p className="text-xs text-destructive">
+                    {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_CALENDAR_NAME_LENGTH}자
+                    이하로 입력해 주세요.
+                </p>
+            )}
+        </Field>
+    )
+}
+
 export function CalendarGeneralSettingsPanel() {
     const router = useRouter()
     const { closeSettings } = useSettingsModal()
@@ -71,8 +173,6 @@ export function CalendarGeneralSettingsPanel() {
     )
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-    const [calendarName, setCalendarName] = useState(activeCalendar?.name ?? "")
-    const [isSavingName, setIsSavingName] = useState(false)
     const [isSavingSecurity, setIsSavingSecurity] = useState(false)
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
     const [isRemovingAvatar, setIsRemovingAvatar] = useState(false)
@@ -81,10 +181,6 @@ export function CalendarGeneralSettingsPanel() {
     const [isDeletingCalendar, setIsDeletingCalendar] = useState(false)
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [deleteConfirmation, setDeleteConfirmation] = useState("")
-
-    useEffect(() => {
-        setCalendarName(activeCalendar?.name ?? "")
-    }, [activeCalendar?.name])
 
     useEffect(() => {
         if (!activeCalendar || activeCalendar.id === "demo") {
@@ -141,63 +237,6 @@ export function CalendarGeneralSettingsPanel() {
             isCancelled = true
         }
     }, [activeCalendar])
-
-    const trimmedCalendarName = calendarName.trim()
-    const hasCalendarNameLengthError =
-        trimmedCalendarName.length < MIN_DISPLAY_NAME_LENGTH ||
-        trimmedCalendarName.length > MAX_CALENDAR_NAME_LENGTH
-
-    useEffect(() => {
-        if (
-            !activeCalendar ||
-            activeCalendar.id === "demo" ||
-            !canManageCalendar(activeCalendarMembership)
-        ) {
-            return
-        }
-
-        const nextName = trimmedCalendarName
-        const currentName = activeCalendar.name.trim()
-
-        if (
-            !nextName ||
-            nextName.length < MIN_DISPLAY_NAME_LENGTH ||
-            nextName.length > MAX_CALENDAR_NAME_LENGTH ||
-            nextName === currentName
-        ) {
-            return
-        }
-
-        const timeout = window.setTimeout(async () => {
-            setIsSavingName(true)
-
-            try {
-                const supabase = createBrowserSupabase()
-                const { error } = await supabase
-                    .from("calendars")
-                    .update({ name: nextName })
-                    .eq("id", activeCalendar.id)
-
-                if (error) {
-                    throw error
-                }
-
-                updateCalendarSnapshot(activeCalendar.id, { name: nextName })
-            } catch (error) {
-                console.error("Failed to update calendar name:", error)
-                toast.error("캘린더 이름을 저장하지 못했습니다.")
-            } finally {
-                setIsSavingName(false)
-            }
-        }, 500)
-
-        return () => window.clearTimeout(timeout)
-    }, [
-        activeCalendar,
-        activeCalendarMembership,
-        trimmedCalendarName,
-        updateCalendarSnapshot,
-    ])
 
     if (!activeCalendar) {
         return (
@@ -462,30 +501,13 @@ export function CalendarGeneralSettingsPanel() {
                             있습니다.
                         </p>
                     )}
-                    <Field>
-                        <FieldContent>
-                            <FieldLabel>캘린더 이름</FieldLabel>
-                        </FieldContent>
-
-                        <NameInputControl
-                            value={calendarName}
-                            placeholder="캘린더 이름 입력.."
-                            onChange={setCalendarName}
-                            invalid={hasCalendarNameLengthError}
-                            isSaving={isSavingName}
-                            disabled={!canManageSettings || isSavingName}
-                            minLength={MIN_DISPLAY_NAME_LENGTH}
-                            maxLength={MAX_CALENDAR_NAME_LENGTH}
-                            className="w-100!"
-                        />
-                        {hasCalendarNameLengthError && (
-                            <p className="text-xs text-destructive">
-                                {MIN_DISPLAY_NAME_LENGTH}자 이상{" "}
-                                {MAX_CALENDAR_NAME_LENGTH}자 이하로 입력해
-                                주세요.
-                            </p>
-                        )}
-                    </Field>
+                    <CalendarGeneralCalendarNameField
+                        key={activeCalendar.id}
+                        calendarId={activeCalendar.id}
+                        serverName={activeCalendar.name}
+                        isDemoCalendar={isDemoCalendar}
+                        canManageSettings={canManageSettings}
+                    />
                     <Field>
                         <FieldContent>
                             <FieldLabel>캘린더 이미지</FieldLabel>

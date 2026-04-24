@@ -1,0 +1,218 @@
+"use client"
+
+import {
+    getCalendarCategoryDotClassName,
+    getCalendarCategoryLabelClassName,
+} from "@/lib/calendar/category-color"
+import {
+    eventStatus,
+    eventStatusLabel,
+    type CalendarEventStatus,
+} from "@/store/calendar-store.types"
+import { ContextMenuItem } from "@workspace/ui/components/context-menu"
+import { cn } from "@workspace/ui/lib/utils"
+import { CheckIcon } from "lucide-react"
+import { EventChipsCombobox } from "./event-chips-combobox"
+
+/** 일정 상태 선택지 (값 + 한글 라벨). EventForm·퀵 편집 공통. */
+export const eventFormStatusItems = eventStatus.map((status) => ({
+    value: status,
+    label: eventStatusLabel[status],
+}))
+
+export type EventFormStatusItem = (typeof eventFormStatusItems)[number]
+
+export const eventFormStatusLabelClassNameMap: Record<
+    EventFormStatusItem["value"],
+    string
+> = {
+    scheduled:
+        "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "[&_button]:hidden border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "[&_button]:hidden border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "[&_button]:hidden border-0"
+    ),
+}
+
+export const eventFormStatusItemClassNameMap: Record<
+    EventFormStatusItem["value"],
+    string
+> = {
+    scheduled:
+        "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
+    in_progress: getCalendarCategoryLabelClassName(
+        "blue",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    completed: getCalendarCategoryLabelClassName(
+        "green",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+    cancelled: getCalendarCategoryLabelClassName(
+        "red",
+        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
+    ),
+}
+
+export const eventFormStatusDotClassNameMap: Record<
+    EventFormStatusItem["value"],
+    string
+> = {
+    scheduled: "bg-muted-foreground/70",
+    in_progress: getCalendarCategoryDotClassName("blue"),
+    completed: getCalendarCategoryDotClassName("green"),
+    cancelled: getCalendarCategoryDotClassName("red"),
+}
+
+type EventFormStatusChipsFieldProps = {
+    value: CalendarEventStatus
+    onChange: (next: CalendarEventStatus) => void
+    disabled?: boolean
+    portalContainer?: HTMLElement | null
+}
+
+/** EventForm 본문과 동일한 상태 칩 + 콤보박스 UI */
+export function EventFormStatusChipsField({
+    value,
+    onChange,
+    disabled = false,
+    portalContainer,
+}: EventFormStatusChipsFieldProps) {
+    const statusValue = value ? [value] : []
+
+    return (
+        <div className="flex w-full flex-wrap justify-start gap-1.5">
+            <EventChipsCombobox
+                portalContainer={portalContainer}
+                disabled={disabled}
+                options={eventFormStatusItems.map((status) => ({
+                    value: status.value,
+                    label: status.label,
+                }))}
+                value={statusValue}
+                emptyText="No items found."
+                onValueChange={(values) => {
+                    const last = values[values.length - 1]
+
+                    if (!last) {
+                        return
+                    }
+
+                    onChange(last as CalendarEventStatus)
+                }}
+                closeOnSelect
+                showRemove={false}
+                renderChipContent={(status) => (
+                    <span className="inline-flex items-center gap-1.5">
+                        <span
+                            className={[
+                                eventFormStatusDotClassNameMap[
+                                    status.value as EventFormStatusItem["value"]
+                                ],
+                                "size-2 rounded-full",
+                            ].join(" ")}
+                        />
+                        {status.label}
+                    </span>
+                )}
+                renderItemContent={(status) => (
+                    <span
+                        className={[
+                            eventFormStatusItemClassNameMap[
+                                status.value as EventFormStatusItem["value"]
+                            ],
+                            "inline-flex h-6 items-center gap-1.5 text-sm",
+                        ].join(" ")}
+                    >
+                        <span
+                            className={[
+                                eventFormStatusDotClassNameMap[
+                                    status.value as EventFormStatusItem["value"]
+                                ],
+                                "inline-block size-2 rounded-full",
+                            ].join(" ")}
+                        />
+                        {status.label}
+                    </span>
+                )}
+                chipClassName={(status) =>
+                    [
+                        "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
+                        eventFormStatusLabelClassNameMap[
+                            status.value as EventFormStatusItem["value"]
+                        ],
+                    ].join(" ")
+                }
+            />
+        </div>
+    )
+}
+
+type EventFormStatusCheckListFieldProps = {
+    value: CalendarEventStatus
+    onSelect: (next: CalendarEventStatus) => void
+    disabled?: boolean
+    /** 컨텍스트 메뉴 등 좁은 영역용 */
+    className?: string
+}
+
+/**
+ * 상태만 고르는 리스트 (선택 행에 체크 표시). 퀵 편집·모바일형 패널용.
+ */
+export function EventFormStatusCheckListField({
+    value,
+    onSelect,
+    disabled = false,
+    className,
+}: EventFormStatusCheckListFieldProps) {
+    return (
+        <div
+            className={cn("flex flex-col gap-0.5 p-0.5", className)}
+            role="list"
+        >
+            {eventFormStatusItems.map((item) => {
+                const selected = item.value === value
+
+                return (
+                    <ContextMenuItem
+                        key={item.value}
+                        role="listitem"
+                        disabled={disabled}
+                        onClick={() => {
+                            onSelect(item.value)
+                        }}
+                        className="h-auto justify-between px-1.5 py-1"
+                    >
+                        <span
+                            className={cn(
+                                "inline-flex h-6 items-center gap-2 text-sm",
+                                eventFormStatusItemClassNameMap[item.value]
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    "inline-block size-2 shrink-0 rounded-full",
+                                    eventFormStatusDotClassNameMap[item.value]
+                                )}
+                            />
+                            {item.label}
+                        </span>
+                        {selected ? (
+                            <CheckIcon className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                            <span className="size-4 shrink-0" aria-hidden />
+                        )}
+                    </ContextMenuItem>
+                )
+            })}
+        </div>
+    )
+}

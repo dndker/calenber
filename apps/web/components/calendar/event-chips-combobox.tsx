@@ -13,6 +13,12 @@ import {
     useComboboxAnchor,
 } from "@workspace/ui/components/combobox"
 import {
+    ContextMenuItem,
+    ContextMenuLabel,
+} from "@workspace/ui/components/context-menu"
+import { cn } from "@workspace/ui/lib/utils"
+import { CheckIcon } from "lucide-react"
+import {
     type CompositionEvent,
     type KeyboardEvent,
     type ReactNode,
@@ -21,8 +27,11 @@ import {
     useState,
 } from "react"
 
-const comboboxChipsClass =
-    "w-full cursor-pointer bg-input/10 py-0.75 not-focus-within:border-transparent! not-focus-within:bg-transparent!"
+const comboboxChipsBaseClass =
+    "w-full cursor-pointer bg-input/10 py-0.75 px-1.5"
+
+const comboboxChipsPopoverOnlyClass =
+    "not-focus-within:border-transparent! not-focus-within:bg-transparent!"
 
 const comboboxChipClass =
     "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm dark:bg-input/50"
@@ -39,6 +48,7 @@ export type EventChipsComboboxOption<TData = unknown> = {
 type EventChipsComboboxProps<TData = unknown> = {
     options: EventChipsComboboxOption<TData>[]
     value: string[]
+    portalContainer?: HTMLElement | null
     disabled?: boolean
     invalid?: boolean
     placeholder?: string
@@ -55,6 +65,7 @@ type EventChipsComboboxProps<TData = unknown> = {
     showRemove?: boolean
     closeOnSelect?: boolean
     inputClassName?: string
+    listVariant?: "popover" | "inline"
 }
 
 function normalizeQuery(value: string) {
@@ -64,6 +75,7 @@ function normalizeQuery(value: string) {
 export function EventChipsCombobox<TData = unknown>({
     options,
     value,
+    portalContainer,
     disabled = false,
     invalid = false,
     placeholder,
@@ -76,6 +88,7 @@ export function EventChipsCombobox<TData = unknown>({
     showRemove = true,
     closeOnSelect = false,
     inputClassName,
+    listVariant = "popover",
 }: EventChipsComboboxProps<TData>) {
     const anchor = useComboboxAnchor()
     const inputRef = useRef<HTMLInputElement | null>(null)
@@ -210,6 +223,52 @@ export function EventChipsCombobox<TData = unknown>({
         commitCreatedOption(completedQuery)
     }
 
+    const isSelected = (optionValue: string) => value.includes(optionValue)
+
+    const toggleOption = (optionValue: string) => {
+        if (isSelected(optionValue)) {
+            onValueChange(
+                value.filter((currentValue) => currentValue !== optionValue)
+            )
+            return
+        }
+
+        onValueChange(Array.from(new Set([...value, optionValue])))
+    }
+
+    const listContent = (
+        <>
+            <ContextMenuLabel>옵션 선택 또는 생성</ContextMenuLabel>
+            {filteredOptions.length === 0 ? (
+                <div className="px-2 py-2 text-sm text-muted-foreground">
+                    {emptyText}
+                </div>
+            ) : (
+                <div className="flex max-h-52 flex-col overflow-y-auto">
+                    {filteredOptions.map((option) => (
+                        <ContextMenuItem
+                            key={option.value}
+                            onMouseDown={(event) => {
+                                event.preventDefault()
+                            }}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                toggleOption(option.value)
+                            }}
+                        >
+                            <span className="min-w-0 flex-1">
+                                {renderItemContent
+                                    ? renderItemContent(option)
+                                    : option.label}
+                            </span>
+                            {isSelected(option.value) ? <CheckIcon /> : null}
+                        </ContextMenuItem>
+                    ))}
+                </div>
+            )}
+        </>
+    )
+
     return (
         <Combobox
             open={open}
@@ -234,7 +293,10 @@ export function EventChipsCombobox<TData = unknown>({
         >
             <ComboboxChips
                 ref={anchor}
-                className={comboboxChipsClass}
+                className={cn(
+                    comboboxChipsBaseClass,
+                    listVariant === "popover" && comboboxChipsPopoverOnlyClass
+                )}
                 aria-invalid={invalid}
             >
                 <ComboboxValue>
@@ -267,38 +329,48 @@ export function EventChipsCombobox<TData = unknown>({
                                 onKeyDown={handleInputKeyDown}
                                 className={
                                     inputClassName ??
-                                    "cursor-pointer focus:cursor-text"
+                                    "cursor-pointer px-0 text-sm focus:cursor-text"
                                 }
-                                placeholder={value.length === 0 ? placeholder : ""}
+                                placeholder={
+                                    value.length === 0 ? placeholder : ""
+                                }
                             />
                         </>
                     )}
                 </ComboboxValue>
             </ComboboxChips>
-            <ComboboxContent anchor={anchor} className="dark:bg-muted">
-                <ComboboxEmpty>{emptyText}</ComboboxEmpty>
-                <ComboboxList>
-                    {(itemValue) => {
-                        const option = filteredOptionMap.get(itemValue)
+            {listVariant === "popover" ? (
+                <ComboboxContent
+                    anchor={anchor}
+                    container={portalContainer ?? undefined}
+                    className="dark:bg-muted"
+                >
+                    <ComboboxEmpty>{emptyText}</ComboboxEmpty>
+                    <ComboboxList>
+                        {(itemValue) => {
+                            const option = filteredOptionMap.get(itemValue)
 
-                        if (!option) {
-                            return null
-                        }
+                            if (!option) {
+                                return null
+                            }
 
-                        return (
-                            <ComboboxItem
-                                className="py-1.5 dark:hover:bg-input/50"
-                                key={option.value}
-                                value={option.value}
-                            >
-                                {renderItemContent
-                                    ? renderItemContent(option)
-                                    : option.label}
-                            </ComboboxItem>
-                        )
-                    }}
-                </ComboboxList>
-            </ComboboxContent>
+                            return (
+                                <ComboboxItem
+                                    className="py-1.5 dark:hover:bg-input/50"
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {renderItemContent
+                                        ? renderItemContent(option)
+                                        : option.label}
+                                </ComboboxItem>
+                            )
+                        }}
+                    </ComboboxList>
+                </ComboboxContent>
+            ) : (
+                <div className="">{listContent}</div>
+            )}
         </Combobox>
     )
 }

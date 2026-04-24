@@ -12,6 +12,7 @@ export default function Calendar() {
     const parentRef = useRef<HTMLDivElement>(null)
     const [containerHeight, setContainerHeight] = useState(0)
     const selectedDate = useCalendarStore((s) => s.selectedDate)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setViewportDate = useCalendarStore((s) => s.setViewportDate)
     const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
     const isCalendarLoading = containerHeight <= 0
@@ -63,6 +64,7 @@ export default function Calendar() {
                         parentRef={parentRef}
                         containerHeight={containerHeight}
                         targetDate={dayjs(selectedDate)
+                            .tz(calendarTimezone)
                             .startOf("month")
                             .toDate()}
                         onVisibleMonthChange={onVisibleMonthChange}

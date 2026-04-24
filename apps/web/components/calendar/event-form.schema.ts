@@ -1,3 +1,4 @@
+import dayjs from "@/lib/dayjs"
 import { eventStatus } from "@/store/calendar-store.types"
 import { z } from "zod"
 
@@ -5,9 +6,9 @@ export const recurrenceSchema = z
     .object({
         type: z.enum(["daily", "weekly", "monthly", "yearly"]),
         interval: z.number().min(1, "반복 간격은 1 이상이어야 합니다"),
-        byWeekday: z.array(z.number()).optional(),
+        byWeekday: z.array(z.number().int().min(0).max(6)).optional(),
         until: z.string().datetime().optional(),
-        count: z.number().optional(),
+        count: z.number().int().min(1).optional(),
     })
     .refine(
         (data) => !(data.until && data.count),
@@ -48,6 +49,24 @@ export const eventFormSchema = z
     .refine((data) => data.end >= data.start, {
         message: "종료 시간이 시작 시간보다 늦어야 합니다",
         path: ["end"],
+    })
+    .superRefine((data, ctx) => {
+        if (!data.recurrence?.until) {
+            return
+        }
+
+        const recurrenceUntil = dayjs
+            .tz(data.recurrence.until, data.timezone)
+            .endOf("day")
+        const startDay = dayjs.tz(data.start, data.timezone).startOf("day")
+
+        if (recurrenceUntil.isBefore(startDay)) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "종료일이 시작일보다 빠를 수 없습니다",
+                path: ["recurrence", "until"],
+            })
+        }
     })
 
 export type EventFormValues = z.infer<typeof eventFormSchema>

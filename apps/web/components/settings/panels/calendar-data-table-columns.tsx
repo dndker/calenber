@@ -1,9 +1,11 @@
 "use client"
 
 import type { DataTableColumnMeta } from "@/components/settings/shared/data-table"
+import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
 import dayjs from "@/lib/dayjs"
 import type {
     CalendarEvent,
+    CalendarEventCategory,
     CalendarEventStatus,
 } from "@/store/calendar-store.types"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -34,19 +36,26 @@ import { MoreHorizontalIcon } from "lucide-react"
 
 export type CalendarDataRow = Pick<
     CalendarEvent,
-    "id" | "title" | "start" | "end" | "status" | "author"
+    | "id"
+    | "title"
+    | "start"
+    | "end"
+    | "status"
+    | "author"
+    | "categoryIds"
+    | "categories"
 > & {
     canManage: boolean
 }
 
-const statusLabelMap: Record<CalendarEventStatus, string> = {
+export const statusLabelMap: Record<CalendarEventStatus, string> = {
     scheduled: "시작 전",
     in_progress: "진행 중",
     completed: "완료",
     cancelled: "취소됨",
 }
 
-const statusVariantMap: Record<
+export const statusVariantMap: Record<
     CalendarEventStatus,
     "outline" | "secondary" | "default" | "destructive"
 > = {
@@ -56,12 +65,47 @@ const statusVariantMap: Record<
     cancelled: "destructive",
 }
 
-const editableStatuses: CalendarEventStatus[] = [
+export const editableStatuses: CalendarEventStatus[] = [
     "scheduled",
     "in_progress",
     "completed",
     "cancelled",
 ]
+
+function renderCategoryBadges(categories: CalendarEventCategory[]) {
+    if (categories.length === 0) {
+        return (
+            <Badge variant="outline" className="text-muted-foreground">
+                카테고리 없음
+            </Badge>
+        )
+    }
+
+    const visibleCategories = categories.slice(0, 2)
+    const hiddenCount = categories.length - visibleCategories.length
+
+    return (
+        <div className="flex flex-wrap items-center gap-1">
+            {visibleCategories.map((category) => (
+                <Badge
+                    key={category.id}
+                    variant="outline"
+                    className={getCalendarCategoryLabelClassName(
+                        category.options.color,
+                        "border-transparent"
+                    )}
+                >
+                    {category.name}
+                </Badge>
+            ))}
+            {hiddenCount > 0 ? (
+                <Badge variant="outline" className="text-muted-foreground">
+                    +{hiddenCount}
+                </Badge>
+            ) : null}
+        </div>
+    )
+}
 
 export function getCalendarDataColumns({
     canManageEvents,
@@ -163,6 +207,17 @@ export function getCalendarDataColumns({
                     </div>
                 )
             },
+        },
+        {
+            accessorKey: "categories",
+            meta: {
+                headClassName: "min-w-40",
+                cellClassName: "min-w-40",
+            } satisfies DataTableColumnMeta,
+            accessorFn: (row) =>
+                row.categories.map((category) => category.name).join(" "),
+            header: "카테고리",
+            cell: ({ row }) => renderCategoryBadges(row.original.categories),
         },
         {
             accessorKey: "start",

@@ -1,9 +1,9 @@
+import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type {
     CalendarMembership,
     CalendarSummary,
     MyCalendarItem,
 } from "@/lib/calendar/queries"
-import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
 import type { CalendarWorkspaceCursor } from "@/lib/calendar/realtime"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
 import type { PartialBlock } from "@blocknote/core"
@@ -46,6 +46,15 @@ export type CalendarEventRecurrence = {
     count?: number
 }
 
+export type CalendarEventRecurrenceInstance = {
+    key: string
+    sourceEventId: string
+    sourceStart: number
+    sourceEnd: number
+    occurrenceStart: number
+    occurrenceEnd: number
+}
+
 export type CalendarEventCategory = {
     id: string
     calendarId: string
@@ -57,6 +66,28 @@ export type CalendarEventCategory = {
     createdById: string | null
     createdAt: number
     updatedAt: number
+}
+
+export const calendarEventFieldIds = [
+    "schedule",
+    "participants",
+    "categories",
+    "status",
+    "recurrence",
+    "exceptions",
+    "timezone",
+    "place",
+    "notification",
+] as const
+
+export type CalendarEventFieldId = (typeof calendarEventFieldIds)[number]
+
+export type CalendarEventFieldSettings = {
+    version: 1
+    items: {
+        id: CalendarEventFieldId
+        visible: boolean
+    }[]
 }
 
 export const eventStatusLabel = {
@@ -93,6 +124,7 @@ export type CalendarEvent = {
     categoryId: string | null
     category: CalendarEventCategory | null
     recurrence?: CalendarEventRecurrence
+    recurrenceInstance?: CalendarEventRecurrenceInstance
     exceptions?: string[]
     participants: CalendarEventParticipant[]
     status: CalendarEventStatus
@@ -130,6 +162,10 @@ export type CalendarEventDraft = Omit<
         >
     >
 
+export type CalendarEventPatch = Omit<Partial<CalendarEvent>, "recurrence"> & {
+    recurrence?: CalendarEventRecurrence | null
+}
+
 export type CalendarWorkspacePresenceMember = {
     id: string
     userId: string | null
@@ -143,12 +179,25 @@ export type DragMode = "move" | "resize-start" | "resize-end"
 
 export type DragState = {
     eventId: string | null
+    renderId: string | null
     mode: DragMode | null
     originStart: number
     originEnd: number
+    sourceOriginStart: number
+    sourceOriginEnd: number
     start: number
     end: number
     offset: number
+    segmentOffset: number
+    /** 리사이즈 시작 시점의 주간 레인(행). 드래그 중에는 이 레인에 고정해 겹치는 다른 일정만 재배치한다. */
+    resizePinnedLane: number | null
+    /** `resizePinnedLane`이 적용되는 주의 시작일(캘린더 day 값, `toCalendarDay`와 동일 스케일). */
+    resizeLayoutWeekStart: number | null
+    /** 리사이즈 중 어떤 핸들을 잡았는지(시작일=왼쪽, 종료일=오른쪽). 핸들 하이라이트에 사용 */
+    resizeActiveEdge: "start" | "end" | null
+    previewEvent: CalendarEvent | null
+    baseHoveredDateKeys: string[]
+    hoveredDateKeys: string[]
 }
 
 export type SelectionState = {
@@ -176,6 +225,7 @@ export type CalendarStoreState = {
     workspacePresence: CalendarWorkspacePresenceMember[]
     eventCategories: CalendarEventCategory[]
     eventFilters: CalendarEventFilterState
+    hoveredSeriesEventId: string | null
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
     setActiveCalendarMembership: (membership: CalendarMembership) => void
@@ -193,6 +243,7 @@ export type CalendarStoreState = {
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
     toggleEventCategoryFilter: (categoryId: string) => void
     resetEventFilters: () => void
+    setHoveredSeriesEventId: (eventId: string | null) => void
     upsertEventCategorySnapshot: (category: CalendarEventCategory) => void
     removeEventCategorySnapshot: (categoryId: string) => void
     setEventCategoryDefaultVisibility: (
@@ -213,7 +264,7 @@ export type CalendarStoreState = {
     createEvent: (data: CalendarEventDraft) => string | null
     updateEvent: (
         id: string,
-        patch: Partial<CalendarEvent>,
+        patch: CalendarEventPatch,
         options?: {
             expectedUpdatedAt?: number
         }
@@ -226,7 +277,12 @@ export type CalendarDragState = {
     startDrag: (
         event: CalendarEvent,
         mode: DragMode,
-        clickedDate: number
+        clickedDate: number,
+        options?: {
+            segmentOffset?: number
+            resizePinnedLane?: number | null
+            resizeLayoutWeekStart?: number | null
+        }
     ) => void
     moveDrag: (date: number) => void
     endDrag: () => void

@@ -1,9 +1,13 @@
 "use client"
 
+import dayjs from "dayjs"
 import * as React from "react"
 import {
     DayPicker,
+    MonthGrid as DefaultMonthGrid,
     getDefaultClassNames,
+    useDayPicker,
+    type DateRange,
     type DayButton,
     type Locale,
 } from "react-day-picker"
@@ -16,6 +20,8 @@ import {
     ChevronRightIcon,
 } from "lucide-react"
 import { ko } from "react-day-picker/locale"
+
+type CalendarPickerMode = "day" | "month" | "year"
 
 function CalendarPicker({
     className,
@@ -31,6 +37,24 @@ function CalendarPicker({
     buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
     const defaultClassNames = getDefaultClassNames()
+    const [pickerMode, setPickerMode] =
+        React.useState<CalendarPickerMode>("day")
+    const selectedValue =
+        "selected" in props
+            ? (
+                  props as {
+                      selected?: unknown
+                  }
+              ).selected
+            : undefined
+    const selectedDate = React.useMemo(
+        () => getCalendarPickerSelectedDate(selectedValue, props.month),
+        [props.month, selectedValue]
+    )
+    const showTodayButton = React.useMemo(
+        () => !isTodayExactlySelected(selectedValue),
+        [selectedValue]
+    )
 
     return (
         <DayPicker
@@ -55,11 +79,11 @@ function CalendarPicker({
                     defaultClassNames.months
                 ),
                 month: cn(
-                    "flex w-full flex-col gap-4",
+                    "flex w-full flex-col gap-2",
                     defaultClassNames.month
                 ),
                 nav: cn(
-                    "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
+                    "absolute top-[3px] right-0 flex w-auto items-center",
                     defaultClassNames.nav
                 ),
                 button_previous: cn(
@@ -73,7 +97,7 @@ function CalendarPicker({
                     defaultClassNames.button_next
                 ),
                 month_caption: cn(
-                    "flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)",
+                    "flex h-(--cell-size) w-full items-center pl-1",
                     defaultClassNames.month_caption
                 ),
                 dropdowns: cn(
@@ -155,6 +179,84 @@ function CalendarPicker({
                         />
                     )
                 },
+                Nav: () => (
+                    <CalendarPickerNav
+                        buttonVariant={buttonVariant}
+                        mode={pickerMode}
+                        onModeChange={setPickerMode}
+                        showTodayButton={showTodayButton}
+                        onTodayClick={() => {
+                            const today = new Date()
+                            const onSelect = (
+                                props as {
+                                    mode?: "single" | "multiple" | "range"
+                                    onSelect?: (
+                                        selected: unknown,
+                                        triggerDate: Date,
+                                        modifiers: Record<string, boolean>,
+                                        e?:
+                                            | React.MouseEvent
+                                            | React.KeyboardEvent
+                                    ) => void
+                                }
+                            ).onSelect
+                            const mode = (
+                                props as {
+                                    mode?: "single" | "multiple" | "range"
+                                }
+                            ).mode
+
+                            if (onSelect) {
+                                const nextSelected =
+                                    mode === "range"
+                                        ? {
+                                              from: today,
+                                              to: today,
+                                          }
+                                        : mode === "multiple"
+                                          ? [today]
+                                          : today
+
+                                onSelect(nextSelected, today, {
+                                    selected: true,
+                                })
+                            }
+                        }}
+                    />
+                ),
+                MonthCaption: () => (
+                    <CalendarPickerMonthCaption
+                        mode={pickerMode}
+                        onModeChange={setPickerMode}
+                    />
+                ),
+                MonthGrid: ({ ...monthGridProps }) => {
+                    if (pickerMode === "month") {
+                        return (
+                            <CalendarPickerMonthGrid
+                                month={props.month ?? selectedDate}
+                                selectedDate={selectedDate}
+                                onMonthSelected={() => {
+                                    setPickerMode("day")
+                                }}
+                            />
+                        )
+                    }
+
+                    if (pickerMode === "year") {
+                        return (
+                            <CalendarPickerYearGrid
+                                year={props.month ?? selectedDate}
+                                selectedDate={selectedDate}
+                                onYearSelected={() => {
+                                    setPickerMode("month")
+                                }}
+                            />
+                        )
+                    }
+
+                    return <DefaultMonthGrid {...monthGridProps} />
+                },
                 Chevron: ({ className, orientation, ...props }) => {
                     if (orientation === "left") {
                         return (
@@ -197,6 +299,304 @@ function CalendarPicker({
             }}
             {...props}
         />
+    )
+}
+
+function getCalendarPickerSelectedDate(selected: unknown, month?: Date) {
+    if (selected instanceof Date) {
+        return selected
+    }
+
+    if (isDateRange(selected)) {
+        return selected.from ?? selected.to ?? month ?? new Date()
+    }
+
+    if (Array.isArray(selected)) {
+        return selected[0] ?? month ?? new Date()
+    }
+
+    if (selected && typeof selected === "object") {
+        if ("from" in selected && selected.from instanceof Date) {
+            return selected.from
+        }
+
+        if ("to" in selected && selected.to instanceof Date) {
+            return selected.to
+        }
+    }
+
+    return month ?? new Date()
+}
+
+function isDateRange(selected: unknown): selected is DateRange {
+    return Boolean(
+        selected &&
+        typeof selected === "object" &&
+        ("from" in selected || "to" in selected)
+    )
+}
+
+function isTodayExactlySelected(selected: unknown) {
+    const today = dayjs()
+
+    if (selected instanceof Date) {
+        return today.isSame(selected, "day")
+    }
+
+    if (Array.isArray(selected)) {
+        return selected.some((value) => dayjs(value).isSame(today, "day"))
+    }
+
+    if (isDateRange(selected)) {
+        if (!selected.from && !selected.to) {
+            return false
+        }
+
+        if (selected.from && !selected.to) {
+            return dayjs(selected.from).isSame(today, "day")
+        }
+
+        if (!selected.from && selected.to) {
+            return dayjs(selected.to).isSame(today, "day")
+        }
+
+        const fromIsToday = dayjs(selected.from).isSame(today, "day")
+        const toIsToday = dayjs(selected.to).isSame(today, "day")
+
+        return fromIsToday && toIsToday
+    }
+
+    return false
+}
+
+function CalendarPickerMonthCaption({
+    mode,
+    onModeChange,
+}: {
+    mode: CalendarPickerMode
+    onModeChange: React.Dispatch<React.SetStateAction<CalendarPickerMode>>
+}) {
+    const { months } = useDayPicker()
+    const currentMonth = months[0]?.date ?? new Date()
+    const year = dayjs(currentMonth).year()
+    const month = dayjs(currentMonth).format("M월")
+    const baseYear = Math.floor(year / 12) * 12
+    const years = Array.from({ length: 12 }, (_, index) => baseYear + index)
+
+    return (
+        <div className="flex min-w-0 items-center -space-x-2 pr-24 *:px-1.5!">
+            <Button
+                variant="ghost"
+                onClick={() => onModeChange(mode === "year" ? "day" : "year")}
+                className={cn({
+                    "bg-muted dark:hover:bg-muted/50": mode === "year",
+                    "opacity-50": mode === "month",
+                })}
+            >
+                {mode === "year" ? `${years[0]}년~${years[11]}년` : `${year}년`}
+            </Button>
+            <Button
+                variant="ghost"
+                onClick={() => onModeChange(mode === "month" ? "day" : "month")}
+                className={cn({
+                    "bg-muted dark:hover:bg-muted/50": mode === "month",
+                    "opacity-50": mode === "year",
+                })}
+            >
+                {month}
+            </Button>
+        </div>
+    )
+}
+
+function CalendarPickerNav({
+    buttonVariant,
+    mode,
+    onModeChange,
+    showTodayButton,
+    onTodayClick,
+}: {
+    buttonVariant: React.ComponentProps<typeof Button>["variant"]
+    mode: CalendarPickerMode
+    onModeChange: React.Dispatch<React.SetStateAction<CalendarPickerMode>>
+    showTodayButton: boolean
+    onTodayClick: () => void
+}) {
+    const { goToMonth, months, nextMonth, previousMonth } = useDayPicker()
+    const currentMonth = months[0]?.date ?? new Date()
+
+    const handleNavigate = (direction: "prev" | "next") => {
+        if (mode === "day") {
+            const targetMonth = direction === "prev" ? previousMonth : nextMonth
+
+            if (targetMonth) {
+                goToMonth(targetMonth)
+            }
+
+            return
+        }
+
+        if (mode === "month") {
+            goToMonth(
+                dayjs(currentMonth)
+                    [direction === "prev" ? "subtract" : "add"](1, "year")
+                    .toDate()
+            )
+            return
+        }
+
+        goToMonth(
+            dayjs(currentMonth)
+                [direction === "prev" ? "subtract" : "add"](12, "year")
+                .toDate()
+        )
+    }
+
+    return (
+        <div className="absolute top-0 right-0 flex items-center gap-0.5">
+            {showTodayButton ? (
+                <Button
+                    variant={buttonVariant}
+                    className="h-7 px-1.5 text-xs"
+                    onClick={() => {
+                        goToMonth(new Date())
+                        onTodayClick()
+                        onModeChange("day")
+                    }}
+                >
+                    오늘
+                </Button>
+            ) : null}
+            <Button
+                size="icon"
+                variant={buttonVariant}
+                onClick={() => handleNavigate("prev")}
+                disabled={mode === "day" && !previousMonth}
+                className="size-7 p-0 select-none"
+            >
+                <ChevronLeftIcon className="size-4" />
+            </Button>
+            <Button
+                size="icon"
+                variant={buttonVariant}
+                onClick={() => handleNavigate("next")}
+                disabled={mode === "day" && !nextMonth}
+                className="size-7 p-0 select-none"
+            >
+                <ChevronRightIcon className="size-4" />
+            </Button>
+        </div>
+    )
+}
+
+function CalendarPickerYearGrid({
+    selectedDate,
+    year,
+    onYearSelected,
+}: {
+    selectedDate: Date
+    year: Date
+    onYearSelected?: () => void
+}) {
+    const { goToMonth } = useDayPicker()
+    const currentYear = dayjs(year).year()
+    const selectedYear = dayjs(selectedDate).year()
+    const baseYear = Math.floor(currentYear / 12) * 12
+    const years = Array.from({ length: 12 }, (_, index) => baseYear + index)
+
+    return (
+        <div className="mb-1 grid grid-cols-4 gap-2.5">
+            {years.map((value) => {
+                const today = dayjs()
+                const isToday = value === today.year()
+                const isSelected = value === selectedYear
+
+                return (
+                    <CalendarPickerGridButton
+                        key={value}
+                        isSelected={isSelected}
+                        isToday={isToday}
+                        onClick={() => {
+                            goToMonth(dayjs(year).year(value).toDate())
+                            onYearSelected?.()
+                        }}
+                    >
+                        {value}
+                    </CalendarPickerGridButton>
+                )
+            })}
+        </div>
+    )
+}
+
+function CalendarPickerMonthGrid({
+    selectedDate,
+    month,
+    onMonthSelected,
+}: {
+    selectedDate: Date
+    month: Date
+    onMonthSelected?: () => void
+}) {
+    const { goToMonth } = useDayPicker()
+    const current = dayjs(month).startOf("month")
+    const selectedMonth = dayjs(selectedDate).month()
+    const selectedYear = dayjs(selectedDate).year()
+
+    return (
+        <div className="mb-1 grid grid-cols-4 gap-2.5">
+            {Array.from({ length: 12 }, (_, index) => {
+                const today = dayjs()
+                const isSelected =
+                    index === selectedMonth && current.year() === selectedYear
+                const isToday =
+                    index === today.month() && current.year() === today.year()
+
+                return (
+                    <CalendarPickerGridButton
+                        key={index}
+                        isSelected={isSelected}
+                        isToday={isToday}
+                        onClick={() => {
+                            goToMonth(current.month(index).toDate())
+                            onMonthSelected?.()
+                        }}
+                    >
+                        {index + 1}월
+                    </CalendarPickerGridButton>
+                )
+            })}
+        </div>
+    )
+}
+
+function CalendarPickerGridButton({
+    className,
+    isSelected,
+    isToday,
+    onClick,
+    children,
+}: {
+    className?: string
+    isSelected: boolean
+    isToday: boolean
+    onClick: () => void
+    children: React.ReactNode
+}) {
+    return (
+        <Button
+            variant="ghost"
+            onClick={onClick}
+            data-selected-single={isSelected}
+            className={cn(
+                "dark:not[data-selected=true]:hover:text-foreground relative isolate z-10 flex aspect-square h-auto flex-col gap-1 rounded-md border-0 leading-none font-normal data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground",
+                isSelected && "bg-primary font-medium text-primary-foreground",
+                isToday && "bg-muted dark:hover:bg-muted/50",
+                className
+            )}
+        >
+            {children}
+        </Button>
     )
 }
 
