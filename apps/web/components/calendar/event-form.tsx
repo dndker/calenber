@@ -1,11 +1,14 @@
 "use client"
 
 import {
-    getCalendarCategoryDotClassName,
-    getCalendarCategoryLabelClassName,
-    randomCalendarCategoryColor,
-    type CalendarCategoryColor,
-} from "@/lib/calendar/category-color"
+    getDefaultNewEventTimedSchedule,
+    getTimedScheduleRangeAfterAllDayOff,
+} from "@/lib/calendar/default-timed-schedule"
+import {
+    normalizeCategoryName,
+    normalizeNames,
+} from "@/lib/calendar/event-form-names"
+import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
 import { createCalendarEventCategory } from "@/lib/calendar/mutations"
 import {
     getCalendarMemberDirectory,
@@ -30,14 +33,17 @@ import {
 import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
+import { useEventFormDraftCategoryColor } from "@/hooks/use-event-form-draft-category-color"
 import { EventCategorySettingsPanel } from "./event-category-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
+import { EventFormCategoryChipsField } from "./event-form-category-field"
 import {
     EventFormPropertyRow,
     type EventFormPropertyMenuItem,
     type EventFormPropertyVisibility,
 } from "./event-form-property-row"
 import { EventFormRecurrenceField } from "./event-form-recurrence-field"
+import { EventFormStatusChipsField } from "./event-form-status-field"
 import { eventFormSchema, type EventFormValues } from "./event-form.schema"
 import { TimezoneSelect } from "./timezone-select"
 
@@ -61,9 +67,7 @@ import {
 import {
     defaultContent,
     eventStatus,
-    eventStatusLabel,
     type CalendarEvent,
-    type CalendarEventCategory,
     type CalendarEventParticipant,
     type CalendarEventPatch,
     type EditorContent,
@@ -135,54 +139,6 @@ const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
     ssr: false,
 })
 
-const statusItems = eventStatus.map((status) => ({
-    value: status,
-    label: eventStatusLabel[status],
-}))
-
-type StatusOption = (typeof statusItems)[number]
-
-const statusLabelClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled:
-        "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
-        "blue",
-        "[&_button]:hidden border-0"
-    ),
-    completed: getCalendarCategoryLabelClassName(
-        "green",
-        "[&_button]:hidden border-0"
-    ),
-    cancelled: getCalendarCategoryLabelClassName(
-        "red",
-        "[&_button]:hidden border-0"
-    ),
-}
-
-const statusItemClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled:
-        "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
-        "blue",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-    completed: getCalendarCategoryLabelClassName(
-        "green",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-    cancelled: getCalendarCategoryLabelClassName(
-        "red",
-        "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
-    ),
-}
-
-const statusDotClassNameMap: Record<StatusOption["value"], string> = {
-    scheduled: "bg-muted-foreground/70",
-    in_progress: getCalendarCategoryDotClassName("blue"),
-    completed: getCalendarCategoryDotClassName("green"),
-    cancelled: getCalendarCategoryDotClassName("red"),
-}
-
 const eventFieldIconMap = {
     schedule: CalendarRangeIcon,
     participants: UsersIcon,
@@ -195,14 +151,6 @@ const eventFieldIconMap = {
     notification: BellIcon,
 } as const
 
-type CategoryOption = {
-    value: string
-    label: string
-    color?: CalendarCategoryColor
-    isCreate?: boolean
-    data?: CalendarEventCategory
-}
-
 type ParticipantOption = {
     value: string
     label: string
@@ -214,16 +162,6 @@ type ParticipantOption = {
         email: string | null
         avatarUrl: string | null
     }
-}
-
-function normalizeNames(values: string[]) {
-    return Array.from(
-        new Set(values.map((value) => value.trim()).filter(Boolean))
-    )
-}
-
-function normalizeCategoryName(value: string) {
-    return value.trim().toLowerCase()
 }
 
 function normalizeIds(values: string[]) {
@@ -483,9 +421,11 @@ function formatScheduleTriggerLabel({
     const zonedEnd = dayjs(end).tz(timezone)
     const formatMeridiemHour = (target: dayjs.Dayjs) => {
         const hour = target.hour()
+        const minute = target.minute()
         const meridiem = hour < 12 ? "오전" : "오후"
         const hour12 = hour % 12 === 0 ? 12 : hour % 12
-        return `${meridiem} ${hour12}시`
+        const minuteTime = minute !== 0 ? ` ${minute}분` : ""
+        return `${meridiem} ${hour12}시${minuteTime}`
     }
 
     if (allDay) {
@@ -729,27 +669,22 @@ export function EventForm({
                   exceptions: event.exceptions,
                   status: event.status,
               }
-            : {
-                  title: "",
-                  content: defaultContent,
-                  start: dayjs()
-                      .tz(calendarTimezone || "Asia/Seoul")
-                      .add(1, "hour")
-                      .second(0)
-                      .millisecond(0)
-                      .toDate(),
-                  end: dayjs()
-                      .tz(calendarTimezone || "Asia/Seoul")
-                      .add(2, "hour")
-                      .second(0)
-                      .millisecond(0)
-                      .toDate(),
-                  timezone: calendarTimezone || "Asia/Seoul",
-                  categoryNames: [],
-                  participantIds: defaultParticipantIds,
-                  allDay: false,
-                  status: eventStatus[0],
-              },
+            : (() => {
+                  const tz = calendarTimezone || "Asia/Seoul"
+                  const { start, end } = getDefaultNewEventTimedSchedule(tz)
+
+                  return {
+                      title: "",
+                      content: defaultContent,
+                      start,
+                      end,
+                      timezone: tz,
+                      categoryNames: [],
+                      participantIds: defaultParticipantIds,
+                      allDay: false,
+                      status: eventStatus[0],
+                  }
+              })(),
     })
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -769,9 +704,6 @@ export function EventForm({
     })
 
     const timer = useRef<NodeJS.Timeout | null>(null)
-    const draftCategoryColorsRef = useRef<Map<string, CalendarCategoryColor>>(
-        new Map()
-    )
     const wasBootstrappedWithEventRef = useRef(Boolean(event))
     const initializedEventIdRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
@@ -793,23 +725,7 @@ export function EventForm({
         name: ["start", "end", "allDay"],
     })
 
-    const getDraftCategoryColor = useCallback((name: string) => {
-        const trimmedName = name.trim()
-
-        if (!trimmedName) {
-            return randomCalendarCategoryColor()
-        }
-
-        const existingColor = draftCategoryColorsRef.current.get(trimmedName)
-
-        if (existingColor) {
-            return existingColor
-        }
-
-        const nextColor = randomCalendarCategoryColor()
-        draftCategoryColorsRef.current.set(trimmedName, nextColor)
-        return nextColor
-    }, [])
+    const getDraftCategoryColor = useEventFormDraftCategoryColor(eventCategories)
     const memberDirectory =
         !activeCalendar?.id ||
         activeCalendar.id === "demo" ||
@@ -907,40 +823,17 @@ export function EventForm({
                 patch.timezone = values.timezone
             }
 
-            const nextCategoryNames = normalizeNames(values.categoryNames)
-            const sourceCategoryNames = normalizeNames(
-                sourceEvent.categories.map((category) => category.name)
+            const categoryPatch = buildEventCategoriesAssignmentPatch(
+                sourceEvent,
+                values.categoryNames,
+                categorySource,
+                getDraftCategoryColor,
+                activeCalendar?.id ?? ""
             )
 
-            if (!isSameValue(sourceCategoryNames, nextCategoryNames, "json")) {
-                const nextCategories = nextCategoryNames.map(
-                    (categoryName): CalendarEventCategory => {
-                        const matchedCategory =
-                            categorySource.find(
-                                (category) =>
-                                    normalizeCategoryName(category.name) ===
-                                    normalizeCategoryName(categoryName)
-                            ) ?? null
-
-                        return (
-                            matchedCategory ?? {
-                                id: "",
-                                calendarId: activeCalendar?.id ?? "",
-                                name: categoryName,
-                                options: {
-                                    visibleByDefault: true,
-                                    color: getDraftCategoryColor(categoryName),
-                                },
-                                createdById: null,
-                                createdAt: Date.now(),
-                                updatedAt: Date.now(),
-                            }
-                        )
-                    }
-                )
-
-                patch.categories = nextCategories
-                patch.category = nextCategories[0] ?? null
+            if (categoryPatch) {
+                patch.categories = categoryPatch.categories
+                patch.category = categoryPatch.category
             }
 
             const nextParticipantIds = normalizeIds(values.participantIds)
@@ -1432,32 +1325,11 @@ export function EventForm({
                 })
             } else {
                 setSchedulePickerPanel("date")
-                const toggleNow = dayjs().tz(timezone)
-                const currentStartDay = dayjs(form.getValues("start"))
-                    .tz(timezone)
-                    .startOf("day")
-                const nextStartSlot = toggleNow
-                    .add(1, "hour")
-                    .minute(0)
-                    .second(0)
-                    .millisecond(0)
-                const nextEndSlot = toggleNow
-                    .add(2, "hour")
-                    .minute(0)
-                    .second(0)
-                    .millisecond(0)
-                const nextStart = currentStartDay
-                    .add(
-                        nextStartSlot.diff(toggleNow.startOf("day"), "minute"),
-                        "minute"
+                const { start: nextStart, end: nextEnd } =
+                    getTimedScheduleRangeAfterAllDayOff(
+                        timezone,
+                        form.getValues("start")
                     )
-                    .toDate()
-                const nextEnd = currentStartDay
-                    .add(
-                        nextEndSlot.diff(toggleNow.startOf("day"), "minute"),
-                        "minute"
-                    )
-                    .toDate()
 
                 form.setValue("start", nextStart, {
                     shouldDirty: true,
@@ -1566,17 +1438,6 @@ export function EventForm({
     }, [activeCalendar?.id])
 
     useEffect(() => {
-        eventCategories.forEach((category) => {
-            if (category.options.color) {
-                draftCategoryColorsRef.current.set(
-                    category.name.trim(),
-                    category.options.color
-                )
-            }
-        })
-    }, [eventCategories])
-
-    useEffect(() => {
         if (!event || event.categoryIds.length === 0) {
             return
         }
@@ -1640,17 +1501,9 @@ export function EventForm({
         }
     }, [])
 
-    const watchedCategoryNames = useWatch({
-        control: form.control,
-        name: "categoryNames",
-    })
     const watchedParticipantIds = useWatch({
         control: form.control,
         name: "participantIds",
-    })
-    const watchedStatus = useWatch({
-        control: form.control,
-        name: "status",
     })
     const watchedStart = useWatch({
         control: form.control,
@@ -1660,42 +1513,6 @@ export function EventForm({
         control: form.control,
         name: "timezone",
     })
-    const selectedCategories = useMemo<CategoryOption[]>(
-        () =>
-            normalizeNames(watchedCategoryNames ?? []).map((categoryName) => {
-                const matchedCategory =
-                    eventCategories.find(
-                        (category) =>
-                            normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(categoryName)
-                    ) ?? null
-
-                return matchedCategory
-                    ? {
-                          value: matchedCategory.name,
-                          label: matchedCategory.name,
-                          color: matchedCategory.options.color,
-                          data: matchedCategory,
-                      }
-                    : {
-                          value: categoryName,
-                          label: categoryName,
-                          color: getDraftCategoryColor(categoryName),
-                          isCreate: true,
-                      }
-            }),
-        [eventCategories, getDraftCategoryColor, watchedCategoryNames]
-    )
-    const categoryItems = useMemo<CategoryOption[]>(
-        () =>
-            eventCategories.map((category) => ({
-                value: category.name,
-                label: category.name,
-                color: category.options.color,
-                data: category,
-            })),
-        [eventCategories]
-    )
     const selectedParticipants = useMemo<ParticipantOption[]>(() => {
         const memberMap = new Map(
             memberDirectory.map((member) => [member.userId, member])
@@ -1786,21 +1603,6 @@ export function EventForm({
             })),
         [memberDirectory]
     )
-    const categoryOptions = useMemo<CategoryOption[]>(() => {
-        const optionMap = new Map<string, CategoryOption>()
-
-        for (const option of categoryItems) {
-            optionMap.set(option.value, option)
-        }
-
-        for (const option of selectedCategories) {
-            if (!optionMap.has(option.value)) {
-                optionMap.set(option.value, option)
-            }
-        }
-
-        return Array.from(optionMap.values())
-    }, [categoryItems, selectedCategories])
     const participantOptions = useMemo<ParticipantOption[]>(() => {
         const optionMap = new Map<string, ParticipantOption>()
 
@@ -1816,7 +1618,6 @@ export function EventForm({
 
         return Array.from(optionMap.values())
     }, [participantItems, selectedParticipants])
-    const statusValue = watchedStatus ? [watchedStatus] : []
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -2070,7 +1871,7 @@ export function EventForm({
                         <PopoverContent
                             className="w-56 overflow-hidden p-0"
                             align="start"
-                            alignOffset={4}
+                            sideOffset={8}
                         >
                             <Sidebar
                                 collapsible="none"
@@ -2436,73 +2237,26 @@ export function EventForm({
                                 propertyMenuItems={propertyMenuItems}
                                 propertyMenuItemsPlacement="before-common"
                             >
-                                <div className="flex flex-col gap-2">
-                                    <EventChipsCombobox
-                                        portalContainer={portalContainer}
-                                        disabled={disabled}
-                                        options={categoryOptions}
-                                        value={normalizeNames(
-                                            field.value ?? []
-                                        )}
-                                        emptyText="카테고리를 입력해 생성할 수 있습니다."
-                                        onValueChange={(values) => {
-                                            const nextCategoryNames =
-                                                normalizeNames(values)
-
-                                            field.onChange(nextCategoryNames)
-                                            void saveNow({
-                                                ...form.getValues(),
-                                                categoryNames:
-                                                    nextCategoryNames,
-                                            })
-                                        }}
-                                        invalid={fieldState.invalid}
-                                        placeholder="카테고리 추가"
-                                        chipClassName={(category) =>
-                                            getCalendarCategoryLabelClassName(
-                                                category.color,
-                                                "h-6 gap-0 [&_button]:hover:bg-transparent leading-normal"
-                                            )
-                                        }
-                                        renderChipContent={(category) => (
-                                            <span className="inline-flex h-6.5 items-center gap-1.5 text-sm">
-                                                {category.label}
-                                            </span>
-                                        )}
-                                        renderItemContent={(category) => (
-                                            <span className="inline-flex items-center gap-2">
-                                                <span
-                                                    className={getCalendarCategoryLabelClassName(
-                                                        category.color,
-                                                        "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
-                                                    )}
-                                                >
-                                                    {category.label}
-                                                </span>
-                                                {category.isCreate
-                                                    ? "새 카테고리 생성"
-                                                    : null}
-                                            </span>
-                                        )}
-                                        createOptionFromQuery={(query) =>
-                                            query
-                                                ? {
-                                                      value: query,
-                                                      label: query,
-                                                      color: getDraftCategoryColor(
-                                                          query
-                                                      ),
-                                                      isCreate: true,
-                                                  }
-                                                : null
-                                        }
-                                    />
-                                    {fieldState.invalid ? (
-                                        <FieldError
-                                            errors={[fieldState.error]}
-                                        />
-                                    ) : null}
-                                </div>
+                                <EventFormCategoryChipsField
+                                    portalContainer={portalContainer}
+                                    disabled={disabled}
+                                    invalid={fieldState.invalid}
+                                    value={field.value ?? []}
+                                    eventCategories={eventCategories}
+                                    getDraftCategoryColor={getDraftCategoryColor}
+                                    onChange={(nextCategoryNames) => {
+                                        field.onChange(nextCategoryNames)
+                                        void saveNow({
+                                            ...form.getValues(),
+                                            categoryNames: nextCategoryNames,
+                                        })
+                                    }}
+                                    errors={
+                                        fieldState.invalid
+                                            ? [fieldState.error]
+                                            : undefined
+                                    }
+                                />
                             </EventFormPropertyRow>
                         </div>
                     )}
@@ -2527,78 +2281,18 @@ export function EventForm({
                                 onVisibilityChange={handleVisibilityChange}
                                 propertyMenuItems={propertyMenuItems}
                             >
-                                <div className="flex w-full flex-wrap justify-start gap-1.5">
-                                    <EventChipsCombobox
-                                        portalContainer={portalContainer}
-                                        disabled={disabled}
-                                        options={statusItems.map((status) => ({
-                                            value: status.value,
-                                            label: status.label,
-                                        }))}
-                                        value={statusValue}
-                                        emptyText="No items found."
-                                        onValueChange={(values) => {
-                                            const last =
-                                                values[values.length - 1]
-
-                                            if (!last) {
-                                                return
-                                            }
-
-                                            const nextStatus =
-                                                last as StatusOption["value"]
-
-                                            field.onChange(nextStatus)
-                                            void saveNow({
-                                                ...form.getValues(),
-                                                status: nextStatus,
-                                            })
-                                        }}
-                                        closeOnSelect
-                                        showRemove={false}
-                                        renderChipContent={(status) => (
-                                            <span className="inline-flex items-center gap-1.5">
-                                                <span
-                                                    className={[
-                                                        statusDotClassNameMap[
-                                                            status.value as StatusOption["value"]
-                                                        ],
-                                                        "size-2 rounded-full",
-                                                    ].join(" ")}
-                                                />
-                                                {status.label}
-                                            </span>
-                                        )}
-                                        renderItemContent={(status) => (
-                                            <span
-                                                className={[
-                                                    statusItemClassNameMap[
-                                                        status.value as StatusOption["value"]
-                                                    ],
-                                                    "inline-flex h-6.5 items-center gap-1.5 text-sm",
-                                                ].join(" ")}
-                                            >
-                                                <span
-                                                    className={[
-                                                        statusDotClassNameMap[
-                                                            status.value as StatusOption["value"]
-                                                        ],
-                                                        "inline-block size-2 rounded-full",
-                                                    ].join(" ")}
-                                                />
-                                                {status.label}
-                                            </span>
-                                        )}
-                                        chipClassName={(status) =>
-                                            [
-                                                "flex h-full items-center gap-1.5 rounded-full px-2.5! pr-2.75! text-sm",
-                                                statusLabelClassNameMap[
-                                                    status.value as StatusOption["value"]
-                                                ],
-                                            ].join(" ")
-                                        }
-                                    />
-                                </div>
+                                <EventFormStatusChipsField
+                                    portalContainer={portalContainer}
+                                    disabled={disabled}
+                                    value={field.value ?? eventStatus[0]}
+                                    onChange={(nextStatus) => {
+                                        field.onChange(nextStatus)
+                                        void saveNow({
+                                            ...form.getValues(),
+                                            status: nextStatus,
+                                        })
+                                    }}
+                                />
                             </EventFormPropertyRow>
                         </div>
                     )}
@@ -2807,9 +2501,9 @@ export function EventForm({
                                     autoSave()
                                 }}
                             /> */}
-                            {fieldState.invalid && (
+                            {/* {fieldState.invalid && (
                                 <FieldError errors={[fieldState.error]} />
-                            )}
+                            )} */}
                         </Field>
                     )}
                 />

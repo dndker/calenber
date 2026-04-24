@@ -1,9 +1,11 @@
-import { toCalendarRange } from "@/lib/date"
-import dayjs from "@/lib/dayjs"
 import {
     expandCalendarEventsForRange,
+    getCalendarEventRenderId,
     getCalendarVisibleEventRange,
 } from "@/lib/calendar/recurrence"
+import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
+import { toCalendarRange } from "@/lib/date"
+import dayjs from "@/lib/dayjs"
 import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -22,14 +24,7 @@ import {
     useSensors,
 } from "@dnd-kit/core"
 import { useVirtualizer } from "@tanstack/react-virtual"
-import {
-    memo,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EventItem } from "./event-item"
 import {
     positionCalendarEvents,
@@ -55,6 +50,7 @@ export function MonthList({
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
     const dragFrameRef = useRef<number | null>(null)
+    const dragCursorReleaseRef = useRef<(() => void) | null>(null)
     const lastOverIdRef = useRef<string | null>(null)
     const [currentMonthKey, setCurrentMonthKey] = useState(
         getMonthKey(newDate, calendarTz)
@@ -105,7 +101,9 @@ export function MonthList({
 
         const base = baseDateRef.current
 
-        const firstDayOfMonth = dayjs.tz(targetDate, calendarTz).startOf("month")
+        const firstDayOfMonth = dayjs
+            .tz(targetDate, calendarTz)
+            .startOf("month")
         const firstWeekStart = firstDayOfMonth.startOf("week")
         const diff = firstWeekStart.diff(dayjs.tz(base, calendarTz), "week")
 
@@ -193,7 +191,9 @@ export function MonthList({
     }, [virtualizer, parentRef])
     const items = virtualizer.getVirtualItems()
     const visibleRange = useMemo(() => {
-        const currentMonth = dayjs.tz(`${currentMonthKey}-01`, calendarTz).valueOf()
+        const currentMonth = dayjs
+            .tz(`${currentMonthKey}-01`, calendarTz)
+            .valueOf()
         if (Number.isNaN(currentMonth)) {
             return null
         }
@@ -240,9 +240,44 @@ export function MonthList({
             calendarTz,
         })
     }, [calendarTz, filteredEvents, visibleRange])
+    const dragMode = useCalendarStore((s) => s.drag.mode)
+    const dragStart = useCalendarStore((s) => s.drag.start)
+    const dragEnd = useCalendarStore((s) => s.drag.end)
+    const dragRenderId = useCalendarStore((s) => s.drag.renderId)
+    const draggingEvent = useCalendarStore((s) => s.drag.previewEvent)
+    const dragAdjustedEvents = useMemo(() => {
+        if (
+            (dragMode !== "resize-start" && dragMode !== "resize-end") ||
+            !draggingEvent ||
+            !dragRenderId ||
+            !dragStart ||
+            !dragEnd
+        ) {
+            return expandedEvents
+        }
+
+        return expandedEvents.map((event) => {
+            if (getCalendarEventRenderId(event) !== dragRenderId) {
+                return event
+            }
+
+            return {
+                ...event,
+                start: dragStart,
+                end: dragEnd,
+            }
+        })
+    }, [
+        dragEnd,
+        dragMode,
+        dragRenderId,
+        dragStart,
+        draggingEvent,
+        expandedEvents,
+    ])
     const positionedEvents = useMemo(
-        () => positionCalendarEvents(expandedEvents, calendarTz),
-        [calendarTz, expandedEvents]
+        () => positionCalendarEvents(dragAdjustedEvents, calendarTz),
+        [calendarTz, dragAdjustedEvents]
     )
 
     const handleDragOver = useCallback(
@@ -276,6 +311,14 @@ export function MonthList({
         [calendarTz]
     )
 
+    const handleDragStart = useCallback(() => {
+        dragCursorReleaseRef.current?.()
+        dragCursorReleaseRef.current = lockCalendarBodyCursor(
+            "month-list-move",
+            "grabbing"
+        )
+    }, [])
+
     const finishDragSession = useCallback(() => {
         lastOverIdRef.current = null
 
@@ -283,6 +326,8 @@ export function MonthList({
             cancelAnimationFrame(dragFrameRef.current)
             dragFrameRef.current = null
         }
+        dragCursorReleaseRef.current?.()
+        dragCursorReleaseRef.current = null
 
         useCalendarStore.getState().endDrag()
     }, [])
@@ -292,6 +337,8 @@ export function MonthList({
             if (dragFrameRef.current) {
                 cancelAnimationFrame(dragFrameRef.current)
             }
+            dragCursorReleaseRef.current?.()
+            dragCursorReleaseRef.current = null
         }
     }, [])
 
@@ -305,6 +352,7 @@ export function MonthList({
                     y: 0.2, // y축만 활성화
                 },
             }}
+            onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={finishDragSession}
             onDragCancel={finishDragSession}
@@ -377,20 +425,25 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
     )
     const segmentStartDay = startDay.add(dragSegmentOffset, "day")
     const overlayWeek = getWeek(segmentStartDay.toDate(), calendarTz)
-    const overlayWeekStart = dayjs(overlayWeek[0]!).tz(calendarTz).startOf("day")
+    const overlayWeekStart = dayjs(overlayWeek[0]!)
+        .tz(calendarTz)
+        .startOf("day")
     const overlayWeekEnd = overlayWeekStart.add(6, "day")
     const visibleSegmentEnd = endDay.isAfter(overlayWeekEnd, "day")
         ? overlayWeekEnd
         : endDay
-    const startIndex = Math.max(0, segmentStartDay.diff(overlayWeekStart, "day"))
-    const endIndex = Math.min(6, visibleSegmentEnd.diff(overlayWeekStart, "day"))
+    const startIndex = Math.max(
+        0,
+        segmentStartDay.diff(overlayWeekStart, "day")
+    )
+    const endIndex = Math.min(
+        6,
+        visibleSegmentEnd.diff(overlayWeekStart, "day")
+    )
     const continuesFromPrevWeek =
         segmentStartDay.isAfter(startDay, "day") ||
         startDay.isBefore(overlayWeekStart, "day")
-    const continuesToNextWeek = endDay.isAfter(
-        overlayWeekEnd,
-        "day"
-    )
+    const continuesToNextWeek = endDay.isAfter(overlayWeekEnd, "day")
 
     return (
         <EventItem

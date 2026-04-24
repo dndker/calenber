@@ -7,3 +7,4 @@
 - 리액트 setState 패턴 오류 체크 필수
 - useEffect 사용시 Error: Calling setState synchronously within an effect can trigger cascading renders 이 에러 무조건 체크
 - next/font/google에러 무시하고 진행
+- 공통 함수, 헬퍼, 유틸 생성할 때 주석 입력하여 한글로 설명 추가 전달하는 인자값이나 상세 내용 볼 수 있게 옵션 자세히 기제

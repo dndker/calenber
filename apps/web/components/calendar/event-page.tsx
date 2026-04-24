@@ -10,6 +10,7 @@ import {
     getEventShareTitle,
 } from "@/lib/calendar/share-metadata"
 import { APP_NAME } from "@/lib/app-config"
+import { getDefaultNewEventTimedSchedule } from "@/lib/calendar/default-timed-schedule"
 import {
     defaultContent,
     type CalendarEvent,
@@ -25,10 +26,12 @@ import { EventHeader } from "./event-header"
 export function EventPage({
     modal = false,
     eventId,
+    occurrenceStart,
     initialEvent,
 }: {
     modal?: boolean
     eventId?: string
+    occurrenceStart?: number
     initialEvent?: CalendarEvent | null
 }) {
     const router = useRouter()
@@ -59,13 +62,17 @@ export function EventPage({
         if (!eventId && !hasCreatedRef.current) {
             hasCreatedRef.current = true
 
+            const tz = calendarTimezone || "Asia/Seoul"
+            const { start, end } = getDefaultNewEventTimedSchedule(tz)
+
             const tempEvent: CalendarEvent = {
                 id: crypto.randomUUID(),
                 title: "",
                 content: defaultContent,
-                start: Date.now(),
-                end: Date.now(),
-                timezone: calendarTimezone || "Asia/Seoul",
+                start: start.getTime(),
+                end: end.getTime(),
+                allDay: false,
+                timezone: tz,
                 categoryIds: [],
                 categories: [],
                 categoryId: null,
@@ -105,6 +112,7 @@ export function EventPage({
 
     const { event, isLoading, isMissing } = useCalendarEventDetail({
         eventId: effectiveId,
+        occurrenceStart,
         initialEvent,
     })
 
@@ -178,7 +186,7 @@ export function EventPage({
             )}
 
             <EventForm
-                key={event.id}
+                key={event.recurrenceInstance?.key ?? event.id}
                 modal={modal}
                 event={event}
                 disabled={!canEdit}

@@ -6,6 +6,7 @@ import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import {
     getCalendarModalClosePath,
     getCalendarModalEventId,
+    getCalendarModalOccurrenceStart,
 } from "@/lib/calendar/modal-route"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -42,6 +43,10 @@ export const EventModal = React.memo(function EventModal({
         () => getCalendarModalEventId(searchParams),
         [searchParams]
     )
+    const urlOccurrenceStart = React.useMemo(
+        () => getCalendarModalOccurrenceStart(searchParams),
+        [searchParams]
+    )
     const eventId = activeEventId ?? urlEventId
     const basePath = getCalendarModalClosePath(pathname)
 
@@ -65,6 +70,7 @@ export const EventModal = React.memo(function EventModal({
 
     const { event, isMissing } = useCalendarEventDetail({
         eventId,
+        occurrenceStart: urlOccurrenceStart,
         initialEvent:
             initialEvent && initialEvent.id === eventId ? initialEvent : null,
     })
@@ -126,7 +132,12 @@ export const EventModal = React.memo(function EventModal({
                 setPortalContainer(node)
             }}
         >
-            <EventPage modal eventId={eventId} initialEvent={event} />
+            <EventPage
+                modal
+                eventId={eventId}
+                occurrenceStart={urlOccurrenceStart}
+                initialEvent={event}
+            />
         </div>
     )
 

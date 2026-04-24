@@ -77,7 +77,7 @@ export const DayCell = memo(
             const start = dayjs.tz(day, calendarTz).startOf("day").valueOf()
             const end = dayjs.tz(day, calendarTz).endOf("day").valueOf()
 
-            createEvent({ start, end })
+            createEvent({ fromCalendarGrid: true, start, end })
         }
 
         const isHover = useCalendarStore((s) => {
@@ -125,6 +125,7 @@ export const DayCell = memo(
                     canCreateCalendarEvents(activeCalendarMembership))
             ) {
                 createEvent({
+                    fromCalendarGrid: true,
                     start: selection.start,
                     end: selection.end,
                 })

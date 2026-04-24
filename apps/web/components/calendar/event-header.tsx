@@ -254,6 +254,7 @@ export const EventHeader = memo(function EventHeader({
                 getCalendarModalOpenPath({
                     pathname: basePath,
                     eventId,
+                    occurrenceStart: targetEvent?.recurrenceInstance?.occurrenceStart,
                 })
             )
             return
@@ -300,6 +301,9 @@ export const EventHeader = memo(function EventHeader({
                                         getCalendarModalOpenPath({
                                             pathname: basePath,
                                             eventId,
+                                            occurrenceStart:
+                                                event.recurrenceInstance
+                                                    ?.occurrenceStart,
                                         })
                                     )
                                 }

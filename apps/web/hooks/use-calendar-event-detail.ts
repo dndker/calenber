@@ -1,6 +1,7 @@
 "use client"
 
 import { getEventById } from "@/lib/calendar/queries"
+import { expandCalendarEventsForRange } from "@/lib/calendar/recurrence"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -8,11 +9,13 @@ import { useEffect, useMemo, useState } from "react"
 
 type UseCalendarEventDetailOptions = {
     eventId?: string
+    occurrenceStart?: number
     initialEvent?: CalendarEvent | null
 }
 
 export function useCalendarEventDetail({
     eventId,
+    occurrenceStart,
     initialEvent = null,
 }: UseCalendarEventDetailOptions) {
     const storeEvent = useCalendarStore((state) =>
@@ -40,15 +43,55 @@ export function useCalendarEventDetail({
         eventId && !storeEvent && !resolvedViewEvent && !resolvedInitialEvent
     )
 
-    const event = useMemo(
-        () =>
+    const baseEvent = useMemo(() => {
+        if (occurrenceStart !== undefined) {
+            return (
+                resolvedViewEvent ??
+                storeEvent ??
+                resolvedInitialEvent ??
+                resolvedRemoteEvent ??
+                null
+            )
+        }
+
+        return (
             storeEvent ??
             resolvedViewEvent ??
             resolvedInitialEvent ??
             resolvedRemoteEvent ??
-            null,
-        [resolvedInitialEvent, resolvedRemoteEvent, resolvedViewEvent, storeEvent]
-    )
+            null
+        )
+    }, [
+        occurrenceStart,
+        resolvedInitialEvent,
+        resolvedRemoteEvent,
+        resolvedViewEvent,
+        storeEvent,
+    ])
+    const event = useMemo(() => {
+        if (!baseEvent || occurrenceStart === undefined) {
+            return baseEvent
+        }
+
+        if (baseEvent.recurrenceInstance?.occurrenceStart === occurrenceStart) {
+            return baseEvent
+        }
+
+        if (!baseEvent.recurrence) {
+            return baseEvent
+        }
+
+        const resolved = expandCalendarEventsForRange([baseEvent], {
+            rangeStart: occurrenceStart,
+            rangeEnd: occurrenceStart + 1,
+            calendarTz: baseEvent.timezone || "Asia/Seoul",
+        }).find(
+            (candidate) =>
+                candidate.recurrenceInstance?.occurrenceStart === occurrenceStart
+        )
+
+        return resolved ?? baseEvent
+    }, [baseEvent, occurrenceStart])
 
     useEffect(() => {
         let cancelled = false

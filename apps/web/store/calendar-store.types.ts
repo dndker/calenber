@@ -147,7 +147,7 @@ export type CalendarEventDraft = Omit<
     | "updatedById"
     | "updatedBy"
     | "isLocked"
-    > &
+> &
     Partial<
         Pick<
             CalendarEvent,
@@ -189,6 +189,12 @@ export type DragState = {
     end: number
     offset: number
     segmentOffset: number
+    /** 리사이즈 시작 시점의 주간 레인(행). 드래그 중에는 이 레인에 고정해 겹치는 다른 일정만 재배치한다. */
+    resizePinnedLane: number | null
+    /** `resizePinnedLane`이 적용되는 주의 시작일(캘린더 day 값, `toCalendarDay`와 동일 스케일). */
+    resizeLayoutWeekStart: number | null
+    /** 리사이즈 중 어떤 핸들을 잡았는지(시작일=왼쪽, 종료일=오른쪽). 핸들 하이라이트에 사용 */
+    resizeActiveEdge: "start" | "end" | null
     previewEvent: CalendarEvent | null
     baseHoveredDateKeys: string[]
     hoveredDateKeys: string[]
@@ -274,6 +280,8 @@ export type CalendarDragState = {
         clickedDate: number,
         options?: {
             segmentOffset?: number
+            resizePinnedLane?: number | null
+            resizeLayoutWeekStart?: number | null
         }
     ) => void
     moveDrag: (date: number) => void

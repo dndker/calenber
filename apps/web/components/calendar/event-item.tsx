@@ -1,9 +1,14 @@
+import { EventFormCategoryChipsField } from "@/components/calendar/event-form-category-field"
+import { EventFormStatusCheckListField } from "@/components/calendar/event-form-status-field"
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
+import { useEventQuickPropertySave } from "@/hooks/use-event-quick-property-save"
+import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import {
     getCalendarCategoryEventClassName,
     getCalendarCategoryEventHoverClassName,
 } from "@/lib/calendar/category-color"
+import { normalizeNames } from "@/lib/calendar/event-form-names"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
@@ -26,13 +31,40 @@ import {
     ContextMenuContent,
     ContextMenuGroup,
     ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
-import { CheckIcon, LockIcon, XIcon } from "lucide-react"
+import {
+    CheckIcon,
+    CircleCheckBigIcon,
+    ListIcon,
+    LockIcon,
+    StarIcon,
+    TagsIcon,
+    TrashIcon,
+    XIcon,
+} from "lucide-react"
 import { usePathname } from "next/navigation"
-import { memo, useEffect, useRef } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+
+/**
+ * 리사이즈로 `startIndex`/`endIndex`가 바뀌면 `EventRow`의 key가 달라져 `EventItem`이 언마운트된다.
+ * 이때 인스턴스의 `useEffect` 정리로 window 리스너가 제거되면 포인터는 눌린 채인데 드래그만 끊긴다.
+ * 홀드 중에는 동일 세션으로 리스너·포인터 캡처를 유지하기 위해 모듈 스코프에 둔다.
+ */
+let calendarEventResizeSessionCleanup: (() => void) | null = null
+
+function disposeCalendarEventResizeSession() {
+    calendarEventResizeSessionCleanup?.()
+    calendarEventResizeSessionCleanup = null
+}
+
+const RESIZE_HANDLE_GLOW = "bg-muted-foreground/10 dark:bg-muted-foreground/30"
 
 function areStringArraysEqual(a: string[], b: string[]) {
     if (a === b) {
@@ -58,7 +90,12 @@ export function getEventPosition(
     continuesFromPrevWeek = false,
     continuesToNextWeek = false
 ) {
-    const span = endIndex - startIndex + 1
+    // 주 칸 인덱스는 항상 정수. 부동소수/미세 오차로 calc(%) 좌·너비가 따로 반올림되며 끝이 흔들릴 수 있음
+    const safeStart = Math.max(0, Math.min(6, Math.floor(startIndex)))
+    const safeEnd = Math.max(0, Math.min(6, Math.floor(endIndex)))
+    const s = Math.min(safeStart, safeEnd)
+    const e = Math.max(safeStart, safeEnd)
+    const span = e - s + 1
 
     const GAP = 4
     const COLUMN_GAP = 1
@@ -66,8 +103,8 @@ export function getEventPosition(
     const leftGap = continuesFromPrevWeek ? 0 : GAP
     const rightGap = continuesToNextWeek ? 0 : GAP
     const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / 7`
-    const left = startIndex
-        ? `calc(${startIndex} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
+    const left = s
+        ? `calc(${s} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
         : `${leftGap}px`
     const width = `calc(${span} * ${dayWidth} + ${(span - 1) * COLUMN_GAP}px - ${leftGap + rightGap}px)`
 
@@ -93,6 +130,7 @@ export const EventItem = memo(
         interactive = true,
         onDragStateChange,
         onOpen,
+        layoutWeekStart,
     }: {
         event: CalendarEvent
         top: number
@@ -108,6 +146,8 @@ export const EventItem = memo(
         interactive?: boolean
         onDragStateChange?: (isDragging: boolean) => void
         onOpen?: () => void
+        /** 월 그리드 한 주의 시작일(`EventRow`의 `weekStart`). 리사이즈 레인 고정·핸들 활성 표시에 사용 */
+        layoutWeekStart?: number
     }) {
         const pathname = usePathname()
         const sourceEventId = getCalendarEventSourceId(event)
@@ -136,13 +176,35 @@ export const EventItem = memo(
                 null
         )
         const dragIndexRef = useRef(0)
-        const resizeCleanupRef = useRef<(() => void) | null>(null)
+        const resizeFrameRef = useRef<number | null>(null)
+        const lastResizeDateRef = useRef<string | null>(null)
         const suppressClickRef = useRef(false)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
             id: getCalendarEventRenderId(event),
             disabled: !interactive || overlay,
         })
         const resolvedSourceEvent = sourceEvent ?? toCalendarEventSource(event)
+
+        const thisRenderId = getCalendarEventRenderId(event)
+        const isResizeTarget = useCalendarStore((s) => {
+            const mode = s.drag.mode
+            if (mode !== "resize-start" && mode !== "resize-end") {
+                return false
+            }
+            return s.drag.renderId === thisRenderId
+        }, Object.is)
+        const isResizingThis = !inline && !overlay && isResizeTarget
+
+        const activeResizeEdge = useCalendarStore((s) => {
+            const mode = s.drag.mode
+            if (mode !== "resize-start" && mode !== "resize-end") {
+                return null
+            }
+            if (s.drag.renderId !== thisRenderId) {
+                return null
+            }
+            return s.drag.resizeActiveEdge
+        }, Object.is)
 
         const pos = getEventPosition(
             startIndex,
@@ -167,6 +229,49 @@ export const EventItem = memo(
         const handleDeleteEvent = useEventDeleteAction({
             eventId: sourceEventId,
         })
+
+        /**
+         * 루트 컨텍스트 메뉴 전체 표시 모드.
+         * `main`: 즐겨찾기·속성 편집(2depth 서브에 상태/카테고리)·삭제
+         * `status` | `category`: 1depth 전체가 해당 설정 폼만 (노션식 전환)
+         */
+        type EventCtxRootView = "main" | "status" | "category"
+        const [ctxRootView, setCtxRootView] = useState<EventCtxRootView>("main")
+
+        /** 닫을 때 `main`으로 바꾸면 닫힘 애니메이션 도중 한 프레임 메인 메뉴가 보인다. 열릴 때만 초기화한다. */
+        const handleRootCtxOpenChange = useCallback((open: boolean) => {
+            if (open) {
+                setCtxRootView("main")
+            }
+        }, [])
+
+        const {
+            saveStatus,
+            saveCategoryNames,
+            getDraftCategoryColor,
+            eventCategories,
+        } = useEventQuickPropertySave({
+            sourceEventId,
+            disabled: !canEdit,
+        })
+        const propertyCategoryNames = useMemo(
+            () =>
+                normalizeNames(
+                    resolvedSourceEvent.categories.map(
+                        (category) => category.name
+                    )
+                ),
+            [resolvedSourceEvent.categories]
+        )
+        const [categoryDraft, setCategoryDraft] = useState<string[]>(
+            propertyCategoryNames
+        )
+
+        useEffect(() => {
+            if (ctxRootView === "category") {
+                setCategoryDraft(propertyCategoryNames)
+            }
+        }, [ctxRootView, propertyCategoryNames])
 
         const handleMoveStart = (e: React.PointerEvent) => {
             if (!canEdit) {
@@ -209,21 +314,36 @@ export const EventItem = memo(
             e.preventDefault()
             e.stopPropagation()
 
-            resizeCleanupRef.current?.()
+            disposeCalendarEventResizeSession()
             suppressClickRef.current = true
 
             const pointerId = e.pointerId
             const handleElement = e.currentTarget as HTMLDivElement
+            const body =
+                typeof document !== "undefined" ? document.body : handleElement
+            let pointerCaptureEl: HTMLElement = body
+            const releaseResizeCursor = lockCalendarBodyCursor(
+                `resize-${pointerId}`,
+                "ew-resize"
+            )
             const updateFromPointer = (clientX: number, clientY: number) => {
-                const target = document
-                    .elementFromPoint(clientX, clientY)
-                    ?.closest("[data-date]") as HTMLElement | null
-
-                const date = target?.dataset.date
+                const hitTargets = document.elementsFromPoint(clientX, clientY)
+                const target = hitTargets.find((node) =>
+                    (node as HTMLElement).closest?.("[data-date]")
+                ) as HTMLElement | undefined
+                const cell = target?.closest(
+                    "[data-date]"
+                ) as HTMLElement | null
+                const date = cell?.dataset.date
                 if (!date) {
                     return
                 }
 
+                if (lastResizeDateRef.current === date) {
+                    return
+                }
+
+                lastResizeDateRef.current = date
                 moveDrag(dayjs.tz(date, calendarTz).startOf("day").valueOf())
             }
 
@@ -233,12 +353,25 @@ export const EventItem = memo(
                 mode === "resize-start" ? event.start : event.end,
                 {
                     segmentOffset: dragOffsetStart,
+                    ...(layoutWeekStart !== undefined
+                        ? {
+                              resizePinnedLane: top,
+                              resizeLayoutWeekStart: layoutWeekStart,
+                          }
+                        : {}),
                 }
             )
             updateFromPointer(e.clientX, e.clientY)
 
             const handlePointerMove = (event: PointerEvent) => {
-                updateFromPointer(event.clientX, event.clientY)
+                if (resizeFrameRef.current !== null) {
+                    return
+                }
+
+                resizeFrameRef.current = requestAnimationFrame(() => {
+                    resizeFrameRef.current = null
+                    updateFromPointer(event.clientX, event.clientY)
+                })
             }
 
             const handlePointerUp = (event: PointerEvent) => {
@@ -246,36 +379,49 @@ export const EventItem = memo(
                     return
                 }
 
-                resizeCleanupRef.current?.()
+                disposeCalendarEventResizeSession()
                 endDrag()
-                window.setTimeout(() => {
+                queueMicrotask(() => {
                     suppressClickRef.current = false
-                }, 0)
+                })
             }
 
             const handleWindowBlur = () => {
-                resizeCleanupRef.current?.()
+                disposeCalendarEventResizeSession()
                 endDrag()
                 suppressClickRef.current = false
             }
 
             const cleanup = () => {
+                if (resizeFrameRef.current !== null) {
+                    cancelAnimationFrame(resizeFrameRef.current)
+                    resizeFrameRef.current = null
+                }
+                lastResizeDateRef.current = null
                 window.removeEventListener("pointermove", handlePointerMove)
                 window.removeEventListener("pointerup", handlePointerUp)
                 window.removeEventListener("pointercancel", handlePointerUp)
                 window.removeEventListener("blur", handleWindowBlur)
-                if (handleElement.hasPointerCapture(pointerId)) {
-                    handleElement.releasePointerCapture(pointerId)
+                if (pointerCaptureEl.hasPointerCapture(pointerId)) {
+                    pointerCaptureEl.releasePointerCapture(pointerId)
                 }
-                resizeCleanupRef.current = null
+                releaseResizeCursor()
+                calendarEventResizeSessionCleanup = null
             }
 
-            handleElement.setPointerCapture(pointerId)
+            try {
+                body.setPointerCapture(pointerId)
+                pointerCaptureEl = body
+            } catch {
+                // 일부 환경에서 body 캡처가 거부되면 핸들 요소로 폴백(언마운트 시 캡처가 끊길 수 있음)
+                handleElement.setPointerCapture(pointerId)
+                pointerCaptureEl = handleElement
+            }
             window.addEventListener("pointermove", handlePointerMove)
             window.addEventListener("pointerup", handlePointerUp)
             window.addEventListener("pointercancel", handlePointerUp)
             window.addEventListener("blur", handleWindowBlur)
-            resizeCleanupRef.current = cleanup
+            calendarEventResizeSessionCleanup = cleanup
         }
 
         useEffect(() => {
@@ -283,21 +429,25 @@ export const EventItem = memo(
         }, [isDragging, onDragStateChange])
 
         useEffect(() => {
-            return () => {
-                resizeCleanupRef.current?.()
-            }
-        }, [])
-
-        useEffect(() => {
             if (!isDragging) return
             if (!canEdit) return
+            if (overlay) return
+
+            const releaseMoveCursor = lockCalendarBodyCursor(
+                `move-${thisRenderId}`,
+                "grabbing"
+            )
 
             startDrag(event, "move", dragIndexRef.current, {
                 segmentOffset: dragOffsetStart,
             })
 
+            return () => {
+                releaseMoveCursor()
+            }
+
             // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [isDragging])
+        }, [isDragging, canEdit, overlay, thisRenderId])
 
         const mergedListeners =
             interactive && canEdit
@@ -350,11 +500,11 @@ export const EventItem = memo(
                   top: itemTop,
                   left: overlay ? "0" : pos?.left,
                   height: overlay ? "100%" : itemHeight,
-                  zIndex: isDragging ? 10 : 1,
+                  zIndex: isDragging ? 10 : isResizingThis ? 16 : 1,
               }
 
         return (
-            <ContextMenu>
+            <ContextMenu onOpenChange={handleRootCtxOpenChange}>
                 <ContextMenuTrigger asChild>
                     <div
                         {...mergedListeners}
@@ -371,15 +521,18 @@ export const EventItem = memo(
                         )}
                         style={wrapperStyle}
                     >
-                        {!inline && (
+                        {!inline && !continuesFromPrevWeek && (
                             <div
                                 onPointerDown={handleResizeStart}
                                 className={cn(
                                     "pointer-events-auto absolute top-0 left-0 z-10 h-full w-1 bg-transparent hover:bg-border/65 dark:hover:bg-border",
                                     !interactive && "pointer-events-none",
-                                    !continuesFromPrevWeek && "rounded-s-md",
-                                    canEdit && "cursor-ew-resize"
+                                    "rounded-s-md",
+                                    canEdit && "cursor-ew-resize",
+                                    activeResizeEdge === "start" &&
+                                        RESIZE_HANDLE_GLOW
                                 )}
+                                style={{ touchAction: "none" }}
                             />
                         )}
                         <Button
@@ -405,7 +558,12 @@ export const EventItem = memo(
                                     getCalendarCategoryEventClassName(
                                         primaryCategoryColor
                                     ),
-                                resolvedSeriesHoverClassName
+                                resolvedSeriesHoverClassName,
+                                isResizingThis && "bg-muted",
+                                isResizingThis &&
+                                    getCalendarCategoryEventHoverClassName(
+                                        primaryCategoryColor
+                                    )
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}
@@ -429,11 +587,14 @@ export const EventItem = memo(
                                 }
                                 onOpen?.()
                                 setActiveEventId(sourceEventId)
-                                setViewEvent(resolvedSourceEvent)
+                                setViewEvent(event)
                                 navigateCalendarModal(
                                     getCalendarModalOpenPath({
                                         pathname,
                                         eventId: sourceEventId,
+                                        occurrenceStart:
+                                            event.recurrenceInstance
+                                                ?.occurrenceStart,
                                     })
                                 )
                             }}
@@ -451,31 +612,116 @@ export const EventItem = memo(
                                 {event.title === "" ? "새 일정" : event.title}
                             </span>
                         </Button>
-                        {!inline && (
+                        {!inline && !continuesToNextWeek && (
                             <div
                                 onPointerDown={handleResizeEnd}
                                 className={cn(
                                     "pointer-events-auto absolute top-0 right-0 z-10 h-full w-1 bg-transparent hover:bg-border",
                                     !interactive && "pointer-events-none",
-                                    !continuesToNextWeek && "rounded-e-md",
-                                    canEdit && "hover:cursor-ew-resize"
+                                    "rounded-e-md",
+                                    canEdit && "cursor-ew-resize",
+                                    activeResizeEdge === "end" &&
+                                        RESIZE_HANDLE_GLOW
                                 )}
+                                style={{ touchAction: "none" }}
                             />
                         )}
                     </div>
                 </ContextMenuTrigger>
-                <ContextMenuContent className="w-48">
-                    <ContextMenuGroup>
-                        <ContextMenuItem
-                            variant="destructive"
-                            disabled={!canDelete}
-                            onSelect={() => {
-                                void handleDeleteEvent()
-                            }}
-                        >
-                            일정 삭제
-                        </ContextMenuItem>
-                    </ContextMenuGroup>
+                <ContextMenuContent
+                    className={cn(
+                        ctxRootView === "main"
+                            ? "w-45"
+                            : "w-45 overflow-visible p-0",
+                        "duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
+                    )}
+                >
+                    {ctxRootView === "main" ? (
+                        <>
+                            <ContextMenuGroup>
+                                <ContextMenuItem disabled={!canDelete}>
+                                    <StarIcon />
+                                    즐겨찾기
+                                </ContextMenuItem>
+                                <ContextMenuSub>
+                                    <ContextMenuSubTrigger disabled={!canEdit}>
+                                        <ListIcon />
+                                        속성 편집
+                                    </ContextMenuSubTrigger>
+                                    <ContextMenuSubContent
+                                        className="p-0 duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
+                                        collisionPadding={12}
+                                    >
+                                        <ContextMenuGroup className="p-1">
+                                            <ContextMenuItem
+                                                disabled={!canEdit}
+                                                onSelect={(event) => {
+                                                    event.preventDefault()
+                                                    setCtxRootView("status")
+                                                }}
+                                            >
+                                                <CircleCheckBigIcon />
+                                                상태
+                                            </ContextMenuItem>
+                                            <ContextMenuItem
+                                                disabled={!canEdit}
+                                                onSelect={(event) => {
+                                                    event.preventDefault()
+                                                    setCtxRootView("category")
+                                                }}
+                                            >
+                                                <TagsIcon />
+                                                카테고리
+                                            </ContextMenuItem>
+                                        </ContextMenuGroup>
+                                    </ContextMenuSubContent>
+                                </ContextMenuSub>
+                            </ContextMenuGroup>
+                            <ContextMenuSeparator />
+                            <ContextMenuGroup>
+                                <ContextMenuItem
+                                    variant="destructive"
+                                    disabled={!canDelete}
+                                    onSelect={() => {
+                                        void handleDeleteEvent()
+                                    }}
+                                >
+                                    <TrashIcon />
+                                    일정 삭제
+                                </ContextMenuItem>
+                            </ContextMenuGroup>
+                        </>
+                    ) : null}
+
+                    {ctxRootView === "status" ? (
+                        <div className="flex flex-col">
+                            <div className="overflow-visible">
+                                <EventFormStatusCheckListField
+                                    value={resolvedSourceEvent.status}
+                                    onSelect={(next) => {
+                                        saveStatus(next)
+                                    }}
+                                    disabled={!canEdit}
+                                />
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {ctxRootView === "category" ? (
+                        <ContextMenuGroup className="p-1">
+                            <EventFormCategoryChipsField
+                                value={categoryDraft}
+                                onChange={(next) => {
+                                    setCategoryDraft(next)
+                                    void saveCategoryNames(next)
+                                }}
+                                eventCategories={eventCategories}
+                                getDraftCategoryColor={getDraftCategoryColor}
+                                listVariant="inline"
+                                disabled={!canEdit}
+                            />
+                        </ContextMenuGroup>
+                    ) : null}
                 </ContextMenuContent>
             </ContextMenu>
         )
@@ -513,7 +759,8 @@ export const EventItem = memo(
             prev.inline === next.inline &&
             prev.interactive === next.interactive &&
             prev.onDragStateChange === next.onDragStateChange &&
-            prev.onOpen === next.onOpen
+            prev.onOpen === next.onOpen &&
+            prev.layoutWeekStart === next.layoutWeekStart
         )
     }
 )

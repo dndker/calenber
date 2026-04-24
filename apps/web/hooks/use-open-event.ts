@@ -1,6 +1,10 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
+import {
+    type OpenEventSchedulePayload,
+    resolveOpenEventSchedule,
+} from "@/lib/calendar/default-timed-schedule"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
     type CalendarEvent,
@@ -20,17 +24,20 @@ export function useOpenEvent() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const user = useAuthStore((s) => s.user)
 
-    return (payload?: { start?: number; end?: number }) => {
+    return (payload?: OpenEventSchedulePayload) => {
         const id = crypto.randomUUID()
         const now = Date.now()
+        const tz = calendarTimezone || "Asia/Seoul"
+        const range = resolveOpenEventSchedule(tz, payload)
 
         const event: CalendarEvent = {
             id,
             title: "",
             content: defaultContent,
-            start: payload?.start ?? now,
-            end: payload?.end ?? now,
-            timezone: calendarTimezone || "Asia/Seoul",
+            start: range.start.getTime(),
+            end: range.end.getTime(),
+            allDay: false,
+            timezone: tz,
             categoryIds: [],
             categories: [],
             categoryId: null,

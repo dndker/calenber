@@ -1,16 +1,17 @@
 "use client"
 
+import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     createCalendarEvent,
     deleteCalendarEvent,
     updateCalendarEvent as updateCalendarEventQuery,
 } from "@/lib/calendar/mutations"
-import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     canCreateCalendarEvents,
     canDeleteCalendarEvent,
     canEditCalendarEvent,
 } from "@/lib/calendar/permissions"
+import type { MyCalendarItem } from "@/lib/calendar/queries"
 import {
     collectCalendarEventDateKeysInRange,
     getCalendarEventRenderId,
@@ -20,7 +21,6 @@ import {
     shiftCalendarEventForDrag,
     toCalendarEventSource,
 } from "@/lib/calendar/recurrence"
-import type { MyCalendarItem } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { toast } from "sonner"
@@ -196,6 +196,13 @@ function toggleStringFilterItem(items: string[], value: string) {
         : [...items, value]
 }
 
+function areRecurrenceValuesEqual(
+    left: CalendarEvent["recurrence"] | null | undefined,
+    right: CalendarEvent["recurrence"] | null | undefined
+) {
+    return JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+}
+
 function pruneEventFilters(
     filters: CalendarEventFilterState,
     categories: CalendarStoreState["eventCategories"]
@@ -204,9 +211,11 @@ function pruneEventFilters(
         return filters
     }
 
-    const availableCategoryIds = new Set(categories.map((category) => category.id))
-    const excludedCategoryIds = filters.excludedCategoryIds.filter((categoryId) =>
-        availableCategoryIds.has(categoryId)
+    const availableCategoryIds = new Set(
+        categories.map((category) => category.id)
+    )
+    const excludedCategoryIds = filters.excludedCategoryIds.filter(
+        (categoryId) => availableCategoryIds.has(categoryId)
     )
 
     if (excludedCategoryIds.length === filters.excludedCategoryIds.length) {
@@ -430,9 +439,10 @@ export const useCalendarStore = createSSRStore<
                 patch.eventFieldSettings !== undefined
                     ? {
                           ...patch,
-                          eventFieldSettings: normalizeCalendarEventFieldSettings(
-                              patch.eventFieldSettings
-                          ),
+                          eventFieldSettings:
+                              normalizeCalendarEventFieldSettings(
+                                  patch.eventFieldSettings
+                              ),
                       }
                     : patch
 
@@ -502,8 +512,7 @@ export const useCalendarStore = createSSRStore<
                 state.eventFilters.excludedStatuses.length ===
                     defaultExcludedStatuses.length &&
                 state.eventFilters.excludedStatuses.every(
-                    (status, index) =>
-                        status === defaultExcludedStatuses[index]
+                    (status, index) => status === defaultExcludedStatuses[index]
                 ) &&
                 state.eventFilters.excludedCategoryIds.length === 0
             ) {
@@ -683,6 +692,9 @@ export const useCalendarStore = createSSRStore<
         end: 0,
         offset: 0,
         segmentOffset: 0,
+        resizePinnedLane: null,
+        resizeLayoutWeekStart: null,
+        resizeActiveEdge: null,
         previewEvent: null,
         baseHoveredDateKeys: [],
         hoveredDateKeys: [],
@@ -770,6 +782,7 @@ export const useCalendarStore = createSSRStore<
         const event: CalendarEvent = {
             id: eventId,
             ...data,
+            allDay: data.allDay ?? false,
             ...deriveEventCategories(data.categories, get().eventCategories),
             categoryIds:
                 data.categoryIds ??
@@ -896,7 +909,7 @@ export const useCalendarStore = createSSRStore<
                                             : e.category,
                               recurrence:
                                   patch.recurrence !== undefined
-                                      ? patch.recurrence ?? undefined
+                                      ? (patch.recurrence ?? undefined)
                                       : e.recurrence,
                               updatedAt: Date.now(),
                               updatedById: currentUserId,
@@ -957,12 +970,16 @@ export const useCalendarStore = createSSRStore<
             viewport || Date.now(),
             calendarTimezone
         )
-        const baseHoveredDateKeys =
-            collectCalendarEventDateKeysInRange(sourceEvent, {
+        const baseHoveredDateKeys = collectCalendarEventDateKeysInRange(
+            sourceEvent,
+            {
                 rangeStart: visibleRange.start,
                 rangeEnd: visibleRange.end,
                 calendarTz: calendarTimezone,
-            })
+            }
+        )
+
+        const isResize = mode === "resize-start" || mode === "resize-end"
 
         set({
             drag: {
@@ -977,6 +994,17 @@ export const useCalendarStore = createSSRStore<
                 end: event.end,
                 offset,
                 segmentOffset: options?.segmentOffset ?? 0,
+                resizePinnedLane: isResize
+                    ? (options?.resizePinnedLane ?? null)
+                    : null,
+                resizeLayoutWeekStart: isResize
+                    ? (options?.resizeLayoutWeekStart ?? null)
+                    : null,
+                resizeActiveEdge: isResize
+                    ? mode === "resize-start"
+                        ? "start"
+                        : "end"
+                    : null,
                 previewEvent: event,
                 baseHoveredDateKeys,
                 hoveredDateKeys: mode === "move" ? baseHoveredDateKeys : [],
@@ -988,18 +1016,24 @@ export const useCalendarStore = createSSRStore<
         const { drag, calendarTimezone } = get()
         if (!drag.eventId) return
 
-        const normalized = dayjs(date).startOf("day")
+        // 그리드/이벤트는 calendarTimezone 기준 날짜인데, 로컬 startOf를 쓰면 셀 ms가 하루 단위로 밀려
+        // 리사이즈 시 반대쪽 끝(특히 종료일)이 픽셀 단위로 흔들리는 원인이 된다.
+        const normalized = dayjs(date).tz(calendarTimezone).startOf("day")
 
         const duration = dayjs(drag.originEnd)
+            .tz(calendarTimezone)
             .startOf("day")
-            .diff(dayjs(drag.originStart).startOf("day"), "day")
+            .diff(
+                dayjs(drag.originStart).tz(calendarTimezone).startOf("day"),
+                "day"
+            )
 
         if (drag.mode === "move") {
             const newStart = normalized.subtract(drag.offset, "day")
             const nextStart = newStart.valueOf()
             const nextEnd = newStart.add(duration, "day").valueOf()
             const dayDelta = newStart.diff(
-                dayjs(drag.originStart).startOf("day"),
+                dayjs(drag.originStart).tz(calendarTimezone).startOf("day"),
                 "day"
             )
 
@@ -1023,7 +1057,8 @@ export const useCalendarStore = createSSRStore<
 
         if (drag.mode === "resize-start") {
             const nextStart = normalized.valueOf()
-            if (nextStart >= drag.end || nextStart === drag.start) return
+            // 하루 길이(start === end)는 허용하고, 역전(start > end)만 막는다.
+            if (nextStart > drag.end || nextStart === drag.start) return
             set({
                 drag: { ...drag, start: nextStart },
             })
@@ -1031,7 +1066,8 @@ export const useCalendarStore = createSSRStore<
 
         if (drag.mode === "resize-end") {
             const nextEnd = normalized.valueOf()
-            if (nextEnd <= drag.start || nextEnd === drag.end) return
+            // 하루 길이(start === end)는 허용하고, 역전(end < start)만 막는다.
+            if (nextEnd < drag.start || nextEnd === drag.end) return
             set({
                 drag: { ...drag, end: nextEnd },
             })
@@ -1039,15 +1075,37 @@ export const useCalendarStore = createSSRStore<
     },
 
     endDrag() {
-        const { drag, updateEvent, calendarTimezone } = get()
+        const { drag, updateEvent, calendarTimezone, events } = get()
         if (!drag.eventId) return
 
         const dayDelta = dayjs(drag.start)
+            .tz(calendarTimezone)
             .startOf("day")
-            .diff(dayjs(drag.originStart).startOf("day"), "day")
+            .diff(
+                dayjs(drag.originStart).tz(calendarTimezone).startOf("day"),
+                "day"
+            )
         const patch: CalendarEventPatch = {
             start: drag.sourceOriginStart + (drag.start - drag.originStart),
             end: drag.sourceOriginEnd + (drag.end - drag.originEnd),
+        }
+
+        if (!drag.previewEvent?.allDay && patch.start === patch.end) {
+            const eventTz = drag.previewEvent?.timezone || calendarTimezone
+            const startAt = dayjs(patch.start).tz(eventTz)
+            const oneHourLater = startAt.add(1, "hour")
+
+            if (oneHourLater.isSame(startAt, "day")) {
+                patch.end = oneHourLater.valueOf()
+            } else {
+                const endOfDay = startAt.endOf("day")
+                const fiftyNineMinutesLater = startAt.add(59, "minute")
+                patch.end = (
+                    fiftyNineMinutesLater.isBefore(endOfDay)
+                        ? fiftyNineMinutesLater
+                        : endOfDay
+                ).valueOf()
+            }
         }
 
         if (drag.previewEvent?.recurrence?.type === "weekly") {
@@ -1056,6 +1114,43 @@ export const useCalendarStore = createSSRStore<
                 dayDelta,
                 calendarTimezone
             ).recurrence
+        }
+
+        const currentEvent =
+            events.find((event) => event.id === drag.eventId) ?? null
+        const isNoopPatch =
+            currentEvent !== null &&
+            patch.start === currentEvent.start &&
+            patch.end === currentEvent.end &&
+            (patch.recurrence === undefined ||
+                areRecurrenceValuesEqual(
+                    patch.recurrence,
+                    currentEvent.recurrence
+                ))
+
+        if (isNoopPatch) {
+            set({
+                drag: {
+                    eventId: null,
+                    renderId: null,
+                    mode: null,
+                    originStart: 0,
+                    originEnd: 0,
+                    sourceOriginStart: 0,
+                    sourceOriginEnd: 0,
+                    start: 0,
+                    end: 0,
+                    offset: 0,
+                    segmentOffset: 0,
+                    resizePinnedLane: null,
+                    resizeLayoutWeekStart: null,
+                    resizeActiveEdge: null,
+                    previewEvent: null,
+                    baseHoveredDateKeys: [],
+                    hoveredDateKeys: [],
+                },
+            })
+            return
         }
 
         const ok = updateEvent(drag.eventId, patch)
@@ -1074,6 +1169,9 @@ export const useCalendarStore = createSSRStore<
                     end: 0,
                     offset: 0,
                     segmentOffset: 0,
+                    resizePinnedLane: null,
+                    resizeLayoutWeekStart: null,
+                    resizeActiveEdge: null,
                     previewEvent: null,
                     baseHoveredDateKeys: [],
                     hoveredDateKeys: [],
@@ -1095,6 +1193,9 @@ export const useCalendarStore = createSSRStore<
                 end: 0,
                 offset: 0,
                 segmentOffset: 0,
+                resizePinnedLane: null,
+                resizeLayoutWeekStart: null,
+                resizeActiveEdge: null,
                 previewEvent: null,
                 baseHoveredDateKeys: [],
                 hoveredDateKeys: [],
