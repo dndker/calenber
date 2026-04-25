@@ -1,4 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Slot } from "radix-ui"
 import * as React from "react"
 
@@ -6,7 +7,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
 const buttonVariants = cva(
-    "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 has-[svg]:leading-normal aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "group/button inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 has-[svg]:leading-[normal] aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     {
         variants: {
             variant: {
@@ -48,27 +49,148 @@ function Button({
     size = "default",
     asChild = false,
     loading = false,
+    effect = false,
+    effectActive = false,
     children,
     disabled,
+    style,
     ...props
 }: React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean
         loading?: boolean
+        /**
+         * Enables the button active effect.
+         */
+        effect?: boolean
+        /**
+         * Plays the effect only when this value turns true.
+         */
+        effectActive?: boolean
     }) {
     const Comp = asChild ? Slot.Root : "button"
+    const prefersReducedMotion = useReducedMotion()
+    const canRenderEffect =
+        !asChild && !loading && !disabled && effect && !prefersReducedMotion
+    const [effectKey, setEffectKey] = React.useState(0)
+
+    React.useEffect(() => {
+        if (canRenderEffect && effectActive) {
+            setEffectKey((prev) => prev + 1)
+        }
+    }, [canRenderEffect, effectActive])
+
+    const mergedStyle = canRenderEffect
+        ? ({
+              ...style,
+              "--button-effect-color": "currentColor",
+          } as React.CSSProperties)
+        : style
 
     return (
         <Comp
             data-slot="button"
             data-variant={variant}
             data-size={size}
-            className={cn(buttonVariants({ variant, size, className }))}
+            className={cn(
+                buttonVariants({ variant, size, className }),
+                canRenderEffect && "relative isolate overflow-hidden"
+            )}
             disabled={loading || disabled}
+            style={mergedStyle}
             {...props}
         >
+            <AnimatePresence>
+                {canRenderEffect && effectActive && (
+                    <motion.span
+                        key={effectKey}
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 z-0 rounded-[inherit]"
+                        initial={{ opacity: 1 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <motion.span
+                            className="pointer-events-none absolute top-1/2 left-1/2 block size-[150%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+                            initial={{ opacity: 0.74, scale: 0.12 }}
+                            animate={{
+                                opacity: [0.22, 0.22, 0.22, 0],
+                                scale: [0.12, 0.92, 1.24],
+                            }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.56, ease: "easeOut" }}
+                            style={{
+                                background:
+                                    "radial-gradient(circle at center, var(--button-effect-color) 0%, color-mix(in srgb, var(--button-effect-color) 62%, transparent) 52%, color-mix(in srgb, var(--button-effect-color) 24%, transparent) 100%)",
+                            }}
+                        />
+
+                        {Array.from({
+                            length: 5,
+                        }).map((_, index) => {
+                            const angleOffset = Math.PI / 2
+                            const angle =
+                                angleOffset +
+                                (Math.PI * 2 * index) / Math.max(5, 1)
+                            const x = Math.cos(angle) * 15
+                            const y = Math.sin(angle) * 15
+
+                            return (
+                                <motion.span
+                                    key={`particle-${effectKey}-${index}`}
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute top-1/2 left-1/2 z-0 size-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                                    initial={{
+                                        x: Math.cos(angle) * 4,
+                                        y: Math.sin(angle) * 4,
+                                        opacity: 0,
+                                        scale: 0.4,
+                                    }}
+                                    animate={{
+                                        x,
+                                        y,
+                                        opacity: [0, 0.9, 0],
+                                        scale: [0.4, 0.9, 0.4],
+                                    }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{
+                                        duration: 0.72,
+                                        delay: 0,
+                                        ease: "easeOut",
+                                    }}
+                                    style={{
+                                        backgroundColor:
+                                            "var(--button-effect-color)",
+                                    }}
+                                />
+                            )
+                        })}
+                    </motion.span>
+                )}
+            </AnimatePresence>
             {loading && <Spinner data-icon="inline-start" />}
-            {asChild ? <Slot.Slottable>{children}</Slot.Slottable> : children}
+            {asChild ? (
+                <Slot.Slottable>{children}</Slot.Slottable>
+            ) : (
+                <motion.span
+                    className="relative z-10 inline-flex transform-gpu items-center justify-center gap-[inherit] leading-[normal] will-change-transform backface-hidden"
+                    initial={false}
+                    variants={{
+                        idle: { scale: 1 },
+                        beat: {
+                            scale: [1, 1.2, 0.95, 1],
+                            transition: {
+                                duration: 0.5,
+                                delay: 0.14,
+                                ease: "easeOut",
+                            },
+                        },
+                    }}
+                    animate={canRenderEffect && effectActive ? "beat" : "idle"}
+                >
+                    {children}
+                </motion.span>
+            )}
         </Comp>
     )
 }

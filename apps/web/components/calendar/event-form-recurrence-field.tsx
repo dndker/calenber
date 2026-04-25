@@ -313,7 +313,7 @@ export function EventFormRecurrenceField({
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                className="-mr-1 ml-auto h-6 px-1 text-xs leading-normal text-muted-foreground"
+                                                                className="-mr-1 ml-auto h-6 px-1 text-xs leading-[normal] text-muted-foreground"
                                                                 onClick={() => {
                                                                     setRecurrenceStep(
                                                                         0
@@ -403,10 +403,10 @@ export function EventFormRecurrenceField({
                                                                                 )
                                                                             }}
                                                                             placeholder="1"
-                                                                            className="pr-0! leading-normal"
+                                                                            className="pr-0! leading-[normal]"
                                                                         />
                                                                         <InputGroupAddon align="inline-end">
-                                                                            <InputGroupText className="leading-normal">
+                                                                            <InputGroupText className="leading-[normal]">
                                                                                 {
                                                                                     recurrenceIntervalUnitLabelMap[
                                                                                         recurrenceValue
@@ -504,7 +504,7 @@ export function EventFormRecurrenceField({
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="-mr-1 ml-auto h-6 px-1 text-xs leading-normal text-muted-foreground"
+                                                            className="-mr-1 ml-auto h-6 px-1 text-xs leading-[normal] text-muted-foreground"
                                                             onClick={() => {
                                                                 setRecurrenceStep(
                                                                     1
@@ -736,7 +736,7 @@ export function EventFormRecurrenceField({
                                                                                     }}
                                                                                 />
                                                                                 <InputGroupAddon align="inline-end">
-                                                                                    <InputGroupText className="leading-normal">
+                                                                                    <InputGroupText className="leading-[normal]">
                                                                                         회
                                                                                     </InputGroupText>
                                                                                 </InputGroupAddon>

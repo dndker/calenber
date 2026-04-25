@@ -95,7 +95,9 @@ export function normalizeCalendarEventFieldSettings(
 
     const candidate = input as Partial<CalendarEventFieldSettings>
     const inputItems = Array.isArray(candidate.items) ? candidate.items : []
-    const validFieldIds = new Set(calendarEventFieldDefinitions.map((field) => field.id))
+    const validFieldIds = new Set(
+        calendarEventFieldDefinitions.map((field) => field.id)
+    )
     const inputMap = new Map(
         inputItems.flatMap((item) => {
             if (
@@ -160,6 +162,25 @@ export function getCalendarEventFieldOrder(
     return normalizeCalendarEventFieldSettings(settings).items.map(
         (item) => item.id
     )
+}
+
+export function orderCalendarEventFieldIds<T extends CalendarEventFieldId>(
+    settings: CalendarEventFieldSettings | null | undefined,
+    fieldIds: T[]
+) {
+    const orderMap = new Map(
+        getCalendarEventFieldOrder(settings).map((fieldId, index) => [
+            fieldId,
+            index,
+        ])
+    )
+
+    return [...fieldIds].sort((a, b) => {
+        return (
+            (orderMap.get(a) ?? Number.MAX_SAFE_INTEGER) -
+            (orderMap.get(b) ?? Number.MAX_SAFE_INTEGER)
+        )
+    })
 }
 
 export function isCalendarEventFieldVisible(

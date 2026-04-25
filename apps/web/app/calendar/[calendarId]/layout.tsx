@@ -89,6 +89,11 @@ export default async function CalendarLayout({
     const initialExcludedCategoryIds = eventCategories
         .filter((category) => category.options.visibleByDefault === false)
         .map((category) => category.id)
+    const favoriteEventMap = Object.fromEntries(
+        events
+            .filter((event) => event.isFavorite)
+            .map((event) => [event.id, event.favoritedAt ?? event.updatedAt])
+    )
 
     return (
         <CalendarStoreProvider
@@ -96,6 +101,7 @@ export default async function CalendarLayout({
                 myCalendars: resolvedMyCalendars,
                 activeCalendar,
                 activeCalendarMembership,
+                favoriteEventMap,
                 events,
                 eventCategories: eventCategories.map((category) => ({
                     ...category,

@@ -513,7 +513,7 @@ export const EventCategorySettingsPanel = memo(
                                     >
                                         <span
                                             className={cn(
-                                                "inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal",
+                                                "inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 text-sm leading-[normal]",
                                                 getCalendarCategoryLabelClassName(
                                                     category.options.color
                                                 )

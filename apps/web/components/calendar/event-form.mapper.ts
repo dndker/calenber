@@ -37,6 +37,8 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
 
         exceptions: values.exceptions,
         participants: [],
+        isFavorite: false,
+        favoritedAt: null,
 
         status: "scheduled",
         authorId: null,

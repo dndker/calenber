@@ -1,8 +1,12 @@
 "use client"
 
+import {
+    EventStatusItem,
+    eventFormStatusItems,
+} from "@/components/calendar/event-form-status-field"
 import type { DataTableColumnMeta } from "@/components/settings/shared/data-table"
 import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
-import dayjs from "@/lib/dayjs"
+import { formatCalendarEventRecurrenceOrDateLabel } from "@/lib/calendar/event-date-format"
 import type {
     CalendarEvent,
     CalendarEventCategory,
@@ -40,37 +44,21 @@ export type CalendarDataRow = Pick<
     | "title"
     | "start"
     | "end"
+    | "allDay"
+    | "timezone"
     | "status"
     | "author"
     | "categoryIds"
     | "categories"
+    | "recurrence"
+    | "recurrenceInstance"
 > & {
     canManage: boolean
 }
 
-export const statusLabelMap: Record<CalendarEventStatus, string> = {
-    scheduled: "시작 전",
-    in_progress: "진행 중",
-    completed: "완료",
-    cancelled: "취소됨",
-}
-
-export const statusVariantMap: Record<
-    CalendarEventStatus,
-    "outline" | "secondary" | "default" | "destructive"
-> = {
-    scheduled: "outline",
-    in_progress: "secondary",
-    completed: "default",
-    cancelled: "destructive",
-}
-
-export const editableStatuses: CalendarEventStatus[] = [
-    "scheduled",
-    "in_progress",
-    "completed",
-    "cancelled",
-]
+export const editableStatuses: CalendarEventStatus[] = eventFormStatusItems.map(
+    (item) => item.value
+)
 
 function renderCategoryBadges(categories: CalendarEventCategory[]) {
     if (categories.length === 0) {
@@ -109,13 +97,24 @@ function renderCategoryBadges(categories: CalendarEventCategory[]) {
 
 export function getCalendarDataColumns({
     canManageEvents,
+    categoryOptions,
     onStatusChange,
+    onCategoryChange,
     onDeleteEvent,
 }: {
     canManageEvents: boolean
+    categoryOptions: {
+        id: string
+        label: string
+        color: CalendarEventCategory["options"]["color"]
+    }[]
     onStatusChange: (
         eventId: string,
         nextStatus: CalendarEventStatus
+    ) => void | Promise<void>
+    onCategoryChange: (
+        eventId: string,
+        nextCategoryId: string | null
     ) => void | Promise<void>
     onDeleteEvent: (eventId: string) => void | Promise<void>
 }): ColumnDef<CalendarDataRow>[] {
@@ -166,7 +165,7 @@ export function getCalendarDataColumns({
                 [row.title, row.author?.name, row.author?.email]
                     .filter(Boolean)
                     .join(" "),
-            header: "일정",
+            header: "일정 이름",
             filterFn: (row, columnId, value) => {
                 const rawValue = String(row.getValue(columnId)).toLowerCase()
                 return rawValue.includes(String(value).toLowerCase())
@@ -195,7 +194,7 @@ export function getCalendarDataColumns({
                                 }
                                 alt={row.original.author?.name || ""}
                             />
-                            <AvatarFallback className="text-2xl leading-normal font-medium">
+                            <AvatarFallback className="text-2xl leading-[normal] font-medium">
                                 {row.original.author?.name?.[0]?.toUpperCase() ||
                                     ""}
                             </AvatarFallback>
@@ -209,38 +208,27 @@ export function getCalendarDataColumns({
             },
         },
         {
-            accessorKey: "categories",
+            id: "date",
             meta: {
-                headClassName: "min-w-40",
-                cellClassName: "min-w-40",
+                headClassName: "min-w-36",
+                cellClassName: "min-w-36",
             } satisfies DataTableColumnMeta,
-            accessorFn: (row) =>
-                row.categories.map((category) => category.name).join(" "),
-            header: "카테고리",
-            cell: ({ row }) => renderCategoryBadges(row.original.categories),
-        },
-        {
-            accessorKey: "start",
-            header: "시작일",
-            cell: ({ row }) => dayjs(row.original.start).format("YYYY.MM.DD"),
-        },
-        {
-            accessorKey: "end",
-            header: "종료일",
-            cell: ({ row }) => dayjs(row.original.end).format("YYYY.MM.DD"),
+            accessorFn: (row) => formatCalendarEventRecurrenceOrDateLabel(row),
+            header: "날짜",
+            cell: ({ row }) => formatCalendarEventRecurrenceOrDateLabel(row.original),
         },
         {
             accessorKey: "status",
+            meta: {
+                headClassName: "w-20",
+                cellClassName: "w-20",
+            } satisfies DataTableColumnMeta,
             header: "상태",
             cell: ({ row }) => {
                 const event = row.original
 
                 if (!canManageEvents) {
-                    return (
-                        <Badge variant={statusVariantMap[event.status]}>
-                            {statusLabelMap[event.status]}
-                        </Badge>
-                    )
+                    return <EventStatusItem value={event.status} />
                 }
 
                 return (
@@ -259,15 +247,88 @@ export function getCalendarDataColumns({
                             }}
                             disabled={!event.canManage}
                         >
-                            <SelectTrigger className="-ml-2 w-23 border-0 px-2 shadow-none hover:bg-muted">
+                            <SelectTrigger className="-ml-2 w-25 border-0 px-2 shadow-none hover:bg-muted">
                                 <SelectValue placeholder="상태 선택" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
                                     <SelectLabel>상태</SelectLabel>
-                                    {editableStatuses.map((status) => (
-                                        <SelectItem key={status} value={status}>
-                                            {statusLabelMap[status]}
+                                    {eventFormStatusItems.map((status) => (
+                                        <SelectItem
+                                            key={status.value}
+                                            value={status.value}
+                                        >
+                                            <EventStatusItem
+                                                value={status.value}
+                                                size="sm"
+                                            />
+                                        </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )
+            },
+        },
+        {
+            accessorKey: "categories",
+            meta: {
+                headClassName: "min-w-40",
+                cellClassName: "min-w-40",
+            } satisfies DataTableColumnMeta,
+            accessorFn: (row) =>
+                row.categories.map((category) => category.name).join(" "),
+            header: "카테고리",
+            cell: ({ row }) => {
+                const event = row.original
+                const selectedCategoryId = event.categoryIds[0] ?? "__none__"
+
+                if (!categoryOptions.length || !canManageEvents) {
+                    return renderCategoryBadges(event.categories)
+                }
+
+                return (
+                    <div className="w-full max-w-48">
+                        <Select
+                            value={selectedCategoryId}
+                            onValueChange={(value) => {
+                                const nextCategoryId =
+                                    value === "__none__" ? null : value
+
+                                if (
+                                    nextCategoryId ===
+                                    (event.categoryIds[0] ?? null)
+                                ) {
+                                    return
+                                }
+
+                                void onCategoryChange(event.id, nextCategoryId)
+                            }}
+                            disabled={!event.canManage}
+                        >
+                            <SelectTrigger className="-ml-2 w-32 border-0 px-2 shadow-none hover:bg-muted">
+                                <SelectValue placeholder="카테고리 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>카테고리</SelectLabel>
+                                    <SelectItem value="__none__">
+                                        카테고리 없음
+                                    </SelectItem>
+                                    {categoryOptions.map((category) => (
+                                        <SelectItem
+                                            key={category.id}
+                                            value={category.id}
+                                        >
+                                            <span
+                                                className={getCalendarCategoryLabelClassName(
+                                                    category.color,
+                                                    "inline-flex h-6 items-center rounded-md px-1.5 leading-[normal]"
+                                                )}
+                                            >
+                                                {category.label}
+                                            </span>
                                         </SelectItem>
                                     ))}
                                 </SelectGroup>

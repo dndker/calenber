@@ -29,7 +29,7 @@ export const recurrenceSchema = z
 
 export const eventFormSchema = z
     .object({
-        title: z.string().min(1, "제목을 입력해주세요."),
+        title: z.string(),
         content: z.any().default([]),
 
         start: z.date(),

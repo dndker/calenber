@@ -155,7 +155,7 @@ export function getAvatarGroupFallbackLabel(
 
 export function getAvatarGroupBadge(label: string) {
     return (
-        <Badge variant="outline" className="shrink-0 px-1.75 leading-normal">
+        <Badge variant="outline" className="shrink-0 px-1.75 leading-[normal]">
             {label}
         </Badge>
     )

@@ -13,7 +13,7 @@ export function GoogleSignOutButton() {
             variant="outline"
             type="button"
             size="lg"
-            className="leading-normal font-semibold"
+            className="leading-[normal] font-semibold"
         >
             구글 계정 로그아웃
         </Button>

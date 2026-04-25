@@ -143,7 +143,7 @@ export function EventFormCategoryChipsField({
                 chipClassName={(category) =>
                     getCalendarCategoryLabelClassName(
                         category.color,
-                        "h-6 gap-0 [&_button]:hover:bg-transparent leading-normal"
+                        "h-6 gap-0 [&_button]:hover:bg-transparent leading-[normal]"
                     )
                 }
                 renderChipContent={(category) => (
@@ -156,7 +156,7 @@ export function EventFormCategoryChipsField({
                         <span
                             className={getCalendarCategoryLabelClassName(
                                 category.color,
-                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-normal"
+                                "inline-flex h-6.5 items-center gap-1.5 rounded-md px-1.5 text-sm leading-[normal]"
                             )}
                         >
                             {category.label}

@@ -72,7 +72,7 @@ export function AvatarUploadControl({
                                 src={imageUrl ?? undefined}
                                 alt={name ?? ""}
                             />
-                            <AvatarFallback className="text-2xl leading-normal font-medium">
+                            <AvatarFallback className="text-2xl leading-[normal] font-medium">
                                 {name?.[0]?.toUpperCase() ?? ""}
                             </AvatarFallback>
                         </Avatar>

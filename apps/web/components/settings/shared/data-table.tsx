@@ -7,6 +7,7 @@ import {
     getCoreRowModel,
     getFilteredRowModel,
     getPaginationRowModel,
+    type PaginationState,
     type Row,
     type RowSelectionState,
     type Table as TanstackTable,
@@ -41,6 +42,7 @@ type DataTableProps<TData, TValue> = {
     toolbarContent?: ReactNode
     bulkActions?: (table: TanstackTable<TData>) => ReactNode
     enableRowSelection?: boolean | ((row: Row<TData>) => boolean)
+    getRowId?: (originalRow: TData, index: number) => string
 }
 
 function getColumnMeta<TData, TValue>(
@@ -60,29 +62,33 @@ export function DataTable<TData, TValue>({
     toolbarContent,
     bulkActions,
     enableRowSelection = true,
+    getRowId,
 }: DataTableProps<TData, TValue>) {
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+    const [pagination, setPagination] = useState<PaginationState>({
+        pageIndex: 0,
+        pageSize,
+    })
 
     // TanStack Table manages mutable table instance APIs by design.
     // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data,
         columns,
+        getRowId,
         enableRowSelection,
-        initialState: {
-            pagination: {
-                pageSize,
-            },
-        },
+        autoResetPageIndex: false,
         onRowSelectionChange: setRowSelection,
         onColumnFiltersChange: setColumnFilters,
+        onPaginationChange: setPagination,
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
         state: {
             rowSelection,
             columnFilters,
+            pagination,
         },
     })
 

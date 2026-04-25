@@ -54,6 +54,7 @@ import {
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import { CalendarEventPresenceGroup } from "./calendar-event-presence-group"
 
 type EventHeaderProps = {
@@ -82,6 +83,7 @@ export const EventHeader = memo(function EventHeader({
     const setViewEvent = useCalendarStore((s) => s.setViewEvent)
 
     const updateEvent = useCalendarStore((s) => s.updateEvent)
+    const toggleEventFavorite = useCalendarStore((s) => s.toggleEventFavorite)
     const { copyEventLink } = useCopyCalendarEventLink()
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -95,8 +97,12 @@ export const EventHeader = memo(function EventHeader({
     const storeEvent = useCalendarStore((s) =>
         eventId ? s.events.find((ev) => ev.id === eventId) : undefined
     )
-    const event = eventProp ?? storeEvent
+    const favoriteMeta = useCalendarStore((s) =>
+        eventId ? (s.favoriteEventMap[eventId] ?? null) : null
+    )
+    const event = storeEvent ?? eventProp
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+    const [isFavoritePending, setIsFavoritePending] = useState(false)
     const [historyState, setHistoryState] = useState<{
         eventId?: string
         history: CalendarEventHistoryItem[]
@@ -225,6 +231,9 @@ export const EventHeader = memo(function EventHeader({
 
     if (!eventId || !event) return null
 
+    const isFavorite =
+        favoriteMeta !== null ? true : (event.isFavorite ?? false)
+
     const handleOpenHistory = () => {
         pendingOpenHistoryRef.current = true
         setIsDropdownOpen(false)
@@ -254,7 +263,8 @@ export const EventHeader = memo(function EventHeader({
                 getCalendarModalOpenPath({
                     pathname: basePath,
                     eventId,
-                    occurrenceStart: targetEvent?.recurrenceInstance?.occurrenceStart,
+                    occurrenceStart:
+                        targetEvent?.recurrenceInstance?.occurrenceStart,
                 })
             )
             return
@@ -378,13 +388,52 @@ export const EventHeader = memo(function EventHeader({
                                 tabIndex={-1}
                                 variant="ghost"
                                 size="icon"
-                                className="size-7"
+                                className={cn(
+                                    "size-7",
+                                    isFavorite && "text-amber-500"
+                                )}
+                                effect
+                                effectActive={isFavorite}
+                                onClick={async () => {
+                                    if (isFavoritePending) {
+                                        return
+                                    }
+
+                                    const nextIsFavorite = !isFavorite
+                                    setIsFavoritePending(true)
+
+                                    try {
+                                        const ok = await toggleEventFavorite(
+                                            event.id,
+                                            nextIsFavorite
+                                        )
+
+                                        if (ok) {
+                                            toast.success(
+                                                nextIsFavorite
+                                                    ? "즐겨찾기에 추가했습니다."
+                                                    : "즐겨찾기를 해제했습니다."
+                                            )
+                                        }
+                                    } finally {
+                                        setIsFavoritePending(false)
+                                    }
+                                }}
                             >
-                                <StarIcon className="size-4.25 text-muted-foreground" />
+                                <StarIcon
+                                    className={cn(
+                                        "size-4.25 transition-colors",
+                                        isFavorite
+                                            ? "fill-current text-amber-500"
+                                            : "text-muted-foreground"
+                                    )}
+                                />
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent side={tooltipSide}>
-                            <p className="text-sm font-medium">즐겨찾기 추가</p>
+                            <p className="text-sm font-medium">
+                                {isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                            </p>
                         </TooltipContent>
                     </Tooltip>
                 )}

@@ -191,20 +191,7 @@ export function EventFormStatusCheckListField({
                         }}
                         className="h-auto justify-between px-1.5 py-1"
                     >
-                        <span
-                            className={cn(
-                                "inline-flex h-6 items-center gap-2 text-sm",
-                                eventFormStatusItemClassNameMap[item.value]
-                            )}
-                        >
-                            <span
-                                className={cn(
-                                    "inline-block size-2 shrink-0 rounded-full",
-                                    eventFormStatusDotClassNameMap[item.value]
-                                )}
-                            />
-                            {item.label}
-                        </span>
+                        <EventStatusItem value={item.value}></EventStatusItem>
                         {selected ? (
                             <CheckIcon className="size-4 shrink-0 text-muted-foreground" />
                         ) : (
@@ -214,5 +201,33 @@ export function EventFormStatusCheckListField({
                 )
             })}
         </div>
+    )
+}
+
+export function EventStatusItem({
+    value,
+    size = "default",
+}: {
+    value: CalendarEventStatus
+    size?: "sm" | "default"
+}) {
+    const status = eventFormStatusItems.find((e) => e.value === value)
+    return (
+        <span
+            className={cn(
+                "inline-flex h-6 items-center gap-2 text-sm font-medium",
+                eventFormStatusItemClassNameMap[value],
+                size === "sm" && "h-5 gap-1.25 text-xs"
+            )}
+        >
+            <span
+                className={cn(
+                    "inline-block size-2 shrink-0 rounded-full",
+                    eventFormStatusDotClassNameMap[value],
+                    size === "sm" && "size-1.75"
+                )}
+            />
+            {status!.label}
+        </span>
     )
 }

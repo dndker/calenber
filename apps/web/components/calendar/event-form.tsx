@@ -65,6 +65,7 @@ import {
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
+import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
     defaultContent,
     eventStatus,
@@ -407,43 +408,6 @@ function getRangeModifiers(start: Date, end: Date, timezone: string) {
     }
 }
 
-function formatScheduleTriggerLabel({
-    start,
-    end,
-    allDay,
-    timezone,
-}: {
-    start: Date
-    end: Date
-    allDay: boolean
-    timezone: string
-}) {
-    const zonedStart = dayjs(start).tz(timezone)
-    const zonedEnd = dayjs(end).tz(timezone)
-    const formatMeridiemHour = (target: dayjs.Dayjs) => {
-        const hour = target.hour()
-        const minute = target.minute()
-        const meridiem = hour < 12 ? "오전" : "오후"
-        const hour12 = hour % 12 === 0 ? 12 : hour % 12
-        const minuteTime = minute !== 0 ? ` ${minute}분` : ""
-        return `${meridiem} ${hour12}시${minuteTime}`
-    }
-
-    if (allDay) {
-        if (zonedStart.isSame(zonedEnd, "day")) {
-            return zonedStart.format("YYYY년 M월 D일")
-        }
-
-        return `${zonedStart.format("YYYY년 M월 D일")} ~ ${zonedEnd.format("YYYY년 M월 D일")}`
-    }
-
-    if (zonedStart.isSame(zonedEnd, "day")) {
-        return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} - ${formatMeridiemHour(zonedEnd)}`
-    }
-
-    return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedStart)} ~ ${zonedEnd.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedEnd)}`
-}
-
 function formatExceptionDateTagLabel(
     exceptionDateIso: string,
     timezone: string
@@ -732,6 +696,10 @@ export function EventForm({
     const [scheduleStart, scheduleEnd, scheduleAllDay] = useWatch({
         control: form.control,
         name: ["start", "end", "allDay"],
+    })
+    const watchedExceptions = useWatch({
+        control: form.control,
+        name: "exceptions",
     })
 
     const getDraftCategoryColor =
@@ -1653,6 +1621,13 @@ export function EventForm({
                 ),
         [eventFieldSettings]
     )
+    const displayOrderedFields = useMemo(() => {
+        if ((watchedExceptions ?? []).length > 0) {
+            return orderedFields
+        }
+
+        return orderedFields.filter((field) => field.id !== "exceptions")
+    }, [orderedFields, watchedExceptions])
     const hiddenFieldCount = useMemo(
         () =>
             orderedFields.filter(
@@ -1869,7 +1844,7 @@ export function EventForm({
                                 disabled={disabled}
                                 className="h-auto w-full justify-start rounded-md px-1.5 py-1 text-left text-sm font-normal hover:bg-transparent data-open:border-ring data-open:bg-input/10! data-open:ring-3 data-open:ring-ring/50"
                             >
-                                {formatScheduleTriggerLabel({
+                                {formatCalendarEventScheduleLabel({
                                     start,
                                     end,
                                     allDay,
@@ -2103,7 +2078,7 @@ export function EventForm({
                                         }}
                                         invalid={fieldState.invalid}
                                         placeholder="멤버 선택"
-                                        chipClassName="px-1.5 h-6.5 text-sm leading-normal gap-1 pr-0"
+                                        chipClassName="px-1.5 h-6.5 text-sm leading-[normal] gap-1 pr-0"
                                         renderChipContent={(participant) => (
                                             <HoverCard
                                                 openDelay={10}
@@ -2167,7 +2142,7 @@ export function EventForm({
                                                                 ?.userId ? (
                                                                 <Badge
                                                                     variant="outline"
-                                                                    className="shrink-0 px-1.75 leading-normal"
+                                                                    className="shrink-0 px-1.75 leading-[normal]"
                                                                 >
                                                                     나
                                                                 </Badge>
@@ -2356,7 +2331,7 @@ export function EventForm({
                                     (field.value ?? []).map((exception) => (
                                         <div
                                             key={exception}
-                                            className="flex h-6.5 w-fit items-center justify-center gap-1 rounded-sm bg-muted px-1.5 pr-0 text-sm leading-normal font-medium whitespace-nowrap text-foreground has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 has-data-[slot=combobox-chip-remove]:pr-0"
+                                            className="flex h-6.5 w-fit items-center justify-center gap-1 rounded-sm bg-muted px-1.5 pr-0 text-sm leading-[normal] font-medium whitespace-nowrap text-foreground has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 has-data-[slot=combobox-chip-remove]:pr-0"
                                         >
                                             {formatExceptionDateTagLabel(
                                                 exception,
@@ -2366,7 +2341,7 @@ export function EventForm({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 disabled={disabled}
-                                                className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-normal aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
+                                                className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-[normal] aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
                                                 aria-label={`${formatExceptionDateTagLabel(exception, watchedTimezone)} 제외 삭제`}
                                                 onClick={() => {
                                                     const nextExceptions = (
@@ -2575,13 +2550,15 @@ export function EventForm({
                     >
                         <SortableContext
                             disabled={disabled}
-                            items={orderedFields.map(
+                            items={displayOrderedFields.map(
                                 (propertyField) => propertyField.id
                             )}
                             strategy={verticalListSortingStrategy}
                         >
                             <div className="flex flex-col gap-3">
-                                {orderedFields.map(renderSortablePropertyField)}
+                                {displayOrderedFields.map(
+                                    renderSortablePropertyField
+                                )}
                             </div>
                         </SortableContext>
                     </DndContext>
@@ -2593,7 +2570,7 @@ export function EventForm({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="group justify-center pl-1.5 leading-normal text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                                className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
                             >
                                 <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
                                 속성 {hiddenFieldCount}개{" "}

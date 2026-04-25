@@ -701,6 +701,65 @@ export async function deleteCalendarEvent(
     return true
 }
 
+export async function setCalendarEventFavorite(
+    supabase: SupabaseClient,
+    input: {
+        eventId: string
+        userId: string
+        isFavorite: boolean
+    }
+) {
+    if (input.isFavorite) {
+        const { data, error } = await supabase
+            .from("event_favorites")
+            .upsert(
+                {
+                    event_id: input.eventId,
+                    user_id: input.userId,
+                },
+                {
+                    onConflict: "event_id,user_id",
+                }
+            )
+            .select("created_at")
+            .single()
+
+        if (error) {
+            console.error("Failed to favorite calendar event:", error)
+            return {
+                ok: false as const,
+                favoritedAt: null,
+            }
+        }
+
+        return {
+            ok: true as const,
+            favoritedAt: data?.created_at
+                ? new Date(data.created_at).valueOf()
+                : Date.now(),
+        }
+    }
+
+    const { error } = await supabase
+        .from("event_favorites")
+        .delete()
+        .eq("event_id", input.eventId)
+        .eq("user_id", input.userId)
+
+    if (error) {
+        console.error("Failed to unfavorite calendar event:", error)
+        return {
+            ok: false as const,
+            favoritedAt: null,
+        }
+    }
+
+    return {
+        ok: true as const,
+        favoritedAt: null,
+    }
+}
+
 export async function leaveCalendar(
     supabase: SupabaseClient,
     calendarId: string
