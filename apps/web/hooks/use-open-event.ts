@@ -1,6 +1,7 @@
 "use client"
 
 import { useCreateEvent } from "@/hooks/use-create-event"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import {
     type OpenEventSchedulePayload,
     resolveOpenEventSchedule,
@@ -10,14 +11,12 @@ import {
     type CalendarEvent,
     defaultContent,
 } from "@/store/calendar-store.types"
-import { usePathname, useRouter } from "next/navigation"
-import { startTransition } from "react"
+import { usePathname } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 
 export function useOpenEvent() {
     const pathname = usePathname()
-    const router = useRouter()
     const createEvent = useCreateEvent()
     const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
     const setViewEvent = useCalendarStore((s) => s.setViewEvent)
@@ -43,6 +42,8 @@ export function useOpenEvent() {
             categoryId: null,
             category: null,
             participants: [],
+            isFavorite: false,
+            favoritedAt: null,
             status: "scheduled",
             authorId: user?.id ?? null,
             author: user
@@ -78,13 +79,11 @@ export function useOpenEvent() {
             ...event,
             id: createdEventId,
         })
-        startTransition(() => {
-            router.push(
-                getCalendarModalOpenPath({
-                    pathname,
-                    eventId: createdEventId,
-                })
-            )
-        })
+        navigateCalendarModal(
+            getCalendarModalOpenPath({
+                pathname,
+                eventId: createdEventId,
+            })
+        )
     }
 }

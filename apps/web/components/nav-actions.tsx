@@ -122,7 +122,7 @@ export function NavActions() {
 
             {/* <Button
                     variant="outline"
-                    className="leading-normal"
+                    className="leading-[normal]"
                     asChild
                     size="sm"
                 >
@@ -135,7 +135,7 @@ export function NavActions() {
             {!isLoggedIn && (
                 <Button
                     variant="default"
-                    className="mr-1 leading-normal font-bold"
+                    className="mr-1 leading-[normal] font-bold"
                     asChild
                     size="sm"
                 >

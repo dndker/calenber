@@ -193,7 +193,7 @@ export const DatePicker = memo(function DatePicker() {
     }, [user, activeCalendar, joinAction, applyActiveCalendarMembership])
 
     return (
-        <SidebarGroup className="px-0">
+        <SidebarGroup className="px-0 pt-0">
             <SidebarGroupContent>
                 <Calendar
                     timeZone={calendarTimezone}

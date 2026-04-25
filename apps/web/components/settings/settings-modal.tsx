@@ -201,7 +201,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                                                                     ""
                                                                 }
                                                             />
-                                                            <AvatarFallback className="text-2xl leading-normal font-medium">
+                                                            <AvatarFallback className="text-2xl leading-[normal] font-medium">
                                                                 {user.name?.[0]?.toUpperCase() ||
                                                                     ""}
                                                             </AvatarFallback>

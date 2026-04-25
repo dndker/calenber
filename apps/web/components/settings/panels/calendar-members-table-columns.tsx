@@ -108,9 +108,10 @@ export function getCalendarMemberColumns({
             : []),
         {
             id: "member",
+
             meta: {
-                // headClassName: "w-[320px]",
-                // cellClassName: "w-[320px]",
+                headClassName: "w-full",
+                cellClassName: "w-full",
             } satisfies DataTableColumnMeta,
             accessorFn: (row) =>
                 [row.displayName, row.email, row.userId]
@@ -125,7 +126,7 @@ export function getCalendarMemberColumns({
                 const member = row.original
 
                 return (
-                    <div className="flex items-center gap-3">
+                    <div className="flex w-full items-center gap-3">
                         <Avatar className="size-9">
                             <AvatarImage
                                 src={member.avatarUrl ?? undefined}
@@ -172,7 +173,7 @@ export function getCalendarMemberColumns({
                     assignableRoles.length > 0
 
                 return (
-                    <div className="w-full max-w-48">
+                    <div className="w-40">
                         <Select
                             value={rowRole}
                             onValueChange={(value) => {

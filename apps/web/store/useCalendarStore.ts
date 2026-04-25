@@ -4,6 +4,7 @@ import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-
 import {
     createCalendarEvent,
     deleteCalendarEvent,
+    setCalendarEventFavorite,
     updateCalendarEvent as updateCalendarEventQuery,
 } from "@/lib/calendar/mutations"
 import {
@@ -39,6 +40,14 @@ const defaultExcludedStatuses: CalendarEventFilterState["excludedStatuses"] = [
     "completed",
     "cancelled",
 ]
+
+function buildFavoriteEventMap(events: CalendarEvent[]) {
+    return Object.fromEntries(
+        events
+            .filter((event) => event.isFavorite)
+            .map((event) => [event.id, event.favoritedAt ?? Date.now()])
+    ) as Record<string, number | null>
+}
 
 function getPersistableCalendarId() {
     const calendarId = useCalendarStore.getState().activeCalendar?.id
@@ -123,6 +132,29 @@ async function persistDeletedEvent(eventId: string) {
     if (!ok) {
         toast.error("일정 삭제 실패")
     }
+}
+
+async function persistEventFavorite(
+    eventId: string,
+    isFavorite: boolean,
+    userId: string
+) {
+    const calendarId = getPersistableCalendarId()
+
+    if (!calendarId) {
+        return {
+            ok: true as const,
+            favoritedAt: isFavorite ? Date.now() : null,
+        }
+    }
+
+    const supabase = createBrowserSupabase()
+
+    return setCalendarEventFavorite(supabase, {
+        eventId,
+        userId,
+        isFavorite,
+    })
 }
 
 function sortCalendarEvents(events: CalendarEvent[]) {
@@ -333,6 +365,7 @@ export const useCalendarStore = createSSRStore<
         role: null,
         status: null,
     },
+    favoriteEventMap: {},
     isCalendarLoading: true,
     calendarTimezone: "Asia/Seoul",
     activeEventId: undefined,
@@ -427,6 +460,7 @@ export const useCalendarStore = createSSRStore<
             workspaceCursor: null,
             workspacePresence: [],
             eventCategories: [],
+            favoriteEventMap: {},
             eventFilters: {
                 excludedStatuses: defaultExcludedStatuses,
                 excludedCategoryIds: [],
@@ -700,7 +734,11 @@ export const useCalendarStore = createSSRStore<
         hoveredDateKeys: [],
     },
 
-    setEvents: (events) => set({ events: sortCalendarEvents(events) }),
+    setEvents: (events) =>
+        set({
+            events: sortCalendarEvents(events),
+            favoriteEventMap: buildFavoriteEventMap(events),
+        }),
     upsertEventSnapshot: (event) =>
         set((state) => {
             const nextCategories = event.categories.reduce(
@@ -727,6 +765,19 @@ export const useCalendarStore = createSSRStore<
 
             return {
                 eventCategories: sortEventCategories(nextCategories),
+                favoriteEventMap: event.isFavorite
+                    ? {
+                          ...state.favoriteEventMap,
+                          [event.id]: event.favoritedAt ?? Date.now(),
+                      }
+                    : (() => {
+                          const nextFavoriteEventMap = {
+                              ...state.favoriteEventMap,
+                          }
+
+                          delete nextFavoriteEventMap[event.id]
+                          return nextFavoriteEventMap
+                      })(),
                 eventFilters: pruneEventFilters(
                     nextCategories.reduce(
                         (filters, category) =>
@@ -746,12 +797,95 @@ export const useCalendarStore = createSSRStore<
                     state.viewEvent?.id === event.id ? event : state.viewEvent,
             }
         }),
+    toggleEventFavorite: async (id, nextValue) => {
+        const state = get()
+        const event = state.events.find((item) => item.id === id)
+        const currentUser = useAuthStore.getState().user
+        const currentUserId = currentUser?.id ?? null
+
+        if (!event || !currentUserId) {
+            return false
+        }
+
+        if (
+            state.activeCalendar?.id !== "demo" &&
+            !state.activeCalendarMembership.isMember
+        ) {
+            toast.error("캘린더 멤버만 즐겨찾기를 사용할 수 있습니다.")
+            return false
+        }
+
+        const previousFavoritedAt = state.favoriteEventMap[id] ?? null
+        const previousIsFavorite = id in state.favoriteEventMap
+        const resolvedNextValue = nextValue ?? !previousIsFavorite
+        const optimisticFavoritedAt = resolvedNextValue ? Date.now() : null
+
+        set((currentState) => {
+            const nextFavoriteEventMap = { ...currentState.favoriteEventMap }
+
+            if (resolvedNextValue) {
+                nextFavoriteEventMap[id] = optimisticFavoritedAt
+            } else {
+                delete nextFavoriteEventMap[id]
+            }
+
+            return {
+                favoriteEventMap: nextFavoriteEventMap,
+            }
+        })
+
+        if (state.activeCalendar?.id === "demo") {
+            return true
+        }
+
+        const result = await persistEventFavorite(
+            id,
+            resolvedNextValue,
+            currentUserId
+        )
+
+        if (!result.ok) {
+            set((currentState) => {
+                const nextFavoriteEventMap = { ...currentState.favoriteEventMap }
+
+                if (previousIsFavorite) {
+                    nextFavoriteEventMap[id] = previousFavoritedAt
+                } else {
+                    delete nextFavoriteEventMap[id]
+                }
+
+                return {
+                    favoriteEventMap: nextFavoriteEventMap,
+                }
+            })
+
+            toast.error("즐겨찾기를 저장하지 못했습니다.")
+            return false
+        }
+
+        if (resolvedNextValue && result.favoritedAt !== null) {
+            set((currentState) => ({
+                favoriteEventMap: {
+                    ...currentState.favoriteEventMap,
+                    [id]: result.favoritedAt,
+                },
+            }))
+        }
+
+        return true
+    },
     removeEventSnapshot: (id) =>
-        set((state) => ({
-            events: state.events.filter((event) => event.id !== id),
-            activeEventId:
-                state.activeEventId === id ? undefined : state.activeEventId,
-        })),
+        set((state) => {
+            const nextFavoriteEventMap = { ...state.favoriteEventMap }
+            delete nextFavoriteEventMap[id]
+
+            return {
+                events: state.events.filter((event) => event.id !== id),
+                favoriteEventMap: nextFavoriteEventMap,
+                activeEventId:
+                    state.activeEventId === id ? undefined : state.activeEventId,
+            }
+        }),
     createEvent: (data) => {
         const { activeCalendar, activeCalendarMembership } = get()
 
@@ -797,6 +931,8 @@ export const useCalendarStore = createSSRStore<
                 null,
             category: data.category ?? data.categories?.[0] ?? null,
             participants: data.participants ?? [],
+            isFavorite: data.isFavorite ?? false,
+            favoritedAt: data.favoritedAt ?? null,
             status: data.status ?? "scheduled",
             authorId: data.authorId ?? currentUserId,
             author: data.author ?? {
@@ -819,6 +955,12 @@ export const useCalendarStore = createSSRStore<
 
         set((s) => ({
             events: sortCalendarEvents([...s.events, event]),
+            favoriteEventMap: event.isFavorite
+                ? {
+                      ...s.favoriteEventMap,
+                      [event.id]: event.favoritedAt ?? Date.now(),
+                  }
+                : s.favoriteEventMap,
             selection: {
                 isSelecting: false,
                 anchor: null,
@@ -954,6 +1096,11 @@ export const useCalendarStore = createSSRStore<
 
         set((s) => ({
             events: s.events.filter((e) => e.id !== id),
+            favoriteEventMap: (() => {
+                const nextFavoriteEventMap = { ...s.favoriteEventMap }
+                delete nextFavoriteEventMap[id]
+                return nextFavoriteEventMap
+            })(),
         }))
 
         void persistDeletedEvent(id)

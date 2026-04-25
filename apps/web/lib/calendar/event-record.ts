@@ -21,6 +21,8 @@ export type CalendarEventRecord = {
     recurrence: CalendarEvent["recurrence"] | null
     exceptions: CalendarEvent["exceptions"] | null
     participants: CalendarEvent["participants"] | null
+    is_favorite: boolean | null
+    favorited_at: string | null
     status: CalendarEvent["status"] | null
     created_by: string | null
     updated_by: string | null
@@ -93,6 +95,10 @@ export function mapCalendarEventRecordToCalendarEvent(
         recurrence: event.recurrence ?? undefined,
         exceptions: event.exceptions ?? undefined,
         participants: event.participants ?? [],
+        isFavorite: event.is_favorite === true,
+        favoritedAt: event.favorited_at
+            ? new Date(event.favorited_at).valueOf()
+            : null,
         status: event.status ?? "scheduled",
         authorId: event.created_by,
         author: event.created_by

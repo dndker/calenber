@@ -83,6 +83,8 @@ export function generateMockEvents(
             categoryId: category?.id ?? null,
             category: category,
             participants: [],
+            isFavorite: false,
+            favoritedAt: null,
 
             status: "scheduled",
             authorId: null,

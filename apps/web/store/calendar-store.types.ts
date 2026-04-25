@@ -127,6 +127,8 @@ export type CalendarEvent = {
     recurrenceInstance?: CalendarEventRecurrenceInstance
     exceptions?: string[]
     participants: CalendarEventParticipant[]
+    isFavorite: boolean
+    favoritedAt: number | null
     status: CalendarEventStatus
     authorId: string | null
     author: CalendarEventAuthor | null
@@ -211,6 +213,7 @@ export type CalendarStoreState = {
     myCalendars: MyCalendarItem[]
     activeCalendar: CalendarSummary | null
     activeCalendarMembership: CalendarMembership
+    favoriteEventMap: Record<string, number | null>
     calendarTimezone: string
     isCalendarLoading: boolean
     activeEventId?: string
@@ -260,6 +263,7 @@ export type CalendarStoreState = {
     events: CalendarEvent[]
     setEvents: (events: CalendarEvent[]) => void
     upsertEventSnapshot: (event: CalendarEvent) => void
+    toggleEventFavorite: (id: string, nextValue?: boolean) => Promise<boolean>
     removeEventSnapshot: (id: string) => void
     createEvent: (data: CalendarEventDraft) => string | null
     updateEvent: (

@@ -166,7 +166,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             variant="outline"
             type="button"
             size="lg"
-            className="leading-normal font-semibold"
+            className="leading-[normal] font-semibold"
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -22,6 +22,7 @@ import {
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { Settings } from "lucide-react"
+import { CalendarSidebarEvents } from "./calendar-sidebar-events"
 
 const fallbackUser = {
     user: {
@@ -119,6 +120,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarContent>
                 <DatePicker />
                 <SidebarSeparator className="mx-0" />
+
+                <CalendarSidebarEvents />
+
                 <CalendarFilter
                     groups={filterGroups}
                     onItemCheckedChange={handleFilterItemCheckedChange}
