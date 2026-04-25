@@ -55,12 +55,14 @@ import {
     ListIcon,
     LockIcon,
     StarIcon,
+    StarOffIcon,
     TagsIcon,
     TrashIcon,
     XIcon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 
 /**
  * 리사이즈로 `startIndex`/`endIndex`가 바뀌면 `EventRow`의 key가 달라져 `EventItem`이 언마운트된다.
@@ -167,10 +169,16 @@ export const EventItem = memo(
         const activeCalendarMembership = useCalendarStore(
             (s) => s.activeCalendarMembership
         )
+        const favoriteMeta = useCalendarStore((s) =>
+            sourceEventId ? (s.favoriteEventMap[sourceEventId] ?? null) : null
+        )
         const eventLayout = useCalendarStore((s) => s.eventLayout)
         const calendarTz = useCalendarStore((s) => s.calendarTimezone)
         const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
         const setViewEvent = useCalendarStore((s) => s.setViewEvent)
+        const toggleEventFavorite = useCalendarStore(
+            (s) => s.toggleEventFavorite
+        )
         const isSeriesHover = useCalendarStore(
             (s) => s.hoveredSeriesEventId === sourceEventId
         )
@@ -251,6 +259,13 @@ export const EventItem = memo(
         type EventCtxRootView = "main" | "status" | "category"
         const [ctxRootView, setCtxRootView] = useState<EventCtxRootView>("main")
         const [isCtxOpen, setIsCtxOpen] = useState(false)
+        const [isFavoritePending, setIsFavoritePending] = useState(false)
+        const isFavorite =
+            favoriteMeta !== null
+                ? true
+                : (resolvedSourceEvent.isFavorite ?? false)
+        const canToggleFavorite =
+            activeCalendar?.id === "demo" || activeCalendarMembership.isMember
 
         /** 닫을 때 `main`으로 바꾸면 닫힘 애니메이션 도중 한 프레임 메인 메뉴가 보인다. 열릴 때만 초기화한다. */
         const handleRootCtxOpenChange = useCallback((open: boolean) => {
@@ -287,6 +302,38 @@ export const EventItem = memo(
                 setCategoryDraft(propertyCategoryNames)
             }
         }, [ctxRootView, propertyCategoryNames])
+
+        const handleFavoriteToggle = useCallback(async () => {
+            if (isFavoritePending || !canToggleFavorite) {
+                return
+            }
+
+            const nextIsFavorite = !isFavorite
+            setIsFavoritePending(true)
+
+            try {
+                const ok = await toggleEventFavorite(
+                    sourceEventId,
+                    nextIsFavorite
+                )
+
+                if (ok) {
+                    toast.success(
+                        nextIsFavorite
+                            ? "즐겨찾기에 추가했습니다."
+                            : "즐겨찾기에서 삭제되었습니다."
+                    )
+                }
+            } finally {
+                setIsFavoritePending(false)
+            }
+        }, [
+            canToggleFavorite,
+            isFavorite,
+            isFavoritePending,
+            sourceEventId,
+            toggleEventFavorite,
+        ])
 
         const handleMoveStart = (e: React.PointerEvent) => {
             if (!canEdit) {
@@ -654,9 +701,20 @@ export const EventItem = memo(
                     {ctxRootView === "main" ? (
                         <>
                             <ContextMenuGroup>
-                                <ContextMenuItem disabled={!canDelete}>
-                                    <StarIcon />
-                                    즐겨찾기
+                                <ContextMenuItem
+                                    disabled={
+                                        !canToggleFavorite || isFavoritePending
+                                    }
+                                    onSelect={() => {
+                                        void handleFavoriteToggle()
+                                    }}
+                                >
+                                    {isFavorite ? (
+                                        <StarOffIcon />
+                                    ) : (
+                                        <StarIcon />
+                                    )}
+                                    {isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
                                 </ContextMenuItem>
                                 <ContextMenuSub>
                                     <ContextMenuSubTrigger disabled={!canEdit}>

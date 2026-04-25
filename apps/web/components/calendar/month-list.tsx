@@ -1,9 +1,9 @@
+import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import {
     expandCalendarEventsForRange,
     getCalendarEventRenderId,
     getCalendarVisibleEventRange,
 } from "@/lib/calendar/recurrence"
-import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { shallow } from "@/store/createSSRStore"
@@ -134,7 +134,6 @@ export function MonthList({
         onVisibleMonthChange?.(
             dayjs.tz(date, calendarTz).startOf("month").toDate()
         )
-
     }, [calendarTz, items, onVisibleMonthChange])
 
     // 스크롤 끝나면 스냅
@@ -177,8 +176,8 @@ export function MonthList({
                 // smooth 끝났다고 가정하고 잠깐 후 unlock
                 setTimeout(() => {
                     isSnapping = false
-                }, 300)
-            }, 250)
+                }, 150)
+            }, 100)
         }
 
         el.addEventListener("scroll", handleScroll)
@@ -282,9 +281,16 @@ export function MonthList({
 
         for (const item of items) {
             const weekOffset = item.index - CENTER_INDEX
-            const weekDate = getWeekOffset(baseDateRef.current, weekOffset, calendarTz)
+            const weekDate = getWeekOffset(
+                baseDateRef.current,
+                weekOffset,
+                calendarTz
+            )
             const week = getWeek(weekDate, calendarTz)
-            const weekStart = dayjs(week[0]!).tz(calendarTz).startOf("day").valueOf()
+            const weekStart = dayjs(week[0]!)
+                .tz(calendarTz)
+                .startOf("day")
+                .valueOf()
             const weekEndExclusive = dayjs(week[6]!)
                 .tz(calendarTz)
                 .startOf("day")
@@ -398,7 +404,9 @@ export function MonthList({
                     return (
                         <WeekRow
                             key={item.key}
-                            events={positionedEventsByWeek.get(item.index) ?? []}
+                            events={
+                                positionedEventsByWeek.get(item.index) ?? []
+                            }
                             start={item.start}
                             size={item.size}
                             weekDate={weekDate}

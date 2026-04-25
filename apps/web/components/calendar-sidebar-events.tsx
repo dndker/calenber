@@ -8,7 +8,9 @@ import {
     formatCalendarEventScheduleLabelFromEvent,
 } from "@/lib/calendar/event-date-format"
 import { orderCalendarEventFieldIds } from "@/lib/calendar/event-field-settings"
-import { getCalendarEventModalPath } from "@/lib/calendar/routes"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
+import dayjs from "@/lib/dayjs"
 import {
     type CalendarEvent,
     type CalendarEventFieldId,
@@ -44,6 +46,7 @@ import {
 } from "@workspace/ui/components/sidebar"
 import {
     CalendarIcon,
+    CalendarSearchIcon,
     ChevronRightIcon,
     CircleCheckBigIcon,
     MoreHorizontal,
@@ -53,8 +56,8 @@ import {
     TagsIcon,
     Trash2Icon,
 } from "lucide-react"
-import { useRouter } from "next/navigation"
-import React, { memo, useMemo, useState } from "react"
+import { usePathname } from "next/navigation"
+import React, { memo, useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { EventStatusItem } from "./calendar/event-form-status-field"
 
@@ -202,8 +205,14 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
     event: CalendarEvent
 }) {
     const isMobile = useIsMobile()
-    const router = useRouter()
+    const pathname = usePathname()
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+    const setViewEvent = useCalendarStore((s) => s.setViewEvent)
+    const setSelectedDate = useCalendarStore((s) => s.setSelectedDate)
+    const setViewportDate = useCalendarStore((s) => s.setViewportDate)
+    const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
     const toggleEventFavorite = useCalendarStore((s) => s.toggleEventFavorite)
     const { eventFieldSettings } = useCalendarEventFieldSettings()
     const { copyEventLink } = useCopyCalendarEventLink()
@@ -215,8 +224,28 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
         scheduleVariant: "short",
         omitTime: true,
     })
+    const navigationDate = useMemo(
+        () =>
+            dayjs
+                .tz(
+                    event.recurrenceInstance?.occurrenceStart ?? event.start,
+                    calendarTimezone
+                )
+                .startOf("day")
+                .toDate(),
+        [
+            calendarTimezone,
+            event.recurrenceInstance?.occurrenceStart,
+            event.start,
+        ]
+    )
     const categoryName = event.category?.name?.trim() || null
     const categoryColor = event.category?.options.color || null
+    const handleMoveToEventDate = useCallback(() => {
+        setSelectedDate(navigationDate)
+        setViewportDate(navigationDate)
+        setViewportMiniDate(navigationDate)
+    }, [navigationDate, setSelectedDate, setViewportDate, setViewportMiniDate])
     const orderedHoverCardProperties = useMemo(() => {
         const propertyMap = new Map<
             HoverCardPropertyItem["id"],
@@ -327,8 +356,16 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                     <SidebarMenuButton
                         className="flex h-auto w-full flex-col items-start gap-0.75 overflow-hidden"
                         onClick={() => {
-                            router.push(
-                                getCalendarEventModalPath(calendarId, event.id)
+                            setActiveEventId(event.id)
+                            setViewEvent(event)
+                            navigateCalendarModal(
+                                getCalendarModalOpenPath({
+                                    pathname,
+                                    eventId: event.id,
+                                    occurrenceStart:
+                                        event.recurrenceInstance
+                                            ?.occurrenceStart,
+                                })
                             )
                         }}
                     >
@@ -392,7 +429,9 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                                 )
 
                                 if (ok) {
-                                    toast.success("즐겨찾기를 해제했습니다.")
+                                    toast.success(
+                                        "즐겨찾기에서 삭제되었습니다."
+                                    )
                                 }
                             } finally {
                                 setIsFavoritePending(false)
@@ -401,6 +440,10 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                     >
                         <StarOffIcon className="text-muted-foreground" />
                         <span>즐겨찾기 해제</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleMoveToEventDate}>
+                        <CalendarSearchIcon className="text-muted-foreground" />
+                        <span>날짜로 이동</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onClick={() => {

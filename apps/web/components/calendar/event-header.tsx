@@ -412,7 +412,7 @@ export const EventHeader = memo(function EventHeader({
                                             toast.success(
                                                 nextIsFavorite
                                                     ? "즐겨찾기에 추가했습니다."
-                                                    : "즐겨찾기를 해제했습니다."
+                                                    : "즐겨찾기에서 삭제되었습니다."
                                             )
                                         }
                                     } finally {
