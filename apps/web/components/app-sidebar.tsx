@@ -22,6 +22,7 @@ import {
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { Settings } from "lucide-react"
+import { CalendarSubscriptionManager } from "./calendar-subscription-manager"
 import { CalendarSidebarEvents } from "./calendar-sidebar-events"
 
 const fallbackUser = {
@@ -127,6 +128,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     groups={filterGroups}
                     onItemCheckedChange={handleFilterItemCheckedChange}
                 />
+                <CalendarSubscriptionManager />
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>

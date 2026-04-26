@@ -5,6 +5,7 @@ import {
     APP_URL,
 } from "@/lib/app-config"
 import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
+import { DEFAULT_CALENDAR_LAYOUT_OPTIONS } from "@/lib/calendar/layout-options"
 import type { CalendarSummary } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
 import {
@@ -21,6 +22,7 @@ export const demoCalendarSummary: CalendarSummary = {
     accessMode: "public_open",
     eventLayout: "compact",
     eventFieldSettings: getDefaultCalendarEventFieldSettings(),
+    layoutOptions: DEFAULT_CALENDAR_LAYOUT_OPTIONS,
     updatedAt: "",
     createdAt: "",
 }

@@ -5,6 +5,10 @@ import { AvatarUploadControl } from "@/components/settings/shared/avatar-upload-
 import { NameInputControl } from "@/components/settings/shared/name-input-control"
 import { useCalendarEventLayout } from "@/hooks/use-calendar-event-layout"
 import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
+import {
+    normalizeCalendarLayoutOptions,
+    type CalendarWeekStartsOn,
+} from "@/lib/calendar/layout-options"
 import { deleteOwnedCalendar, leaveCalendar } from "@/lib/calendar/mutations"
 import {
     canManageCalendar,
@@ -147,8 +151,8 @@ function CalendarGeneralCalendarNameField({
             />
             {hasCalendarNameLengthError && (
                 <p className="text-xs text-destructive">
-                    {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_CALENDAR_NAME_LENGTH}자
-                    이하로 입력해 주세요.
+                    {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_CALENDAR_NAME_LENGTH}
+                    자 이하로 입력해 주세요.
                 </p>
             )}
         </Field>
@@ -238,6 +242,21 @@ export function CalendarGeneralSettingsPanel() {
         }
     }, [activeCalendar])
 
+    const layoutOptions = normalizeCalendarLayoutOptions(
+        activeCalendar?.layoutOptions
+    )
+    const layoutSaveQueueRef = useRef<
+        ReturnType<typeof normalizeCalendarLayoutOptions> | null
+    >(null)
+    const persistedLayoutOptionsRef = useRef(layoutOptions)
+    const isLayoutSaveInFlightRef = useRef(false)
+
+    useEffect(() => {
+        persistedLayoutOptionsRef.current = normalizeCalendarLayoutOptions(
+            activeCalendar?.layoutOptions
+        )
+    }, [activeCalendar?.layoutOptions])
+
     if (!activeCalendar) {
         return (
             <div className="text-sm text-muted-foreground">
@@ -265,7 +284,6 @@ export function CalendarGeneralSettingsPanel() {
     const deleteConfirmationTarget = activeCalendar.name
     const isDeleteConfirmationMatched =
         deleteConfirmation.trim() === deleteConfirmationTarget
-
     const handleLeaveCalendar = async () => {
         if (!activeCalendar || !canLeaveCalendar || isLeavingCalendar) {
             return
@@ -488,6 +506,67 @@ export function CalendarGeneralSettingsPanel() {
         }
     }
 
+    const saveLayoutOptions = async (
+        patch: Partial<ReturnType<typeof normalizeCalendarLayoutOptions>>
+    ) => {
+        if (!canManageSettings) {
+            toast.error("관리자 또는 소유자만 레이아웃을 변경할 수 있습니다.")
+            return
+        }
+
+        const previousOptions = normalizeCalendarLayoutOptions(
+            activeCalendar.layoutOptions
+        )
+        const nextOptions = normalizeCalendarLayoutOptions({
+            ...previousOptions,
+            ...patch,
+        })
+
+        if (JSON.stringify(previousOptions) === JSON.stringify(nextOptions)) {
+            return
+        }
+
+        updateCalendarSnapshot(activeCalendar.id, {
+            layoutOptions: nextOptions,
+        })
+        layoutSaveQueueRef.current = nextOptions
+
+        if (isLayoutSaveInFlightRef.current) {
+            return
+        }
+
+        isLayoutSaveInFlightRef.current = true
+
+        while (layoutSaveQueueRef.current) {
+            const targetOptions = layoutSaveQueueRef.current
+            layoutSaveQueueRef.current = null
+
+            try {
+                const supabase = createBrowserSupabase()
+                const { error } = await supabase
+                    .from("calendars")
+                    .update({ layout_options: targetOptions })
+                    .eq("id", activeCalendar.id)
+
+                if (error) {
+                    throw error
+                }
+
+                persistedLayoutOptionsRef.current = targetOptions
+            } catch (error) {
+                updateCalendarSnapshot(activeCalendar.id, {
+                    layoutOptions: persistedLayoutOptionsRef.current,
+                })
+                layoutSaveQueueRef.current = null
+                console.error("Failed to update calendar layout options:", error)
+                toast.error("캘린더 레이아웃 옵션을 저장하지 못했습니다.")
+                break
+            }
+        }
+
+        isLayoutSaveInFlightRef.current = false
+    }
+
     return (
         <FieldGroup>
             <FieldSet>
@@ -569,6 +648,215 @@ export function CalendarGeneralSettingsPanel() {
                             </SelectContent>
                         </Select>
                     </Field>
+                </FieldGroup>
+            </FieldSet>
+            <FieldSeparator />
+            <FieldSet>
+                <FieldLegend className="mb-4 font-semibold">
+                    레이아웃
+                </FieldLegend>
+                <FieldGroup>
+                    <Field orientation="horizontal" className="items-center!">
+                        <FieldContent>
+                            <FieldLabel>주 시작 요일</FieldLabel>
+                            <FieldDescription>
+                                캘린더 날짜/일정 표시 시작 요일을 선택합니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <Select
+                            value={layoutOptions.weekStartsOn}
+                            onValueChange={(value) => {
+                                if (value === "sunday" || value === "monday") {
+                                    void saveLayoutOptions({
+                                        weekStartsOn:
+                                            value as CalendarWeekStartsOn,
+                                    })
+                                }
+                            }}
+                            disabled={!canManageSettings}
+                        >
+                            <SelectTrigger className="w-full max-w-54">
+                                <SelectValue placeholder="주 시작 요일" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>주 시작 요일</SelectLabel>
+                                    <SelectItem value="sunday">
+                                        일 · 월 · 화 · 수 · 목 · 금 · 토
+                                    </SelectItem>
+                                    <SelectItem value="monday">
+                                        월 · 화 · 수 · 목 · 금 · 토 · 일
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                    <Field orientation="horizontal" className="items-center!">
+                        <FieldContent>
+                            <FieldLabel>주말 숨기기</FieldLabel>
+                            <FieldDescription>
+                                월~금 컬럼만 강조해서 보고 싶을 때 사용합니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <Select
+                            value={
+                                layoutOptions.hideWeekendColumns
+                                    ? "enabled"
+                                    : "disabled"
+                            }
+                            onValueChange={(value) => {
+                                if (
+                                    value === "enabled" ||
+                                    value === "disabled"
+                                ) {
+                                    void saveLayoutOptions({
+                                        hideWeekendColumns: value === "enabled",
+                                    })
+                                }
+                            }}
+                            disabled={!canManageSettings}
+                        >
+                            <SelectTrigger className="w-full max-w-38">
+                                <SelectValue placeholder="주말 숨기기" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>주말 숨기기</SelectLabel>
+                                    <SelectItem value="disabled">
+                                        표시
+                                    </SelectItem>
+                                    <SelectItem value="enabled">
+                                        숨김
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                    <Field orientation="horizontal" className="items-center!">
+                        <FieldContent>
+                            <FieldLabel
+                                className={
+                                    layoutOptions.hideWeekendColumns
+                                        ? "text-muted-foreground/50"
+                                        : undefined
+                                }
+                            >
+                                주말 색상 표시
+                            </FieldLabel>
+                            <FieldDescription
+                                className={
+                                    layoutOptions.hideWeekendColumns
+                                        ? "text-muted-foreground/50"
+                                        : undefined
+                                }
+                            >
+                                토요일(파란색), 일요일(빨간색) 텍스트 색상을
+                                표시합니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <Select
+                            value={
+                                layoutOptions.showWeekendTextColors
+                                    ? "enabled"
+                                    : "disabled"
+                            }
+                            onValueChange={(value) => {
+                                if (
+                                    value === "enabled" ||
+                                    value === "disabled"
+                                ) {
+                                    void saveLayoutOptions({
+                                        showWeekendTextColors:
+                                            value === "enabled",
+                                    })
+                                }
+                            }}
+                            disabled={
+                                !canManageSettings ||
+                                layoutOptions.hideWeekendColumns
+                            }
+                        >
+                            <SelectTrigger className="w-full max-w-38">
+                                <SelectValue placeholder="주말 색상 표시" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>주말 색상 표시</SelectLabel>
+                                    <SelectItem value="enabled">
+                                        표시
+                                    </SelectItem>
+                                    <SelectItem value="disabled">
+                                        숨김
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+                    <Field orientation="horizontal" className="items-center!">
+                        <FieldContent>
+                            <FieldLabel
+                                className={
+                                    layoutOptions.hideWeekendColumns
+                                        ? "text-muted-foreground/50"
+                                        : undefined
+                                }
+                            >
+                                주말 배경 강조
+                            </FieldLabel>
+                            <FieldDescription
+                                className={
+                                    layoutOptions.hideWeekendColumns
+                                        ? "text-muted-foreground/50"
+                                        : undefined
+                                }
+                            >
+                                주말 라인 배경을 강조해 공휴일 영역처럼
+                                구분합니다.
+                            </FieldDescription>
+                        </FieldContent>
+
+                        <Select
+                            value={
+                                layoutOptions.showHolidayBackground
+                                    ? "enabled"
+                                    : "disabled"
+                            }
+                            onValueChange={(value) => {
+                                if (
+                                    value === "enabled" ||
+                                    value === "disabled"
+                                ) {
+                                    void saveLayoutOptions({
+                                        showHolidayBackground:
+                                            value === "enabled",
+                                    })
+                                }
+                            }}
+                            disabled={
+                                !canManageSettings ||
+                                layoutOptions.hideWeekendColumns
+                            }
+                        >
+                            <SelectTrigger className="w-full max-w-38">
+                                <SelectValue placeholder="배경 강조" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectLabel>배경 강조</SelectLabel>
+                                    <SelectItem value="enabled">
+                                        표시
+                                    </SelectItem>
+                                    <SelectItem value="disabled">
+                                        숨김
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </Field>
+
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
                             <FieldLabel>일정 레이아웃</FieldLabel>
@@ -727,7 +1015,9 @@ export function CalendarGeneralSettingsPanel() {
                                                     event.target.value
                                                 )
                                             }
-                                            placeholder={deleteConfirmationTarget}
+                                            placeholder={
+                                                deleteConfirmationTarget
+                                            }
                                             aria-label="캘린더 삭제 확인"
                                         />
                                     </div>

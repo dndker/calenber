@@ -5,6 +5,7 @@ import {
     getServerCalendarInitialData,
     getServerMyCalendars,
 } from "@/lib/calendar/server-queries"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 import {
     buildCalendarMetadata,
     demoCalendarSummary,
@@ -22,7 +23,8 @@ export async function generateMetadata({
 }: {
     params: Promise<{ calendarId: string }>
 }): Promise<Metadata> {
-    const { calendarId } = await params
+    const { calendarId: rawCalendarId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
 
     if (calendarId === "demo") {
         return buildCalendarMetadata({
@@ -46,7 +48,8 @@ export default async function CalendarLayout({
     children: React.ReactNode
     params: Promise<{ calendarId: string }>
 }) {
-    const { calendarId } = await params
+    const { calendarId: rawCalendarId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const cookieStore = await cookies()
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
@@ -89,11 +92,19 @@ export default async function CalendarLayout({
     const initialExcludedCategoryIds = eventCategories
         .filter((category) => category.options.visibleByDefault === false)
         .map((category) => category.id)
-    const favoriteEventMap = Object.fromEntries(
-        events
-            .filter((event) => event.isFavorite)
-            .map((event) => [event.id, event.favoritedAt ?? event.updatedAt])
-    )
+    const favoriteEventMap = {
+        ...Object.fromEntries(
+            events
+                .filter((event) => event.isFavorite)
+                .map((event) => [event.id, event.favoritedAt ?? event.updatedAt])
+        ),
+        ...Object.fromEntries(
+            (initialData?.subscriptionFavoriteEventIds ?? []).map((favorite) => [
+                favorite.eventId,
+                favorite.favoritedAt,
+            ])
+        ),
+    }
 
     return (
         <CalendarStoreProvider
@@ -113,6 +124,11 @@ export default async function CalendarLayout({
                 eventFilters: {
                     excludedStatuses: ["completed", "cancelled"],
                     excludedCategoryIds: initialExcludedCategoryIds,
+                },
+                subscriptionCatalogs: initialData?.subscriptionCatalogs ?? [],
+                subscriptionState: initialData?.subscriptionState ?? {
+                    installedSubscriptionIds: [],
+                    hiddenSubscriptionIds: [],
                 },
                 selectedDate,
                 viewport,

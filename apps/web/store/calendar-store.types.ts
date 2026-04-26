@@ -111,6 +111,35 @@ export type CalendarEventFilterState = {
     excludedCategoryIds: string[]
 }
 
+export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
+
+export type CalendarSubscriptionDefinition = {
+    id: string
+    slug?: string
+    name: string
+    description: string
+    authority: CalendarSubscriptionAuthority
+    ownerName: string
+    verified: boolean
+    tags: string[]
+    categoryColor?: CalendarCategoryColor
+    sourceType?: "system_holiday" | "shared_category" | "custom"
+    status?: "active" | "source_deleted" | "archived"
+    sourceDeletedAt?: string | null
+    sourceDeletedReason?: string | null
+    providerName?: string | null
+    sourceCalendarId?: string | null
+    sourceCalendarName?: string | null
+    config?: Record<string, unknown>
+}
+
+export type CalendarSubscriptionState = {
+    installedSubscriptionIds: string[]
+    hiddenSubscriptionIds: string[]
+}
+
+export type CalendarSubscriptionCatalogItem = CalendarSubscriptionDefinition
+
 export type CalendarEvent = {
     id: string
     title: string
@@ -134,6 +163,16 @@ export type CalendarEvent = {
     author: CalendarEventAuthor | null
     updatedById: string | null
     updatedBy: CalendarEventAuthor | null
+    subscription?: {
+        id: string
+        slug?: string
+        name: string
+        sourceType?: "system_holiday" | "shared_category" | "custom"
+        authority?: CalendarSubscriptionAuthority
+        providerName?: string | null
+        sourceCalendarId?: string | null
+        sourceCalendarName?: string | null
+    }
     isLocked: boolean
     createdAt: number
     updatedAt: number
@@ -228,6 +267,8 @@ export type CalendarStoreState = {
     workspacePresence: CalendarWorkspacePresenceMember[]
     eventCategories: CalendarEventCategory[]
     eventFilters: CalendarEventFilterState
+    subscriptionCatalogs: CalendarSubscriptionCatalogItem[]
+    subscriptionState: CalendarSubscriptionState
     hoveredSeriesEventId: string | null
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
@@ -245,6 +286,13 @@ export type CalendarStoreState = {
     setEventCategories: (categories: CalendarEventCategory[]) => void
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
     toggleEventCategoryFilter: (categoryId: string) => void
+    setSubscriptionState: (state: CalendarSubscriptionState) => void
+    setSubscriptionCatalogs: (
+        catalogs: CalendarSubscriptionCatalogItem[]
+    ) => void
+    installSubscription: (subscriptionId: string) => void
+    uninstallSubscription: (subscriptionId: string) => void
+    toggleSubscriptionVisibility: (subscriptionId: string) => void
     resetEventFilters: () => void
     setHoveredSeriesEventId: (eventId: string | null) => void
     upsertEventCategorySnapshot: (category: CalendarEventCategory) => void

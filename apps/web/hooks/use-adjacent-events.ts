@@ -1,14 +1,49 @@
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useCalendarSubscriptionEvents } from "@/hooks/use-calendar-subscription-events"
 import { useMemo } from "react"
 
-export function useAdjacentEvents(eventId: string) {
+export function useAdjacentEvents({
+    eventId,
+    eventStart,
+}: {
+    eventId: string
+    eventStart?: number
+}) {
     const events = useCalendarStore((s) => s.events)
+    const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const eventStarts = useMemo(
+        () => events.map((event) => event.start),
+        [events]
+    )
+    const minStart = useMemo(() => {
+        const candidates =
+            eventStart !== undefined ? [...eventStarts, eventStart] : eventStarts
+        return candidates.length > 0 ? Math.min(...candidates) : Date.now()
+    }, [eventStart, eventStarts])
+    const maxStart = useMemo(() => {
+        const candidates =
+            eventStart !== undefined ? [...eventStarts, eventStart] : eventStarts
+        return candidates.length > 0 ? Math.max(...candidates) : Date.now()
+    }, [eventStart, eventStarts])
+    const subscriptionEvents = useCalendarSubscriptionEvents({
+        rangeStart: minStart - 370 * 24 * 60 * 60 * 1000,
+        rangeEnd: maxStart + 370 * 24 * 60 * 60 * 1000,
+        timezone: calendarTimezone,
+    })
+    const allEvents = useMemo(
+        () => [...events, ...subscriptionEvents],
+        [events, subscriptionEvents]
+    )
 
     const { sortedEvents, indexMap } = useMemo(() => {
-        // ✅ 1. 정렬 (한 번만)
-        const sorted = [...events].sort(
-            (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
-        )
+        // 정렬 비교에서 Date 객체를 만들지 않아 GC/CPU 부담을 줄인다.
+        const sorted = [...allEvents].sort((a, b) => {
+            if (a.start !== b.start) {
+                return a.start - b.start
+            }
+
+            return a.id.localeCompare(b.id)
+        })
 
         // ✅ 2. id → index 매핑 (O(n))
         const map = new Map<string, number>()
@@ -20,7 +55,7 @@ export function useAdjacentEvents(eventId: string) {
             sortedEvents: sorted,
             indexMap: map,
         }
-    }, [events])
+    }, [allEvents])
 
     return useMemo(() => {
         if (!sortedEvents.length) {

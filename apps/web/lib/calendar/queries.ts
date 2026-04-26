@@ -3,9 +3,12 @@ import {
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
 import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
+import { normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
 import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { isCalendarEventUuid } from "@/lib/calendar/event-id"
 import { parseEventContent } from "@/lib/calendar/event-content"
 import type {
+    CalendarSubscriptionCatalogItem,
     CalendarEvent,
     CalendarEventFieldSettings,
 } from "@/store/calendar-store.types"
@@ -35,6 +38,7 @@ export type CalendarSummary = {
     accessMode: CalendarAccessMode
     eventLayout: CalendarEventLayout
     eventFieldSettings: CalendarEventFieldSettings
+    layoutOptions: ReturnType<typeof normalizeCalendarLayoutOptions>
     updatedAt: string
     createdAt: string
 }
@@ -110,6 +114,34 @@ export type CalendarInitialData = {
     myCalendars: MyCalendarItem[]
     eventCategories: CalendarEventCategorySummary[]
     events: CalendarEvent[]
+    subscriptionCatalogs: CalendarSubscriptionCatalogItem[]
+    subscriptionState: {
+        installedSubscriptionIds: string[]
+        hiddenSubscriptionIds: string[]
+    }
+    subscriptionFavoriteEventIds: Array<{
+        eventId: string
+        favoritedAt: number
+    }>
+}
+
+export type CalendarSubscriptionCatalog = {
+    id: string
+    slug: string
+    name: string
+    description: string
+    sourceType: "system_holiday" | "shared_category" | "custom"
+    verified: boolean
+    status: "active" | "source_deleted" | "archived"
+    sourceDeletedAt: string | null
+    sourceDeletedReason: string | null
+    providerName: string | null
+    sourceCalendarId: string | null
+    sourceCalendarName: string | null
+    categoryColor: CalendarEvent["categories"][number]["options"]["color"] | null
+    config: Record<string, unknown>
+    installed: boolean
+    isVisible: boolean
 }
 
 type CalendarRow = {
@@ -119,6 +151,7 @@ type CalendarRow = {
     access_mode: CalendarAccessMode
     event_layout: CalendarEventLayout
     event_field_settings: unknown
+    layout_options: unknown
     updated_at: string
     created_at: string
     calendar_members:
@@ -136,6 +169,7 @@ type DiscoverCalendarRow = {
     access_mode: CalendarAccessMode
     event_layout: CalendarEventLayout
     event_field_settings: unknown
+    layout_options: unknown
     updated_at: string
     created_at: string
     member_count: number
@@ -208,6 +242,7 @@ type CalendarEventWithCalendarRow = {
         access_mode: CalendarAccessMode
         event_layout: CalendarEventLayout
         event_field_settings: unknown
+        layout_options: unknown
         updated_at: string
         created_at: string
     } | null
@@ -234,6 +269,40 @@ type CalendarInitialDataPayload = {
     events: CalendarEventRecord[] | null
 }
 
+type CalendarSubscriptionCatalogRow = {
+    id: string
+    slug: string
+    name: string
+    description: string
+    source_type: "system_holiday" | "shared_category" | "shared_calendar" | "custom"
+    verified: boolean
+    status: "active" | "source_deleted" | "archived"
+    source_deleted_at: string | null
+    source_deleted_reason: string | null
+    provider_name: string | null
+    source_calendar_id: string | null
+    source_calendar_name: string | null
+    category_color: string | null
+    config: Record<string, unknown> | null
+    installed: boolean
+    is_visible: boolean
+}
+
+function normalizeCalendarSubscriptionSourceType(
+    sourceType: CalendarSubscriptionCatalogRow["source_type"]
+): CalendarSubscriptionCatalog["sourceType"] {
+    if (sourceType === "shared_calendar") {
+        return "custom"
+    }
+
+    return sourceType
+}
+
+type CalendarSubscriptionFavoriteRow = {
+    event_id: string
+    created_at: string
+}
+
 function normalizeCalendarMembership(
     membership: CalendarMembership | null | undefined
 ): CalendarMembership {
@@ -256,6 +325,7 @@ function normalizeCalendarSummary(
         eventFieldSettings: normalizeCalendarEventFieldSettings(
             calendar.eventFieldSettings
         ),
+        layoutOptions: normalizeCalendarLayoutOptions(calendar.layoutOptions),
     }
 }
 
@@ -265,6 +335,7 @@ function normalizeMyCalendarItem(calendar: MyCalendarItem): MyCalendarItem {
         eventFieldSettings: normalizeCalendarEventFieldSettings(
             calendar.eventFieldSettings
         ),
+        layoutOptions: normalizeCalendarLayoutOptions(calendar.layoutOptions),
     }
 }
 
@@ -313,6 +384,7 @@ export async function getAllCalendars(
         eventFieldSettings: normalizeCalendarEventFieldSettings(
             calendar.event_field_settings
         ),
+        layoutOptions: normalizeCalendarLayoutOptions(calendar.layout_options),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
         memberCount: calendar.member_count,
@@ -330,7 +402,7 @@ export async function getMyCalendars(
     const { data, error } = await supabase
         .from("calendars")
         .select(
-            "id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at, calendar_members!inner(role, status)"
+            "id, name, avatar_url, access_mode, event_layout, event_field_settings, layout_options, updated_at, created_at, calendar_members!inner(role, status)"
         )
         .eq("calendar_members.user_id", userId)
         .eq("calendar_members.status", "active")
@@ -352,6 +424,7 @@ export async function getMyCalendars(
         eventFieldSettings: normalizeCalendarEventFieldSettings(
             calendar.event_field_settings
         ),
+        layoutOptions: normalizeCalendarLayoutOptions(calendar.layout_options),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
     }))
@@ -386,7 +459,7 @@ export async function getCalendarById(
     const { data, error } = await supabase
         .from("calendars")
         .select(
-            "id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at"
+            "id, name, avatar_url, access_mode, event_layout, event_field_settings, layout_options, updated_at, created_at"
         )
         .eq("id", calendarId)
         .maybeSingle()
@@ -411,6 +484,7 @@ export async function getCalendarById(
         eventFieldSettings: normalizeCalendarEventFieldSettings(
             calendar.event_field_settings
         ),
+        layoutOptions: normalizeCalendarLayoutOptions(calendar.layout_options),
         updatedAt: calendar.updated_at,
         createdAt: calendar.created_at,
     }
@@ -420,9 +494,14 @@ export async function getCalendarInitialData(
     supabase: SupabaseClient,
     calendarId: string
 ): Promise<CalendarInitialData> {
-    const { data, error } = await supabase.rpc("get_calendar_initial_data", {
-        target_calendar_id: calendarId,
-    })
+    const [{ data, error }, subscriptionCatalogs, subscriptionFavorites] =
+        await Promise.all([
+        supabase.rpc("get_calendar_initial_data", {
+            target_calendar_id: calendarId,
+        }),
+        getCalendarSubscriptionCatalog(supabase, calendarId),
+        getCalendarSubscriptionFavorites(supabase, calendarId),
+    ])
 
     if (error || !data) {
         console.error("Failed to load calendar initial data:", error)
@@ -436,6 +515,12 @@ export async function getCalendarInitialData(
             myCalendars: [],
             eventCategories: [],
             events: [],
+            subscriptionCatalogs: [],
+            subscriptionState: {
+                installedSubscriptionIds: [],
+                hiddenSubscriptionIds: [],
+            },
+            subscriptionFavoriteEventIds: [],
         }
     }
 
@@ -454,7 +539,95 @@ export async function getCalendarInitialData(
                 calendarId
             )
         ),
+        subscriptionCatalogs: subscriptionCatalogs.map((subscription) => ({
+            id: subscription.id,
+            slug: subscription.slug,
+            name: subscription.name,
+            description: subscription.description,
+            authority: subscription.verified ? "system" : "user",
+            ownerName:
+                subscription.providerName ??
+                (subscription.verified ? "캘린버" : "공유 사용자"),
+            providerName: subscription.providerName,
+            verified: subscription.verified,
+            tags: [],
+            categoryColor: subscription.categoryColor ?? undefined,
+            sourceType: subscription.sourceType,
+            sourceCalendarId: subscription.sourceCalendarId,
+            sourceCalendarName: subscription.sourceCalendarName,
+            status: subscription.status,
+            sourceDeletedAt: subscription.sourceDeletedAt,
+            sourceDeletedReason: subscription.sourceDeletedReason,
+            config: subscription.config,
+        })),
+        subscriptionState: {
+            installedSubscriptionIds: subscriptionCatalogs
+                .filter((subscription) => subscription.installed)
+                .map((subscription) => subscription.id),
+            hiddenSubscriptionIds: subscriptionCatalogs
+                .filter(
+                    (subscription) =>
+                        subscription.installed && !subscription.isVisible
+                )
+                .map((subscription) => subscription.id),
+        },
+        subscriptionFavoriteEventIds: subscriptionFavorites,
     }
+}
+
+export async function getCalendarSubscriptionFavorites(
+    supabase: SupabaseClient,
+    calendarId: string
+) {
+    const { data, error } = await supabase
+        .from("subscription_event_favorites")
+        .select("event_id, created_at")
+        .eq("calendar_id", calendarId)
+
+    if (error || !data) {
+        console.error("Failed to load subscription favorites:", error)
+        return [] as Array<{ eventId: string; favoritedAt: number }>
+    }
+
+    return (data as CalendarSubscriptionFavoriteRow[]).map((row) => ({
+        eventId: row.event_id,
+        favoritedAt: new Date(row.created_at).valueOf(),
+    }))
+}
+
+export async function getCalendarSubscriptionCatalog(
+    supabase: SupabaseClient,
+    calendarId: string,
+    searchQuery?: string
+): Promise<CalendarSubscriptionCatalog[]> {
+    const { data, error } = await supabase.rpc("get_calendar_subscription_catalog", {
+        target_calendar_id: calendarId,
+        search_query: searchQuery ?? null,
+    })
+
+    if (error || !data) {
+        console.error("Failed to load calendar subscription catalog:", error)
+        return []
+    }
+
+    return (data as CalendarSubscriptionCatalogRow[]).map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        description: row.description,
+        sourceType: normalizeCalendarSubscriptionSourceType(row.source_type),
+        providerName: row.provider_name,
+        sourceCalendarId: row.source_calendar_id,
+        sourceCalendarName: row.source_calendar_name,
+        verified: row.verified,
+        status: row.status,
+        sourceDeletedAt: row.source_deleted_at,
+        sourceDeletedReason: row.source_deleted_reason,
+        categoryColor: normalizeCalendarCategoryColor(row.category_color),
+        config: (row.config ?? {}) as Record<string, unknown>,
+        installed: row.installed,
+        isVisible: row.is_visible,
+    }))
 }
 
 export async function getCalendarMembership(
@@ -631,6 +804,10 @@ export async function getEventById(
         silentMissing?: boolean
     }
 ) {
+    if (!isCalendarEventUuid(eventId)) {
+        return null
+    }
+
     const { data, error } = await supabase.rpc("get_calendar_event_by_id", {
         target_event_id: eventId,
     })
@@ -674,7 +851,7 @@ export async function getEventMetadataByCalendarId(
     const { data, error } = await supabase
         .from("events")
         .select(
-            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, event_field_settings, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
+            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, event_field_settings, layout_options, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
         )
         .eq("id", eventId)
         .eq("calendar_id", calendarId)
@@ -723,6 +900,9 @@ export async function getEventMetadataByCalendarId(
                   eventLayout: calendarRow.event_layout,
                   eventFieldSettings: normalizeCalendarEventFieldSettings(
                       calendarRow.event_field_settings
+                  ),
+                  layoutOptions: normalizeCalendarLayoutOptions(
+                      calendarRow.layout_options
                   ),
                   updatedAt: calendarRow.updated_at,
                   createdAt: calendarRow.created_at,

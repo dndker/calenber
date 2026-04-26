@@ -1,3 +1,4 @@
+import { normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
@@ -23,7 +24,21 @@ export const WeekRow = memo(
         currentMonthKey: string
     }) => {
         const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
-        const week = getWeek(weekDate, calendarTimezone)
+        const weekStartsOn = useCalendarStore((s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .weekStartsOn
+        )
+        const hideWeekendColumns = useCalendarStore((s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .hideWeekendColumns
+        )
+        const week = getWeek(weekDate, calendarTimezone, weekStartsOn)
+        const visibleWeek = hideWeekendColumns
+            ? week.filter((day) => {
+                  const weekday = day.getDay()
+                  return weekday !== 0 && weekday !== 6
+              })
+            : week
 
         return (
             <div
@@ -39,11 +54,15 @@ export const WeekRow = memo(
                           }
                         : {}
                 }
-                className={clsx("relative grid snap-start grid-cols-7 gap-px", {
+                className={clsx(
+                    "relative grid snap-start gap-px",
+                    hideWeekendColumns ? "grid-cols-5" : "grid-cols-7",
+                    {
                     "h-1/5": skeleton,
-                })}
+                    }
+                )}
             >
-                {week.map((day) => (
+                {visibleWeek.map((day) => (
                     <DayCell
                         key={day.toISOString()}
                         day={day}
@@ -56,7 +75,7 @@ export const WeekRow = memo(
 
                 <EventRow
                     events={events}
-                    week={week}
+                    week={visibleWeek}
                     size={size}
                     assumeWeekScoped
                 />

@@ -2,6 +2,7 @@ import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
 import { useDeleteEvent } from "@/hooks/use-delete-event"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
 import {
     formatCalendarEventRecurrenceOrDateLabel,
@@ -10,6 +11,7 @@ import {
 import { orderCalendarEventFieldIds } from "@/lib/calendar/event-field-settings"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
+import { getKoreanPublicHolidaySubscriptionEventById } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
 import dayjs from "@/lib/dayjs"
 import {
     type CalendarEvent,
@@ -121,10 +123,32 @@ const hoverCardFieldIds: HoverCardPropertyItem["id"][] = [
 export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
     const events = useCalendarStore((s) => s.events)
     const favoriteEventMap = useCalendarStore((s) => s.favoriteEventMap)
+    const allEvents = useMemo(() => {
+        const map = new Map<string, CalendarEvent>()
+
+        for (const event of events) {
+            map.set(event.id, event)
+        }
+
+        for (const favoriteId of Object.keys(favoriteEventMap)) {
+            if (map.has(favoriteId)) {
+                continue
+            }
+
+            const koreanHolidayEvent =
+                getKoreanPublicHolidaySubscriptionEventById(favoriteId)
+
+            if (koreanHolidayEvent) {
+                map.set(koreanHolidayEvent.id, koreanHolidayEvent)
+            }
+        }
+
+        return Array.from(map.values())
+    }, [events, favoriteEventMap])
 
     const favoriteEvents = useMemo(
         () =>
-            [...events]
+            [...allEvents]
                 .filter((event) => event.id in favoriteEventMap)
                 .map((event) => ({
                     ...event,
@@ -146,7 +170,7 @@ export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
 
                     return a.createdAt - b.createdAt
                 }),
-        [events, favoriteEventMap]
+        [allEvents, favoriteEventMap]
     )
 
     const isFav = favoriteEvents.length > 0
@@ -241,6 +265,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
     )
     const categoryName = event.category?.name?.trim() || null
     const categoryColor = event.category?.options.color || null
+    const isSubscriptionEvent = isGeneratedSubscriptionEventId(event.id)
     const handleMoveToEventDate = useCallback(() => {
         setSelectedDate(navigationDate)
         setViewportDate(navigationDate)
@@ -457,15 +482,17 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <span>일정 공유</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => {
-                            void deleteEvent(event.id)
-                        }}
-                    >
-                        <Trash2Icon className="text-muted-foreground" />
-                        <span>일정 삭제</span>
-                    </DropdownMenuItem>
+                    {!isSubscriptionEvent ? (
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => {
+                                void deleteEvent(event.id)
+                            }}
+                        >
+                            <Trash2Icon className="text-muted-foreground" />
+                            <span>일정 삭제</span>
+                        </DropdownMenuItem>
+                    ) : null}
                 </DropdownMenuContent>
             </DropdownMenu>
         </SidebarMenuItem>

@@ -73,9 +73,15 @@ function Button({
     const canRenderEffect =
         !asChild && !loading && !disabled && effect && !prefersReducedMotion
     const [effectKey, setEffectKey] = React.useState(0)
+    const [hasTriggeredEffect, setHasTriggeredEffect] = React.useState(false)
+    const previousEffectActiveRef = React.useRef(effectActive)
 
     React.useEffect(() => {
-        if (canRenderEffect && effectActive) {
+        const didTurnOn = !previousEffectActiveRef.current && effectActive
+        previousEffectActiveRef.current = effectActive
+
+        if (canRenderEffect && didTurnOn) {
+            setHasTriggeredEffect(true)
             setEffectKey((prev) => prev + 1)
         }
     }, [canRenderEffect, effectActive])
@@ -101,7 +107,7 @@ function Button({
             {...props}
         >
             <AnimatePresence>
-                {canRenderEffect && effectActive && (
+                {canRenderEffect && effectActive && hasTriggeredEffect && (
                     <motion.span
                         key={effectKey}
                         aria-hidden="true"
@@ -186,7 +192,11 @@ function Button({
                             },
                         },
                     }}
-                    animate={canRenderEffect && effectActive ? "beat" : "idle"}
+                    animate={
+                        canRenderEffect && effectActive && hasTriggeredEffect
+                            ? "beat"
+                            : "idle"
+                    }
                 >
                     {children}
                 </motion.span>

@@ -60,7 +60,7 @@ export const EventRow = memo(function EventRow({
 
     const weekEndExclusive = useMemo(
         () =>
-            dayjs(week[6]!)
+            dayjs(week[week.length - 1]!)
                 .tz(calendarTz)
                 .startOf("day")
                 .add(1, "day")
@@ -272,9 +272,10 @@ export const EventRow = memo(function EventRow({
             : 1
 
     const { visibleSegments, overflowByDay } = useMemo(() => {
+        const dayCount = Math.max(1, week.length)
         const nextVisible: PositionedSegment[] = []
         const nextOverflowByDay = Array.from(
-            { length: 7 },
+            { length: dayCount },
             () => [] as PositionedSegment[]
         )
 
@@ -289,7 +290,9 @@ export const EventRow = memo(function EventRow({
                 dayIndex <= segment.endIndex;
                 dayIndex += 1
             ) {
-                nextOverflowByDay[dayIndex]?.push(segment)
+                if (dayIndex >= 0 && dayIndex < dayCount) {
+                    nextOverflowByDay[dayIndex]?.push(segment)
+                }
             }
         })
 
@@ -297,7 +300,7 @@ export const EventRow = memo(function EventRow({
             visibleSegments: nextVisible,
             overflowByDay: nextOverflowByDay,
         }
-    }, [segments, visibleLaneLimit])
+    }, [segments, visibleLaneLimit, week.length])
 
     return (
         <div className={memoEventRowClass()}>
@@ -318,6 +321,7 @@ export const EventRow = memo(function EventRow({
                         top={lane}
                         startIndex={startIndex}
                         endIndex={endIndex}
+                        columnCount={week.length}
                         continuesFromPrevWeek={continuesFromPrevWeek}
                         continuesToNextWeek={continuesToNextWeek}
                         dragOffsetStart={dragOffsetStart}
@@ -336,6 +340,7 @@ export const EventRow = memo(function EventRow({
                     <OverflowButton
                         key={`overflow-${dayIndex}`}
                         dayIndex={dayIndex}
+                        dayCount={week.length}
                         hiddenSegments={hiddenSegments}
                         eventLayout={eventLayout}
                         topIndex={visibleLaneLimit}
@@ -353,19 +358,21 @@ function memoEventRowClass() {
 
 const OverflowButton = memo(function OverflowButton({
     dayIndex,
+    dayCount,
     hiddenSegments,
     eventLayout,
     topIndex,
     splitDisplayLaneCount,
 }: {
     dayIndex: number
+    dayCount: number
     hiddenSegments: PositionedSegment[]
     eventLayout: CalendarEventLayout
     topIndex: number
     splitDisplayLaneCount: number
 }) {
     const [open, setOpen] = useState(false)
-    const pos = getOverflowPosition(dayIndex)
+    const pos = getOverflowPosition(dayIndex, dayCount)
     const handleDragStateChange = useCallback((isDragging: boolean) => {
         if (!isDragging) {
             return
@@ -432,6 +439,7 @@ const OverflowButton = memo(function OverflowButton({
                                             top={0}
                                             startIndex={startIndex}
                                             endIndex={endIndex}
+                                            columnCount={dayCount}
                                             continuesFromPrevWeek={
                                                 continuesFromPrevWeek
                                             }
@@ -457,6 +465,6 @@ const OverflowButton = memo(function OverflowButton({
     )
 })
 
-function getOverflowPosition(dayIndex: number) {
-    return getEventPosition(dayIndex, dayIndex)
+function getOverflowPosition(dayIndex: number, dayCount: number) {
+    return getEventPosition(dayIndex, dayIndex, dayCount)
 }

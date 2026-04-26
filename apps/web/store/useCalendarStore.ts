@@ -1,12 +1,15 @@
 "use client"
 
 import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
+import { normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
 import {
     createCalendarEvent,
     deleteCalendarEvent,
     setCalendarEventFavorite,
+    setCalendarSubscriptionEventFavorite,
     updateCalendarEvent as updateCalendarEventQuery,
 } from "@/lib/calendar/mutations"
+import { isCalendarEventUuid } from "@/lib/calendar/event-id"
 import {
     canCreateCalendarEvents,
     canDeleteCalendarEvent,
@@ -40,6 +43,11 @@ const defaultExcludedStatuses: CalendarEventFilterState["excludedStatuses"] = [
     "completed",
     "cancelled",
 ]
+
+const defaultSubscriptionState: CalendarStoreState["subscriptionState"] = {
+    installedSubscriptionIds: [],
+    hiddenSubscriptionIds: [],
+}
 
 function buildFavoriteEventMap(events: CalendarEvent[]) {
     return Object.fromEntries(
@@ -149,6 +157,15 @@ async function persistEventFavorite(
     }
 
     const supabase = createBrowserSupabase()
+
+    if (!isCalendarEventUuid(eventId)) {
+        return setCalendarSubscriptionEventFavorite(supabase, {
+            calendarId,
+            eventId,
+            userId,
+            isFavorite,
+        })
+    }
 
     return setCalendarEventFavorite(supabase, {
         eventId,
@@ -385,6 +402,8 @@ export const useCalendarStore = createSSRStore<
         excludedStatuses: defaultExcludedStatuses,
         excludedCategoryIds: [],
     },
+    subscriptionCatalogs: [],
+    subscriptionState: defaultSubscriptionState,
     hoveredSeriesEventId: null,
 
     setMyCalendars: (myCalendars) =>
@@ -393,6 +412,9 @@ export const useCalendarStore = createSSRStore<
                 ...calendar,
                 eventFieldSettings: normalizeCalendarEventFieldSettings(
                     calendar.eventFieldSettings
+                ),
+                layoutOptions: normalizeCalendarLayoutOptions(
+                    calendar.layoutOptions
                 ),
             })),
         }),
@@ -403,6 +425,9 @@ export const useCalendarStore = createSSRStore<
                       ...activeCalendar,
                       eventFieldSettings: normalizeCalendarEventFieldSettings(
                           activeCalendar.eventFieldSettings
+                      ),
+                      layoutOptions: normalizeCalendarLayoutOptions(
+                          activeCalendar.layoutOptions
                       ),
                   }
                 : null,
@@ -465,31 +490,72 @@ export const useCalendarStore = createSSRStore<
                 excludedStatuses: defaultExcludedStatuses,
                 excludedCategoryIds: [],
             },
+            subscriptionCatalogs: [],
+            subscriptionState: defaultSubscriptionState,
             hoveredSeriesEventId: null,
         }),
     updateCalendarSnapshot: (calendarId, patch) =>
         set((s) => {
             const normalizedPatch =
-                patch.eventFieldSettings !== undefined
-                    ? {
-                          ...patch,
-                          eventFieldSettings:
-                              normalizeCalendarEventFieldSettings(
-                                  patch.eventFieldSettings
+                {
+                    ...patch,
+                    ...(patch.eventFieldSettings !== undefined
+                        ? {
+                              eventFieldSettings:
+                                  normalizeCalendarEventFieldSettings(
+                                      patch.eventFieldSettings
+                                  ),
+                          }
+                        : {}),
+                    ...(patch.layoutOptions !== undefined
+                        ? {
+                              layoutOptions: normalizeCalendarLayoutOptions(
+                                  patch.layoutOptions
                               ),
-                      }
-                    : patch
+                          }
+                        : {}),
+                }
+            const myCalendarIndex = s.myCalendars.findIndex(
+                (calendar) => calendar.id === calendarId
+            )
+            const targetMyCalendar =
+                myCalendarIndex >= 0 ? s.myCalendars[myCalendarIndex] : null
+            const targetActiveCalendar =
+                s.activeCalendar?.id === calendarId ? s.activeCalendar : null
+
+            const isPatchSameOn = (
+                target: Partial<MyCalendarItem> | null | undefined
+            ) => {
+                if (!target) {
+                    return false
+                }
+
+                return Object.entries(normalizedPatch).every(([key, value]) =>
+                    Object.is(target[key as keyof typeof target], value)
+                )
+            }
+
+            const shouldUpdateMyCalendar =
+                targetMyCalendar !== null && !isPatchSameOn(targetMyCalendar)
+            const shouldUpdateActiveCalendar =
+                targetActiveCalendar !== null &&
+                !isPatchSameOn(targetActiveCalendar)
+
+            if (!shouldUpdateMyCalendar && !shouldUpdateActiveCalendar) {
+                return s
+            }
 
             return {
-                myCalendars: s.myCalendars.map((calendar) =>
-                    calendar.id === calendarId
-                        ? { ...calendar, ...normalizedPatch }
-                        : calendar
-                ),
-                activeCalendar:
-                    s.activeCalendar?.id === calendarId
-                        ? { ...s.activeCalendar, ...normalizedPatch }
-                        : s.activeCalendar,
+                myCalendars: shouldUpdateMyCalendar
+                    ? s.myCalendars.map((calendar) =>
+                          calendar.id === calendarId
+                              ? { ...calendar, ...normalizedPatch }
+                              : calendar
+                      )
+                    : s.myCalendars,
+                activeCalendar: shouldUpdateActiveCalendar
+                    ? { ...s.activeCalendar!, ...normalizedPatch }
+                    : s.activeCalendar,
             }
         }),
 
@@ -540,6 +606,86 @@ export const useCalendarStore = createSSRStore<
                 ),
             },
         })),
+    setSubscriptionCatalogs: (subscriptionCatalogs) =>
+        set({
+            subscriptionCatalogs,
+        }),
+    setSubscriptionState: (subscriptionState) => set({ subscriptionState }),
+    installSubscription: (subscriptionId) =>
+        set((state) => {
+            if (
+                state.subscriptionState.installedSubscriptionIds.includes(
+                    subscriptionId
+                )
+            ) {
+                return state
+            }
+
+            return {
+                subscriptionState: {
+                    installedSubscriptionIds: [
+                        ...state.subscriptionState.installedSubscriptionIds,
+                        subscriptionId,
+                    ],
+                    hiddenSubscriptionIds:
+                        state.subscriptionState.hiddenSubscriptionIds.filter(
+                            (id) => id !== subscriptionId
+                        ),
+                },
+            }
+        }),
+    uninstallSubscription: (subscriptionId) =>
+        set((state) => {
+            if (
+                !state.subscriptionState.installedSubscriptionIds.includes(
+                    subscriptionId
+                )
+            ) {
+                return state
+            }
+
+            return {
+                subscriptionState: {
+                    installedSubscriptionIds:
+                        state.subscriptionState.installedSubscriptionIds.filter(
+                            (id) => id !== subscriptionId
+                        ),
+                    hiddenSubscriptionIds:
+                        state.subscriptionState.hiddenSubscriptionIds.filter(
+                            (id) => id !== subscriptionId
+                        ),
+                },
+            }
+        }),
+    toggleSubscriptionVisibility: (subscriptionId) =>
+        set((state) => {
+            if (
+                !state.subscriptionState.installedSubscriptionIds.includes(
+                    subscriptionId
+                )
+            ) {
+                return state
+            }
+
+            const hiddenSubscriptionIds =
+                state.subscriptionState.hiddenSubscriptionIds.includes(
+                    subscriptionId
+                )
+                    ? state.subscriptionState.hiddenSubscriptionIds.filter(
+                          (id) => id !== subscriptionId
+                      )
+                    : [
+                          ...state.subscriptionState.hiddenSubscriptionIds,
+                          subscriptionId,
+                      ]
+
+            return {
+                subscriptionState: {
+                    ...state.subscriptionState,
+                    hiddenSubscriptionIds,
+                },
+            }
+        }),
     resetEventFilters: () =>
         set((state) => {
             if (
@@ -799,7 +945,9 @@ export const useCalendarStore = createSSRStore<
         }),
     toggleEventFavorite: async (id, nextValue) => {
         const state = get()
-        const event = state.events.find((item) => item.id === id)
+        const event =
+            state.events.find((item) => item.id === id) ??
+            (state.viewEvent?.id === id ? state.viewEvent : null)
         const currentUser = useAuthStore.getState().user
         const currentUserId = currentUser?.id ?? null
 

@@ -8,6 +8,7 @@ import {
     demoCalendarSummary,
     getCalendarOgImageData,
 } from "@/lib/calendar/share-metadata"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 import { createServerSupabase } from "@/lib/supabase/server"
 
 export const size = ogImageSize
@@ -18,7 +19,8 @@ export default async function OpenGraphImage({
 }: {
     params: Promise<{ calendarId: string }>
 }) {
-    const { calendarId } = await params
+    const { calendarId: rawCalendarId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const supabase = await createServerSupabase()
     const calendar =
         calendarId === "demo"

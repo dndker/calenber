@@ -88,18 +88,79 @@ function decodeTextPayload(bytes: Uint8Array) {
     return new TextDecoder().decode(bytes)
 }
 
-function createCompactEventToken(eventId: string, modal: boolean) {
-    if (isUuid(eventId)) {
-        const suffix = modal ? "~" : ""
-        return `${encodeBase64Url(uuidToBytes(eventId))}${suffix}`
+const TOKEN_MAGIC = 0x8f
+const TOKEN_VERSION = 1
+const FLAG_MODAL = 1 << 0
+const FLAG_HAS_CALENDAR = 1 << 1
+const FLAG_EVENT_UUID = 1 << 2
+const FLAG_CALENDAR_UUID = 1 << 3
+
+function pushTextPayload(target: number[], value: string) {
+    const bytes = encodeTextPayload(value)
+
+    if (bytes.length > 0xffff) {
+        throw new Error("Token payload too large")
     }
 
-    const payload = JSON.stringify({
-        e: eventId,
-        m: modal ? 1 : 0,
-    })
+    target.push((bytes.length >> 8) & 0xff, bytes.length & 0xff, ...bytes)
+}
 
-    return `j.${encodeBase64Url(encodeTextPayload(payload))}`
+function readTextPayload(bytes: Uint8Array, cursor: number) {
+    const high = bytes[cursor]
+    const low = bytes[cursor + 1]
+
+    if (high === undefined || low === undefined) {
+        return null
+    }
+
+    const length = (high << 8) | low
+    const start = cursor + 2
+    const end = start + length
+
+    if (end > bytes.length) {
+        return null
+    }
+
+    return {
+        value: decodeTextPayload(bytes.slice(start, end)),
+        next: end,
+    }
+}
+
+function pushIdPayload(target: number[], value: string, asUuid: boolean) {
+    if (asUuid) {
+        target.push(...uuidToBytes(value))
+        return
+    }
+
+    pushTextPayload(target, value)
+}
+
+function readIdPayload(bytes: Uint8Array, cursor: number, asUuid: boolean) {
+    if (asUuid) {
+        const end = cursor + 16
+
+        if (end > bytes.length) {
+            return null
+        }
+
+        return {
+            value: bytesToUuid(bytes, cursor),
+            next: end,
+        }
+    }
+
+    return readTextPayload(bytes, cursor)
+}
+
+function createCompactEventToken(eventId: string, modal: boolean) {
+    const eventIsUuid = isUuid(eventId)
+    const flags = (modal ? FLAG_MODAL : 0) | (eventIsUuid ? FLAG_EVENT_UUID : 0)
+    const body: number[] = [TOKEN_MAGIC, TOKEN_VERSION, flags]
+
+    pushIdPayload(body, eventId, eventIsUuid)
+
+    return encodeBase64Url(Uint8Array.from(body))
 }
 
 export function createShortCalendarEventToken({
@@ -111,39 +172,82 @@ export function createShortCalendarEventToken({
     eventId: string
     modal?: boolean
 }) {
-    if (calendarId !== "demo") {
-        return createCompactEventToken(eventId, modal)
-    }
+    const normalizedCalendarId = calendarId.trim()
+    const eventIsUuid = isUuid(eventId)
+    const calendarIsUuid =
+        normalizedCalendarId !== "demo" && isUuid(normalizedCalendarId)
+    const flags =
+        (modal ? FLAG_MODAL : 0) |
+        FLAG_HAS_CALENDAR |
+        (eventIsUuid ? FLAG_EVENT_UUID : 0) |
+        (calendarIsUuid ? FLAG_CALENDAR_UUID : 0)
+    const body: number[] = [TOKEN_MAGIC, TOKEN_VERSION, flags]
 
-    const payload = JSON.stringify({
-        c: calendarId,
-        e: eventId,
-        m: modal ? 1 : 0,
-    })
+    pushIdPayload(body, normalizedCalendarId, calendarIsUuid)
+    pushIdPayload(body, eventId, eventIsUuid)
 
-    return `j.${encodeBase64Url(encodeTextPayload(payload))}`
+    return encodeBase64Url(Uint8Array.from(body))
 }
 
 export function parseShortCalendarEventToken(token: string) {
+    // 레거시 호환: 과거 16-byte UUID 전용 토큰
     if (!token.includes(".")) {
         try {
             const modal = token.endsWith("~")
             const value = modal ? token.slice(0, -1) : token
             const bytes = decodeBase64Url(value)
 
-            if (bytes.length !== 16) {
+            if (bytes.length === 16) {
+                return {
+                    eventId: bytesToUuid(bytes, 0),
+                    modal,
+                }
+            }
+        } catch {
+            // no-op
+        }
+    }
+
+    try {
+        const bytes = decodeBase64Url(token)
+
+        if (bytes.length >= 3 && bytes[0] === TOKEN_MAGIC && bytes[1] === TOKEN_VERSION) {
+            const flags = bytes[2] ?? 0
+            const modal = (flags & FLAG_MODAL) !== 0
+            const hasCalendar = (flags & FLAG_HAS_CALENDAR) !== 0
+            const eventIsUuid = (flags & FLAG_EVENT_UUID) !== 0
+            const calendarIsUuid = (flags & FLAG_CALENDAR_UUID) !== 0
+            let cursor = 3
+            let calendarId: string | undefined
+
+            if (hasCalendar) {
+                const parsedCalendar = readIdPayload(bytes, cursor, calendarIsUuid)
+
+                if (!parsedCalendar) {
+                    return null
+                }
+
+                calendarId = parsedCalendar.value
+                cursor = parsedCalendar.next
+            }
+
+            const parsedEvent = readIdPayload(bytes, cursor, eventIsUuid)
+
+            if (!parsedEvent || parsedEvent.next !== bytes.length) {
                 return null
             }
 
             return {
-                eventId: bytesToUuid(bytes, 0),
+                eventId: parsedEvent.value,
                 modal,
+                ...(calendarId ? { calendarId } : {}),
             }
-        } catch {
-            return null
         }
+    } catch {
+        // no-op
     }
 
+    // 레거시 호환: JSON(j.) 기반 토큰
     const [version, payload] = token.split(".", 2)
 
     if (!version || !payload) {
@@ -151,24 +255,8 @@ export function parseShortCalendarEventToken(token: string) {
     }
 
     try {
-        if (version === "u") {
-            const bytes = decodeBase64Url(payload)
-
-            if (bytes.length !== 33) {
-                return null
-            }
-
-            return {
-                eventId: bytesToUuid(bytes, 17),
-                modal: bytes[0] === 1,
-                calendarId: bytesToUuid(bytes, 1),
-            }
-        }
-
         if (version === "j") {
-            const parsed = JSON.parse(
-                decodeTextPayload(decodeBase64Url(payload))
-            )
+            const parsed = JSON.parse(decodeTextPayload(decodeBase64Url(payload)))
 
             if (!parsed || typeof parsed.e !== "string") {
                 return null
@@ -177,9 +265,7 @@ export function parseShortCalendarEventToken(token: string) {
             return {
                 eventId: parsed.e,
                 modal: parsed.m === 1,
-                ...(typeof parsed.c === "string"
-                    ? { calendarId: parsed.c }
-                    : {}),
+                ...(typeof parsed.c === "string" ? { calendarId: parsed.c } : {}),
             }
         }
     } catch {

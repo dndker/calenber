@@ -6,6 +6,10 @@ import dayjs from "@/lib/dayjs"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import {
+    getCalendarWeekStartIndex,
+    normalizeCalendarLayoutOptions,
+} from "@/lib/calendar/layout-options"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar, CalendarPickerMode } from "@workspace/ui/components/calendar"
 import {
@@ -23,6 +27,9 @@ export const DatePicker = memo(function DatePicker() {
     const user = useAuthStore((s) => s.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
+    const layoutOptions = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+    )
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
@@ -209,8 +216,11 @@ export const DatePicker = memo(function DatePicker() {
                     selectedDate={selected}
                     viewportDate={viewportMiniDate}
                     onSelect={handleSelect}
+                    weekStartsOn={getCalendarWeekStartIndex(
+                        layoutOptions.weekStartsOn
+                    )}
                     // captionLayout="dropdown"
-                    className="bg-transparent py-1! [--cell-size:2.1rem]"
+                    className="w-full bg-transparent py-1!"
                 />
 
                 <div className="flex flex-col gap-1 px-2">

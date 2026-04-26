@@ -4,6 +4,7 @@ import {
     getDefaultNewEventTimedSchedule,
     getTimedScheduleRangeAfterAllDayOff,
 } from "@/lib/calendar/default-timed-schedule"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     normalizeCategoryName,
     normalizeNames,
@@ -416,6 +417,21 @@ function formatExceptionDateTagLabel(
     return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
 }
 
+function getSubscriptionSourceTypeLabel(
+    sourceType?: "system_holiday" | "shared_category" | "custom"
+) {
+    switch (sourceType) {
+        case "system_holiday":
+            return "시스템 공휴일"
+        case "shared_category":
+            return "공유 카테고리"
+        case "custom":
+            return "커스텀"
+        default:
+            return null
+    }
+}
+
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
     const normalizedStart = dayjs(start).tz(timezone).startOf("day")
     const normalizedEnd = dayjs(end).tz(timezone).endOf("day")
@@ -702,8 +718,35 @@ export function EventForm({
         name: "exceptions",
     })
 
-    const getDraftCategoryColor =
-        useEventFormDraftCategoryColor(eventCategories)
+    const getDraftCategoryColorBase = useEventFormDraftCategoryColor(
+        eventCategories,
+        event?.categories.map((category) => ({
+            name: category.name,
+            color: category.options.color,
+        }))
+    )
+    const eventCategoryColorMap = useMemo(() => {
+        const map = new Map<string, NonNullable<CalendarEvent["category"]>["options"]["color"]>()
+
+        for (const category of event?.categories ?? []) {
+            map.set(normalizeCategoryName(category.name), category.options.color)
+        }
+
+        return map
+    }, [event?.categories])
+    const getDraftCategoryColor = useCallback(
+        (name: string) => {
+            const matchedEventColor = eventCategoryColorMap.get(
+                normalizeCategoryName(name)
+            )
+
+            return matchedEventColor ?? getDraftCategoryColorBase(name)
+        },
+        [eventCategoryColorMap, getDraftCategoryColorBase]
+    )
+    const isSystemSubscriptionEventForm = Boolean(
+        event?.id && isGeneratedSubscriptionEventId(event.id)
+    )
     const memberDirectory =
         !activeCalendar?.id ||
         activeCalendar.id === "demo" ||
@@ -1621,20 +1664,31 @@ export function EventForm({
                 ),
         [eventFieldSettings]
     )
-    const displayOrderedFields = useMemo(() => {
-        if ((watchedExceptions ?? []).length > 0) {
+    const visiblePropertyFields = useMemo(() => {
+        if (!isSystemSubscriptionEventForm) {
             return orderedFields
         }
 
-        return orderedFields.filter((field) => field.id !== "exceptions")
-    }, [orderedFields, watchedExceptions])
+        const systemSubscriptionVisibleFieldIds = new Set(["schedule", "categories"])
+
+        return orderedFields.filter((field) =>
+            systemSubscriptionVisibleFieldIds.has(field.id)
+        )
+    }, [isSystemSubscriptionEventForm, orderedFields])
+    const displayOrderedFields = useMemo(() => {
+        if ((watchedExceptions ?? []).length > 0) {
+            return visiblePropertyFields
+        }
+
+        return visiblePropertyFields.filter((field) => field.id !== "exceptions")
+    }, [visiblePropertyFields, watchedExceptions])
     const hiddenFieldCount = useMemo(
         () =>
-            orderedFields.filter(
+            visiblePropertyFields.filter(
                 (field) =>
                     !isCalendarEventFieldVisible(eventFieldSettings, field.id)
             ).length,
-        [eventFieldSettings, orderedFields]
+        [eventFieldSettings, visiblePropertyFields]
     )
     const resolvedWatchedTimezone =
         watchedTimezone || calendarTimezone || "Asia/Seoul"
@@ -2534,6 +2588,50 @@ export function EventForm({
                         </Field>
                     )}
                 />
+
+                {event?.subscription ? (
+                    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-2">
+                        <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="shrink-0">
+                            구독 일정
+                        </Badge>
+                        <div className="min-w-0 text-sm text-muted-foreground">
+                            <span className="truncate text-foreground">
+                                {event.subscription.name}
+                            </span>
+                            {getSubscriptionSourceTypeLabel(
+                                event.subscription.sourceType
+                            ) ? (
+                                <span className="ml-1">
+                                        ·{" "}
+                                    {
+                                        getSubscriptionSourceTypeLabel(
+                                            event.subscription.sourceType
+                                        )
+                                    }
+                                </span>
+                            ) : null}
+                        </div>
+                    </div>
+                        <div className="text-xs text-muted-foreground">
+                            제공:{" "}
+                            <span className="text-foreground">
+                                {event.subscription.providerName ??
+                                    (event.subscription.authority === "system"
+                                        ? "캘린버"
+                                        : "공유 사용자")}
+                            </span>
+                            {event.subscription.sourceCalendarName ? (
+                                <span className="ml-1">
+                                    · 캘린더:{" "}
+                                    <span className="text-foreground">
+                                        {event.subscription.sourceCalendarName}
+                                    </span>
+                                </span>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
 
                 <Collapsible
                     open={areHiddenFieldsOpen}

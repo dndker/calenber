@@ -1,6 +1,7 @@
 "use client"
 
 import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
@@ -125,8 +126,9 @@ export function EventPage({
     if (!event) return null
 
     const canEdit =
-        activeCalendar?.id === "demo" ||
-        canEditCalendarEvent(event, activeCalendarMembership, user?.id)
+        !isGeneratedSubscriptionEventId(event.id) &&
+        (activeCalendar?.id === "demo" ||
+            canEditCalendarEvent(event, activeCalendarMembership, user?.id))
 
     return (
         <>

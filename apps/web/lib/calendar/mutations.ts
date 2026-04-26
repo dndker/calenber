@@ -760,6 +760,68 @@ export async function setCalendarEventFavorite(
     }
 }
 
+export async function setCalendarSubscriptionEventFavorite(
+    supabase: SupabaseClient,
+    input: {
+        calendarId: string
+        eventId: string
+        userId: string
+        isFavorite: boolean
+    }
+) {
+    if (input.isFavorite) {
+        const { data, error } = await supabase
+            .from("subscription_event_favorites")
+            .upsert(
+                {
+                    calendar_id: input.calendarId,
+                    event_id: input.eventId,
+                    user_id: input.userId,
+                },
+                {
+                    onConflict: "calendar_id,event_id,user_id",
+                }
+            )
+            .select("created_at")
+            .single()
+
+        if (error) {
+            console.error("Failed to favorite subscription event:", error)
+            return {
+                ok: false as const,
+                favoritedAt: null,
+            }
+        }
+
+        return {
+            ok: true as const,
+            favoritedAt: data?.created_at
+                ? new Date(data.created_at).valueOf()
+                : Date.now(),
+        }
+    }
+
+    const { error } = await supabase
+        .from("subscription_event_favorites")
+        .delete()
+        .eq("calendar_id", input.calendarId)
+        .eq("event_id", input.eventId)
+        .eq("user_id", input.userId)
+
+    if (error) {
+        console.error("Failed to unfavorite subscription event:", error)
+        return {
+            ok: false as const,
+            favoritedAt: null,
+        }
+    }
+
+    return {
+        ok: true as const,
+        favoritedAt: null,
+    }
+}
+
 export async function leaveCalendar(
     supabase: SupabaseClient,
     calendarId: string

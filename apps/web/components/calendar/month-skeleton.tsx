@@ -1,15 +1,23 @@
 import dayjs from "@/lib/dayjs"
+import { getCalendarWeekStart, normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey } from "@/utils/calendar"
 import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
+    const weekStartsOn = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    )
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const today = dayjs(selectedDate).tz(calendarTimezone).add(12, "hour")
     const startOfMonth = today.startOf("month")
 
-    const calendarStart = startOfMonth.startOf("week")
+    const calendarStart = getCalendarWeekStart(
+        startOfMonth.toDate(),
+        calendarTimezone,
+        weekStartsOn
+    )
 
     const monthKey = getMonthKey(startOfMonth.toDate(), calendarTimezone)
 

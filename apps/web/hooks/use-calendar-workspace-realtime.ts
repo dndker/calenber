@@ -6,6 +6,7 @@ import {
     type CalendarEventRecord,
 } from "@/lib/calendar/event-record"
 import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
+import { normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
 import {
     CALENDAR_WORKSPACE_REALTIME_EVENTS,
     CALENDAR_WORKSPACE_REALTIME_RECOVERABLE_STATUSES,
@@ -58,7 +59,6 @@ type CalendarCursorSnapshotResponseMessage = {
 }
 
 const ANONYMOUS_PRESENCE_ID_STORAGE_KEY = "calendar-workspace-anonymous-id"
-const IS_DEV = process.env.NODE_ENV === "development"
 const SOCKET_RECONNECT_TIMEOUT_THRESHOLD = 2
 const PROJECT_DB_UNAVAILABLE_ERROR_CODES = [
     "UnableToConnectToProject",
@@ -264,6 +264,7 @@ export function useCalendarWorkspaceRealtime() {
     const setWorkspaceCursor = useCalendarStore(
         (state) => state.setWorkspaceCursor
     )
+    const setEventLayout = useCalendarStore((state) => state.setEventLayout)
     const workspaceCursor = useCalendarStore((state) => state.workspaceCursor)
     const activeEventId = useCalendarStore((state) => state.activeEventId)
     const selectedDate = useCalendarStore((state) => state.selectedDate)
@@ -277,7 +278,6 @@ export function useCalendarWorkspaceRealtime() {
     const isAuthLoading = useAuthStore((state) => state.isLoading)
     const channelRef = useRef<RealtimeChannel | null>(null)
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const subscribeAttemptRef = useRef(0)
     const reconnectAttemptRef = useRef(0)
     const timeoutCountRef = useRef(0)
@@ -393,19 +393,8 @@ export function useCalendarWorkspaceRealtime() {
         await channel.track(nextPresencePayload)
     }, [getCurrentCursor])
 
-    const clearLoadingTimeout = useCallback(() => {
-        if (!loadingTimeoutRef.current) {
-            return
-        }
-
-        clearTimeout(loadingTimeoutRef.current)
-        loadingTimeoutRef.current = null
-    }, [])
-
     const setPresenceLoading = useCallback(
         (isLoading: boolean, options?: { immediate?: boolean }) => {
-            clearLoadingTimeout()
-
             if (!isLoading) {
                 setIsWorkspacePresenceLoading(false)
                 return
@@ -416,15 +405,9 @@ export function useCalendarWorkspaceRealtime() {
 
             if (options?.immediate || !hasMembers) {
                 setIsWorkspacePresenceLoading(true)
-                return
             }
-
-            loadingTimeoutRef.current = setTimeout(() => {
-                setIsWorkspacePresenceLoading(true)
-                loadingTimeoutRef.current = null
-            }, 350)
         },
-        [clearLoadingTimeout, setIsWorkspacePresenceLoading]
+        [setIsWorkspacePresenceLoading]
     )
 
     const broadcastCursor = useCallback(
@@ -555,6 +538,30 @@ export function useCalendarWorkspaceRealtime() {
         subscriptionKeyRef.current = subscriptionKey
         basePresencePayloadRef.current = presencePayload
 
+        const resetRealtimeDedupState = () => {
+            latestPresenceKeyRef.current = null
+            latestCursorBroadcastKeyRef.current = null
+            latestCursorSnapshotRequestKeyRef.current = null
+        }
+
+        const applyRemoteCursor = (
+            memberId: string,
+            cursor: CalendarWorkspaceCursor | null
+        ) => {
+            remoteCursorMapRef.current.set(memberId, cursor)
+
+            setWorkspacePresence(
+                useCalendarStore.getState().workspacePresence.map((member) =>
+                    member.id === memberId
+                        ? {
+                              ...member,
+                              cursor: cursor ?? undefined,
+                          }
+                        : member
+                )
+            )
+        }
+
         const handleEventBroadcast = (message: CalendarBroadcastMessage) => {
             const payload = message.payload
 
@@ -621,10 +628,20 @@ export function useCalendarWorkspaceRealtime() {
             }
 
             updateCalendarSnapshot(payload.record.id, {
+                name: payload.record.name,
+                avatarUrl: payload.record.avatar_url,
+                accessMode: payload.record.access_mode,
+                eventLayout: payload.record.event_layout,
                 eventFieldSettings: normalizeCalendarEventFieldSettings(
                     payload.record.event_field_settings
                 ),
+                layoutOptions: normalizeCalendarLayoutOptions(
+                    payload.record.layout_options
+                ),
             })
+            if (payload.record.id === useCalendarStore.getState().activeCalendar?.id) {
+                setEventLayout(payload.record.event_layout)
+            }
         }
 
         const handleCursorBroadcast = (
@@ -636,18 +653,7 @@ export function useCalendarWorkspaceRealtime() {
                 return
             }
 
-            remoteCursorMapRef.current.set(payload.id, payload.cursor ?? null)
-
-            setWorkspacePresence(
-                useCalendarStore.getState().workspacePresence.map((member) =>
-                    member.id === payload.id
-                        ? {
-                              ...member,
-                              cursor: payload.cursor ?? undefined,
-                          }
-                        : member
-                )
-            )
+            applyRemoteCursor(payload.id, payload.cursor ?? null)
         }
 
         const handleCursorSnapshotRequest = (
@@ -689,22 +695,7 @@ export function useCalendarWorkspaceRealtime() {
                 return
             }
 
-            remoteCursorMapRef.current.set(payload.id, payload.cursor ?? null)
-
-            setWorkspacePresence(
-                useCalendarStore.getState().workspacePresence.map((member) =>
-                    member.id === payload.id
-                        ? {
-                              ...member,
-                              cursor: payload.cursor ?? undefined,
-                          }
-                        : member
-                )
-            )
-        }
-
-        const handlePresenceJoin = () => {
-            syncWorkspacePresence()
+            applyRemoteCursor(payload.id, payload.cursor ?? null)
         }
 
         const syncWorkspacePresence = () => {
@@ -796,21 +787,6 @@ export function useCalendarWorkspaceRealtime() {
             await supabase.removeChannel(targetChannel)
         }
 
-        const removeStaleTopicChannels = async () => {
-            const staleChannels = supabase
-                .getChannels()
-                .filter(
-                    (channel: RealtimeChannel) =>
-                        channel.topic === `realtime:${topic}`
-                )
-
-            await Promise.all(
-                staleChannels.map((channel: RealtimeChannel) =>
-                    removeChannel(channel)
-                )
-            )
-        }
-
         const reconnectRealtimeSocket = async () => {
             const realtime = supabase.realtime as {
                 disconnect?: () => void | Promise<void>
@@ -819,25 +795,11 @@ export function useCalendarWorkspaceRealtime() {
 
             try {
                 await realtime.disconnect?.()
-            } catch (error) {
-                if (IS_DEV) {
-                    console.warn(
-                        "[calendar-workspace-realtime:socket-disconnect]",
-                        {
-                            topic,
-                            error,
-                        }
-                    )
-                }
+            } catch {
+                // Ignore disconnect failures and let the next connect attempt recover.
             }
 
             realtime.connect?.()
-        }
-
-        const markChannelAsStale = (targetChannel: RealtimeChannel) => {
-            if (channelRef.current === targetChannel) {
-                channelRef.current = null
-            }
         }
 
         const scheduleReconnect = (
@@ -871,16 +833,6 @@ export function useCalendarWorkspaceRealtime() {
 
                 void subscribeToWorkspace()
             }, delay)
-
-            if (IS_DEV) {
-                console.log("[calendar-workspace-realtime:retry]", {
-                    topic,
-                    status,
-                    attempt: attempt + 1,
-                    delay,
-                    error: getRealtimeErrorMessage(options?.error ?? null),
-                })
-            }
         }
 
         const subscribeToWorkspace = async () => {
@@ -891,7 +843,6 @@ export function useCalendarWorkspaceRealtime() {
             setPresenceLoading(true)
 
             await removeChannel(channelRef.current)
-            await removeStaleTopicChannels()
 
             const {
                 data: { session },
@@ -1005,7 +956,7 @@ export function useCalendarWorkspaceRealtime() {
                     handleCursorSnapshotResponse
                 )
                 .on("presence", { event: "sync" }, syncWorkspacePresence)
-                .on("presence", { event: "join" }, handlePresenceJoin)
+                .on("presence", { event: "join" }, syncWorkspacePresence)
                 .on("presence", { event: "leave" }, syncWorkspacePresence)
                 .subscribe(async (status: string, err: Error | null) => {
                     if (
@@ -1019,16 +970,6 @@ export function useCalendarWorkspaceRealtime() {
 
                     const typedStatus =
                         status as CalendarWorkspaceRealtimeStatus
-
-                    if (IS_DEV) {
-                        console.log("[calendar-workspace-realtime]", {
-                            topic,
-                            status: typedStatus,
-                            isPrivateChannel,
-                            hasSession: Boolean(session?.access_token),
-                            err,
-                        })
-                    }
 
                     if (typedStatus === "SUBSCRIBED") {
                         timeoutCountRef.current = 0
@@ -1054,24 +995,13 @@ export function useCalendarWorkspaceRealtime() {
                             isProjectDatabaseUnavailableError(err)
 
                         setPresenceLoading(true)
-                        markChannelAsStale(nextChannel)
-                        latestPresenceKeyRef.current = null
-                        latestCursorBroadcastKeyRef.current = null
-                        latestCursorSnapshotRequestKeyRef.current = null
+                        if (channelRef.current === nextChannel) {
+                            channelRef.current = null
+                        }
+                        resetRealtimeDedupState()
 
                         if (isProjectDbUnavailable) {
                             timeoutCountRef.current = 0
-
-                            if (IS_DEV) {
-                                console.warn(
-                                    "[calendar-workspace-realtime:project-db-unavailable]",
-                                    {
-                                        topic,
-                                        status: typedStatus,
-                                        error: getRealtimeErrorMessage(err),
-                                    }
-                                )
-                            }
                         } else if (typedStatus === "TIMED_OUT") {
                             timeoutCountRef.current += 1
 
@@ -1115,9 +1045,7 @@ export function useCalendarWorkspaceRealtime() {
                 }
 
                 timeoutCountRef.current = 0
-                latestPresenceKeyRef.current = null
-                latestCursorBroadcastKeyRef.current = null
-                latestCursorSnapshotRequestKeyRef.current = null
+                resetRealtimeDedupState()
                 reconnectAttemptRef.current = 0
                 void subscribeToWorkspace()
             }
@@ -1134,13 +1062,10 @@ export function useCalendarWorkspaceRealtime() {
             subscribeAttemptRef.current += 1
             reconnectAttemptRef.current = 0
             timeoutCountRef.current = 0
-            latestPresenceKeyRef.current = null
-            latestCursorBroadcastKeyRef.current = null
-            latestCursorSnapshotRequestKeyRef.current = null
+            resetRealtimeDedupState()
             basePresencePayloadRef.current = null
             remoteCursorMap.clear()
             clearRetryTimeout()
-            clearLoadingTimeout()
             authSubscription.unsubscribe()
             setPresenceLoading(false)
 
@@ -1164,8 +1089,8 @@ export function useCalendarWorkspaceRealtime() {
         userAvatarUrl,
         userId,
         userName,
-        clearLoadingTimeout,
         setPresenceLoading,
+        setEventLayout,
     ])
 
     useEffect(() => {
@@ -1173,13 +1098,7 @@ export function useCalendarWorkspaceRealtime() {
             return
         }
 
-        clearLoadingTimeout()
         setIsWorkspacePresenceLoading(false)
-        // setWorkspacePresence([])
-    }, [
-        calendarId,
-        clearLoadingTimeout,
-        setIsWorkspacePresenceLoading,
-        setWorkspacePresence,
-    ])
+        setWorkspacePresence([])
+    }, [calendarId, setIsWorkspacePresenceLoading, setWorkspacePresence])
 }

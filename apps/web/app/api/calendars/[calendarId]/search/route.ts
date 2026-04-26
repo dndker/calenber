@@ -13,6 +13,7 @@ import {
     searchCalendarMembers,
     type CalendarSearchFilters,
 } from "@/lib/calendar/search"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
@@ -40,7 +41,8 @@ export async function POST(
         params: Promise<{ calendarId: string }>
     }
 ) {
-    const { calendarId } = await context.params
+    const { calendarId: rawCalendarId } = await context.params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const payload = ((await request.json().catch(() => ({}))) ??
         {}) as SearchRequestPayload
     const query = payload.q?.trim() ?? ""

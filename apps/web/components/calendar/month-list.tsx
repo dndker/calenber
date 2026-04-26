@@ -1,9 +1,14 @@
 import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
+import { useCalendarSubscriptionEvents } from "@/hooks/use-calendar-subscription-events"
 import {
     expandCalendarEventsForRange,
     getCalendarEventRenderId,
     getCalendarVisibleEventRange,
 } from "@/lib/calendar/recurrence"
+import {
+    getCalendarWeekStart,
+    normalizeCalendarLayoutOptions,
+} from "@/lib/calendar/layout-options"
 import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { shallow } from "@/store/createSSRStore"
@@ -45,16 +50,34 @@ export function MonthList({
 }) {
     const events = useCalendarStore((s) => s.events)
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+    const weekStartsOn = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    )
+    const hideWeekendColumns = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+            .hideWeekendColumns
+    )
     const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
-    const newDate = dayjs().tz(calendarTz).startOf("week").toDate()
+    const newDate = getCalendarWeekStart(new Date(), calendarTz, weekStartsOn).toDate()
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
     const dragFrameRef = useRef<number | null>(null)
     const dragCursorReleaseRef = useRef<(() => void) | null>(null)
     const lastOverIdRef = useRef<string | null>(null)
+    const snapUnlockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null
+    )
     const [currentMonthKey, setCurrentMonthKey] = useState(
         getMonthKey(newDate, calendarTz)
     )
+
+    useEffect(() => {
+        baseDateRef.current = getCalendarWeekStart(
+            new Date(),
+            calendarTz,
+            weekStartsOn
+        ).toDate()
+    }, [calendarTz, weekStartsOn])
 
     const itemSize = useMemo(
         () => Math.floor(containerHeight / 5),
@@ -85,7 +108,11 @@ export function MonthList({
         const base = baseDateRef.current
 
         const firstDayOfMonth = dayjs.tz(newDate, calendarTz).startOf("month")
-        const firstWeekStart = firstDayOfMonth.startOf("week")
+        const firstWeekStart = getCalendarWeekStart(
+            firstDayOfMonth.toDate(),
+            calendarTz,
+            weekStartsOn
+        )
 
         const diff = firstWeekStart.diff(dayjs.tz(base, calendarTz), "week")
 
@@ -105,7 +132,11 @@ export function MonthList({
         const firstDayOfMonth = dayjs
             .tz(targetDate, calendarTz)
             .startOf("month")
-        const firstWeekStart = firstDayOfMonth.startOf("week")
+        const firstWeekStart = getCalendarWeekStart(
+            firstDayOfMonth.toDate(),
+            calendarTz,
+            weekStartsOn
+        )
         const diff = firstWeekStart.diff(dayjs.tz(base, calendarTz), "week")
 
         virtualizer.scrollToIndex(CENTER_INDEX + diff, {
@@ -123,7 +154,12 @@ export function MonthList({
         if (!middle) return
 
         const weekOffset = middle.index - CENTER_INDEX
-        const date = getWeekOffset(baseDateRef.current, weekOffset, calendarTz)
+        const date = getWeekOffset(
+            baseDateRef.current,
+            weekOffset,
+            calendarTz,
+            weekStartsOn
+        )
 
         const monthKey = getMonthKey(date, calendarTz)
         if (prevMonthRef.current === monthKey) return
@@ -134,7 +170,7 @@ export function MonthList({
         onVisibleMonthChange?.(
             dayjs.tz(date, calendarTz).startOf("month").toDate()
         )
-    }, [calendarTz, items, onVisibleMonthChange])
+    }, [calendarTz, items, onVisibleMonthChange, weekStartsOn])
 
     // 스크롤 끝나면 스냅
     useEffect(() => {
@@ -174,7 +210,7 @@ export function MonthList({
                 })
 
                 // smooth 끝났다고 가정하고 잠깐 후 unlock
-                setTimeout(() => {
+                snapUnlockTimeoutRef.current = setTimeout(() => {
                     isSnapping = false
                 }, 150)
             }, 100)
@@ -185,6 +221,10 @@ export function MonthList({
         return () => {
             el.removeEventListener("scroll", handleScroll)
             if (timeout) clearTimeout(timeout)
+            if (snapUnlockTimeoutRef.current) {
+                clearTimeout(snapUnlockTimeoutRef.current)
+                snapUnlockTimeoutRef.current = null
+            }
         }
     }, [virtualizer, parentRef])
     const visibleRange = useMemo(() => {
@@ -237,6 +277,15 @@ export function MonthList({
             calendarTz,
         })
     }, [calendarTz, filteredEvents, visibleRange])
+    const subscriptionEvents = useCalendarSubscriptionEvents({
+        rangeStart: visibleRange?.start ?? 0,
+        rangeEnd: visibleRange?.end ?? 0,
+        timezone: calendarTz,
+    })
+    const mergedExpandedEvents = useMemo(
+        () => [...expandedEvents, ...subscriptionEvents],
+        [expandedEvents, subscriptionEvents]
+    )
     const dragMode = useCalendarStore((s) => s.drag.mode)
     const dragStart = useCalendarStore((s) => s.drag.start)
     const dragEnd = useCalendarStore((s) => s.drag.end)
@@ -250,10 +299,10 @@ export function MonthList({
             !dragStart ||
             !dragEnd
         ) {
-            return expandedEvents
+            return mergedExpandedEvents
         }
 
-        return expandedEvents.map((event) => {
+        return mergedExpandedEvents.map((event) => {
             if (getCalendarEventRenderId(event) !== dragRenderId) {
                 return event
             }
@@ -270,7 +319,7 @@ export function MonthList({
         dragRenderId,
         dragStart,
         draggingEvent,
-        expandedEvents,
+        mergedExpandedEvents,
     ])
     const positionedEvents = useMemo(
         () => positionCalendarEvents(dragAdjustedEvents, calendarTz),
@@ -284,14 +333,29 @@ export function MonthList({
             const weekDate = getWeekOffset(
                 baseDateRef.current,
                 weekOffset,
-                calendarTz
+                calendarTz,
+                weekStartsOn
             )
-            const week = getWeek(weekDate, calendarTz)
-            const weekStart = dayjs(week[0]!)
+            const week = getWeek(weekDate, calendarTz, weekStartsOn)
+            const visibleWeek = hideWeekendColumns
+                ? week.filter((day) => {
+                      const weekday = day.getDay()
+                      return weekday !== 0 && weekday !== 6
+                  })
+                : week
+            const firstDay = visibleWeek[0]
+            const lastDay = visibleWeek[visibleWeek.length - 1]
+
+            if (!firstDay || !lastDay) {
+                buckets.set(item.index, [])
+                continue
+            }
+
+            const weekStart = dayjs(firstDay)
                 .tz(calendarTz)
                 .startOf("day")
                 .valueOf()
-            const weekEndExclusive = dayjs(week[6]!)
+            const weekEndExclusive = dayjs(lastDay)
                 .tz(calendarTz)
                 .startOf("day")
                 .add(1, "day")
@@ -308,7 +372,7 @@ export function MonthList({
         }
 
         return buckets
-    }, [calendarTz, items, positionedEvents])
+    }, [calendarTz, hideWeekendColumns, items, positionedEvents, weekStartsOn])
 
     const handleDragOver = useCallback(
         ({ over }: { over: { id: string | number } | null }) => {
@@ -367,6 +431,10 @@ export function MonthList({
             if (dragFrameRef.current) {
                 cancelAnimationFrame(dragFrameRef.current)
             }
+            if (snapUnlockTimeoutRef.current) {
+                clearTimeout(snapUnlockTimeoutRef.current)
+                snapUnlockTimeoutRef.current = null
+            }
             dragCursorReleaseRef.current?.()
             dragCursorReleaseRef.current = null
         }
@@ -398,7 +466,8 @@ export function MonthList({
                     const weekDate = getWeekOffset(
                         baseDateRef.current,
                         weekOffset,
-                        calendarTz
+                        calendarTz,
+                        weekStartsOn
                     )
 
                     return (
@@ -436,6 +505,13 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
     const dragEnd = useCalendarStore((s) => s.drag.end)
     const dragSegmentOffset = useCalendarStore((s) => s.drag.segmentOffset)
     const draggingEvent = useCalendarStore((s) => s.drag.previewEvent)
+    const weekStartsOn = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    )
+    const hideWeekendColumns = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+            .hideWeekendColumns
+    )
 
     if (
         !dragEventId ||
@@ -456,11 +532,25 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
         calendarTz
     )
     const segmentStartDay = startDay.add(dragSegmentOffset, "day")
-    const overlayWeek = getWeek(segmentStartDay.toDate(), calendarTz)
-    const overlayWeekStart = dayjs(overlayWeek[0]!)
+    const overlayWeek = getWeek(segmentStartDay.toDate(), calendarTz, weekStartsOn)
+    const visibleOverlayWeek = hideWeekendColumns
+        ? overlayWeek.filter((day) => {
+              const weekday = day.getDay()
+              return weekday !== 0 && weekday !== 6
+          })
+        : overlayWeek
+    const overlayFirstDay = visibleOverlayWeek[0]
+    const overlayLastDay = visibleOverlayWeek[visibleOverlayWeek.length - 1]
+
+    if (!overlayFirstDay || !overlayLastDay) {
+        return null
+    }
+
+    const overlayWeekStart = dayjs(overlayFirstDay)
         .tz(calendarTz)
         .startOf("day")
-    const overlayWeekEnd = overlayWeekStart.add(6, "day")
+    const overlayWeekEnd = dayjs(overlayLastDay).tz(calendarTz).startOf("day")
+    const columnCount = visibleOverlayWeek.length
     const visibleSegmentEnd = endDay.isAfter(overlayWeekEnd, "day")
         ? overlayWeekEnd
         : endDay
@@ -469,7 +559,7 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
         segmentStartDay.diff(overlayWeekStart, "day")
     )
     const endIndex = Math.min(
-        6,
+        Math.max(0, columnCount - 1),
         visibleSegmentEnd.diff(overlayWeekStart, "day")
     )
     const continuesFromPrevWeek =
@@ -483,6 +573,7 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
             top={0}
             startIndex={startIndex}
             endIndex={endIndex}
+            columnCount={columnCount}
             continuesFromPrevWeek={continuesFromPrevWeek}
             continuesToNextWeek={continuesToNextWeek}
             overlay

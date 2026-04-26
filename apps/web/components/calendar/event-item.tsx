@@ -11,6 +11,7 @@ import {
 import { normalizeNames } from "@/lib/calendar/event-form-names"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
@@ -99,22 +100,24 @@ function areStringArraysEqual(a: string[], b: string[]) {
 export function getEventPosition(
     startIndex: number,
     endIndex: number,
+    columnCount = 7,
     continuesFromPrevWeek = false,
     continuesToNextWeek = false
 ) {
     // 주 칸 인덱스는 항상 정수. 부동소수/미세 오차로 calc(%) 좌·너비가 따로 반올림되며 끝이 흔들릴 수 있음
-    const safeStart = Math.max(0, Math.min(6, Math.floor(startIndex)))
-    const safeEnd = Math.max(0, Math.min(6, Math.floor(endIndex)))
+    const maxIndex = Math.max(0, columnCount - 1)
+    const safeStart = Math.max(0, Math.min(maxIndex, Math.floor(startIndex)))
+    const safeEnd = Math.max(0, Math.min(maxIndex, Math.floor(endIndex)))
     const s = Math.min(safeStart, safeEnd)
     const e = Math.max(safeStart, safeEnd)
     const span = e - s + 1
 
     const GAP = 4
     const COLUMN_GAP = 1
-    const TOTAL_COLUMN_GAPS = COLUMN_GAP * 6
+    const TOTAL_COLUMN_GAPS = COLUMN_GAP * Math.max(0, columnCount - 1)
     const leftGap = continuesFromPrevWeek ? 0 : GAP
     const rightGap = continuesToNextWeek ? 0 : GAP
-    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / 7`
+    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / ${Math.max(1, columnCount)}`
     const left = s
         ? `calc(${s} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
         : `${leftGap}px`
@@ -132,6 +135,7 @@ export const EventItem = memo(
         top,
         startIndex,
         endIndex,
+        columnCount = 7,
         continuesFromPrevWeek = false,
         continuesToNextWeek = false,
         dragOffsetStart = 0,
@@ -148,6 +152,7 @@ export const EventItem = memo(
         top: number
         startIndex: number
         endIndex: number
+        columnCount?: number
         continuesFromPrevWeek?: boolean
         continuesToNextWeek?: boolean
         dragOffsetStart?: number
@@ -199,6 +204,8 @@ export const EventItem = memo(
         const resolvedSourceEvent = toCalendarEventSource(event)
 
         const thisRenderId = getCalendarEventRenderId(event)
+        const isGeneratedSubscriptionEvent =
+            isGeneratedSubscriptionEventId(sourceEventId)
         const isResizeTarget = useCalendarStore((s) => {
             const mode = s.drag.mode
             if (mode !== "resize-start" && mode !== "resize-end") {
@@ -222,23 +229,27 @@ export const EventItem = memo(
         const pos = getEventPosition(
             startIndex,
             endIndex,
+            columnCount,
             continuesFromPrevWeek,
             continuesToNextWeek
         )
-        const canEdit =
-            activeCalendar?.id === "demo" ||
-            canEditCalendarEvent(
-                resolvedSourceEvent,
-                activeCalendarMembership,
-                user?.id
-            )
-        const canDelete =
-            activeCalendar?.id === "demo" ||
-            canDeleteCalendarEvent(
-                resolvedSourceEvent,
-                activeCalendarMembership,
-                user?.id
-            )
+        const canEdit = isGeneratedSubscriptionEvent
+            ? false
+            : activeCalendar?.id === "demo" ||
+              canEditCalendarEvent(
+                  resolvedSourceEvent,
+                  activeCalendarMembership,
+                  user?.id
+              )
+        const canDelete = isGeneratedSubscriptionEvent
+            ? false
+            : activeCalendar?.id === "demo" ||
+              canDeleteCalendarEvent(
+                  resolvedSourceEvent,
+                  activeCalendarMembership,
+                  user?.id
+              )
+        const canDragResize = canEdit && !resolvedSourceEvent.isLocked
         const {
             handleDeleteEvent,
             isRecurringDeleteDialogOpen,
@@ -336,7 +347,7 @@ export const EventItem = memo(
         ])
 
         const handleMoveStart = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
 
@@ -356,14 +367,14 @@ export const EventItem = memo(
         }
 
         const handleResizeStart = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
             beginResize(e, "resize-start")
         }
 
         const handleResizeEnd = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
             beginResize(e, "resize-end")
@@ -492,7 +503,7 @@ export const EventItem = memo(
 
         useEffect(() => {
             if (!isDragging) return
-            if (!canEdit) return
+            if (!canDragResize) return
             if (overlay) return
 
             const releaseMoveCursor = lockCalendarBodyCursor(
@@ -509,10 +520,10 @@ export const EventItem = memo(
             }
 
             // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [isDragging, canEdit, overlay, thisRenderId])
+        }, [isDragging, canDragResize, overlay, thisRenderId])
 
         const mergedListeners =
-            interactive && canEdit
+            interactive && canDragResize
                 ? {
                       ...listeners,
                       onPointerDown: handleMoveStart,
@@ -598,7 +609,7 @@ export const EventItem = memo(
                             />
                         )}
                         <Button
-                            ref={!canEdit ? null : setNodeRef}
+                            ref={!canDragResize ? null : setNodeRef}
                             variant="outline"
                             className={cn(
                                 "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
@@ -607,7 +618,7 @@ export const EventItem = memo(
                                     ? "items-start py-1.5 text-left"
                                     : "py-1",
                                 inline &&
-                                    canEdit &&
+                                    canDragResize &&
                                     "cursor-grab active:cursor-grabbing",
                                 eventLayout === "split" &&
                                     "items-center justify-center text-center",
@@ -870,6 +881,7 @@ export const EventItem = memo(
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&
             prev.endIndex === next.endIndex &&
+            prev.columnCount === next.columnCount &&
             prev.continuesFromPrevWeek === next.continuesFromPrevWeek &&
             prev.continuesToNextWeek === next.continuesToNextWeek &&
             prev.dragOffsetStart === next.dragOffsetStart &&

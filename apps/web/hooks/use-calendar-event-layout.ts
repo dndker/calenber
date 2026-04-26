@@ -1,6 +1,7 @@
 "use client"
 
 import type { CalendarEventLayout } from "@/lib/calendar/types"
+import { canManageCalendar } from "@/lib/calendar/permissions"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { toast } from "sonner"
@@ -12,8 +13,16 @@ export function useCalendarEventLayout() {
     )
     const eventLayout = useCalendarStore((s) => s.eventLayout)
     const setEventLayout = useCalendarStore((s) => s.setEventLayout)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
 
     const saveEventLayout = async (layout: CalendarEventLayout) => {
+        if (!canManageCalendar(activeCalendarMembership)) {
+            toast.error("관리자 또는 소유자만 일정 레이아웃을 변경할 수 있습니다.")
+            return
+        }
+
         setEventLayout(layout)
 
         if (!activeCalendar) {

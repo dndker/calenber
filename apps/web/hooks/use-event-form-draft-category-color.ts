@@ -10,7 +10,11 @@ import { useCallback, useEffect, useRef } from "react"
  * `eventCategories`에 색이 있으면 ref에 시드해 폼·퀵 편집 간 색이 어긋나지 않게 한다.
  */
 export function useEventFormDraftCategoryColor(
-    eventCategories: CalendarEventCategory[]
+    eventCategories: CalendarEventCategory[],
+    seedCategories?: Array<{
+        name: string
+        color?: CalendarCategoryColor | null
+    }>
 ) {
     const draftCategoryColorsRef = useRef<Map<string, CalendarCategoryColor>>(
         new Map()
@@ -26,6 +30,23 @@ export function useEventFormDraftCategoryColor(
             }
         }
     }, [eventCategories])
+
+    useEffect(() => {
+        if (!seedCategories || seedCategories.length === 0) {
+            return
+        }
+
+        for (const category of seedCategories) {
+            const name = category.name.trim()
+            const color = category.color ?? undefined
+
+            if (!name || !color) {
+                continue
+            }
+
+            draftCategoryColorsRef.current.set(name, color)
+        }
+    }, [seedCategories])
 
     return useCallback((name: string) => {
         const trimmedName = name.trim()

@@ -2,6 +2,7 @@ import { EventCollaboratorsHoverCard } from "@/components/calendar/event-collabo
 import { EventHistoryDrawer } from "@/components/calendar/event-history-drawer"
 import { useAdjacentEvents } from "@/hooks/use-adjacent-events"
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     getCachedCalendarEventHistory,
     loadCalendarEventHistory,
@@ -15,6 +16,7 @@ import {
     canToggleCalendarEventLock,
 } from "@/lib/calendar/permissions"
 import {
+    resolveCalendarIdFromPathParam,
     getCalendarBasePath,
     getCalendarEventPagePath,
 } from "@/lib/calendar/routes"
@@ -91,7 +93,9 @@ export const EventHeader = memo(function EventHeader({
         (s) => s.activeCalendarMembership
     )
 
-    const calendarId = activeCalendar?.id || basePath.split("/")[2]
+    const calendarId =
+        activeCalendar?.id ||
+        resolveCalendarIdFromPathParam(basePath.split("/")[2] ?? "demo")
 
     const eventId = id ? id : (activeEventId ?? undefined)
     const storeEvent = useCalendarStore((s) =>
@@ -115,9 +119,10 @@ export const EventHeader = memo(function EventHeader({
 
     const tooltipSide = modal ? "top" : "bottom"
 
-    const { prevEvent, nextEvent, hasPrev, hasNext } = useAdjacentEvents(
-        eventId!
-    )
+    const { prevEvent, nextEvent, hasPrev, hasNext } = useAdjacentEvents({
+        eventId: eventId!,
+        eventStart: event?.start,
+    })
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const prefetchedHistory =
@@ -231,6 +236,7 @@ export const EventHeader = memo(function EventHeader({
 
     if (!eventId || !event) return null
 
+    const isGeneratedSubscriptionEvent = isGeneratedSubscriptionEventId(event.id)
     const isFavorite =
         favoriteMeta !== null ? true : (event.isFavorite ?? false)
 
@@ -239,12 +245,12 @@ export const EventHeader = memo(function EventHeader({
         setIsDropdownOpen(false)
     }
 
-    const canDelete =
-        activeCalendar?.id === "demo" ||
-        canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
-    const canToggleLock =
-        activeCalendar?.id === "demo" ||
-        canToggleCalendarEventLock(event, activeCalendarMembership, user?.id)
+    const canDelete = !isGeneratedSubscriptionEvent &&
+        (activeCalendar?.id === "demo" ||
+            canDeleteCalendarEvent(event, activeCalendarMembership, user?.id))
+    const canToggleLock = !isGeneratedSubscriptionEvent &&
+        (activeCalendar?.id === "demo" ||
+            canToggleCalendarEventLock(event, activeCalendarMembership, user?.id))
 
     const handleEventControls = (eventId?: string) => {
         if (!calendarId || !eventId) return false
@@ -258,7 +264,9 @@ export const EventHeader = memo(function EventHeader({
                       : null
 
             setActiveEventId(eventId)
-            setViewEvent(targetEvent)
+            if (targetEvent) {
+                setViewEvent(targetEvent)
+            }
             navigateCalendarModal(
                 getCalendarModalOpenPath({
                     pathname: basePath,
@@ -534,7 +542,8 @@ export const EventHeader = memo(function EventHeader({
                                     />
                                 </DropdownMenuItem>
                             )}
-                            {activeCalendarMembership.isMember && (
+                            {activeCalendarMembership.isMember &&
+                                !isGeneratedSubscriptionEvent && (
                                 <DropdownMenuItem
                                     onPointerEnter={() => {
                                         warmCalendarEventHistory(event.id)

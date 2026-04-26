@@ -3,6 +3,7 @@
 import {
     normalizeCalendarEventFieldSettings,
 } from "@/lib/calendar/event-field-settings"
+import { canManageCalendar } from "@/lib/calendar/permissions"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { toast } from "sonner"
@@ -11,6 +12,9 @@ export function useCalendarEventFieldSettings() {
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const updateCalendarSnapshot = useCalendarStore(
         (s) => s.updateCalendarSnapshot
+    )
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
     )
 
     const eventFieldSettings = normalizeCalendarEventFieldSettings(
@@ -22,6 +26,10 @@ export function useCalendarEventFieldSettings() {
     ) => {
         if (!activeCalendar || activeCalendar.id === "demo") {
             return true
+        }
+        if (!canManageCalendar(activeCalendarMembership)) {
+            toast.error("관리자 또는 소유자만 일정 속성 설정을 변경할 수 있습니다.")
+            return false
         }
 
         const previousSettings = normalizeCalendarEventFieldSettings(

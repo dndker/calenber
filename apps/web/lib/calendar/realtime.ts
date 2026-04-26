@@ -69,7 +69,12 @@ export type CalendarSettingsRealtimePayload = {
     occurredAt: string
     record?: {
         id: string
+        name: string
+        avatar_url: string | null
+        access_mode: "public_open" | "public_approval" | "private"
+        event_layout: "compact" | "split"
         event_field_settings: unknown
+        layout_options: unknown
         updated_at: string | null
     } | null
 }

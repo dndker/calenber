@@ -1,11 +1,17 @@
 "use client"
 
 import { getEventById } from "@/lib/calendar/queries"
+import {
+    isCalendarEventUuid,
+    isGeneratedSubscriptionEventId,
+} from "@/lib/calendar/event-id"
 import { expandCalendarEventsForRange } from "@/lib/calendar/recurrence"
+import { generateKoreanPublicHolidaySubscriptionEvents } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useEffect, useMemo, useState } from "react"
+import { useCalendarSubscriptions } from "./use-calendar-subscriptions"
 
 type UseCalendarEventDetailOptions = {
     eventId?: string
@@ -13,11 +19,36 @@ type UseCalendarEventDetailOptions = {
     initialEvent?: CalendarEvent | null
 }
 
+const EVENT_DETAIL_CACHE_TTL_MS = 30_000
+const eventDetailCache = new Map<
+    string,
+    {
+        fetchedAt: number
+        event: CalendarEvent | null
+    }
+>()
+
+function getCachedEventDetail(eventId: string) {
+    const cached = eventDetailCache.get(eventId)
+
+    if (!cached) {
+        return null
+    }
+
+    if (Date.now() - cached.fetchedAt > EVENT_DETAIL_CACHE_TTL_MS) {
+        eventDetailCache.delete(eventId)
+        return null
+    }
+
+    return cached.event
+}
+
 export function useCalendarEventDetail({
     eventId,
     occurrenceStart,
     initialEvent = null,
 }: UseCalendarEventDetailOptions) {
+    const { visibleSubscriptions } = useCalendarSubscriptions()
     const storeEvent = useCalendarStore((state) =>
         eventId ? state.events.find((event) => event.id === eventId) : undefined
     )
@@ -39,8 +70,50 @@ export function useCalendarEventDetail({
     const resolvedViewEvent = viewEvent && viewEvent.id === eventId ? viewEvent : null
     const resolvedRemoteEvent =
         remoteState.eventId === eventId ? remoteState.event : null
+    const resolvedSubscriptionEvent = useMemo(() => {
+        if (!eventId || !isGeneratedSubscriptionEventId(eventId)) {
+            return null
+        }
+
+        const [, isoDate] = eventId.split(":", 3)
+        const parsedDay = isoDate
+            ? new Date(`${isoDate}T00:00:00+09:00`).getTime()
+            : NaN
+
+        if (!Number.isFinite(parsedDay)) {
+            return null
+        }
+
+        for (const subscription of visibleSubscriptions) {
+            const provider = String(subscription.config?.provider ?? "")
+            const isKoreanHoliday =
+                subscription.slug === "subscription.kr.public-holidays" ||
+                provider === "korean_public_holidays_v1"
+
+            if (!isKoreanHoliday) {
+                continue
+            }
+
+            const candidates = generateKoreanPublicHolidaySubscriptionEvents({
+                rangeStart: parsedDay - 24 * 60 * 60 * 1000,
+                rangeEnd: parsedDay + 24 * 60 * 60 * 1000,
+                timezone: "Asia/Seoul",
+            })
+            const matched = candidates.find((candidate) => candidate.id === eventId)
+
+            if (matched) {
+                return matched
+            }
+        }
+
+        return null
+    }, [eventId, visibleSubscriptions])
     const shouldFetch = Boolean(
-        eventId && !storeEvent && !resolvedViewEvent && !resolvedInitialEvent
+        eventId &&
+            isCalendarEventUuid(eventId) &&
+            !storeEvent &&
+            !resolvedViewEvent &&
+            !resolvedInitialEvent
     )
 
     const baseEvent = useMemo(() => {
@@ -50,6 +123,7 @@ export function useCalendarEventDetail({
                 storeEvent ??
                 resolvedInitialEvent ??
                 resolvedRemoteEvent ??
+                resolvedSubscriptionEvent ??
                 null
             )
         }
@@ -59,12 +133,14 @@ export function useCalendarEventDetail({
             resolvedViewEvent ??
             resolvedInitialEvent ??
             resolvedRemoteEvent ??
+            resolvedSubscriptionEvent ??
             null
         )
     }, [
         occurrenceStart,
         resolvedInitialEvent,
         resolvedRemoteEvent,
+        resolvedSubscriptionEvent,
         resolvedViewEvent,
         storeEvent,
     ])
@@ -120,6 +196,21 @@ export function useCalendarEventDetail({
             })
         }, 0)
 
+        const cachedEvent = getCachedEventDetail(eventId)
+
+        if (cachedEvent) {
+            setRemoteState({
+                eventId,
+                event: cachedEvent,
+                status: "loaded",
+            })
+            useCalendarStore.getState().upsertEventSnapshot(cachedEvent)
+            return () => {
+                cancelled = true
+                clearTimeout(alignId)
+            }
+        }
+
         const supabase = createBrowserSupabase()
 
         void getEventById(supabase, eventId, {
@@ -130,6 +221,10 @@ export function useCalendarEventDetail({
             }
 
             if (!nextEvent) {
+                eventDetailCache.set(eventId, {
+                    event: null,
+                    fetchedAt: Date.now(),
+                })
                 setRemoteState({
                     eventId,
                     event: null,
@@ -138,6 +233,10 @@ export function useCalendarEventDetail({
                 return
             }
 
+            eventDetailCache.set(eventId, {
+                event: nextEvent,
+                fetchedAt: Date.now(),
+            })
             setRemoteState({
                 eventId,
                 event: nextEvent,
