@@ -137,7 +137,7 @@ function CategoryRenameInput({
                         event.currentTarget.blur()
                     }
                 }}
-                placeholder="카테고리 이름"
+                placeholder="컬렉션 이름"
                 className="h-8"
             />
             {isSaving ? <Spinner className="size-4 shrink-0" /> : null}
@@ -214,7 +214,7 @@ export const EventCategorySettingsPanel = memo(
             )
 
             if (existingCategory) {
-                toast.message("이미 같은 이름의 카테고리가 있습니다.")
+                toast.message("이미 같은 이름의 컬렉션이 있습니다.")
                 setOpenCategoryId(existingCategory.id)
                 setIsCreateInputOpen(false)
                 setNewCategoryName("")
@@ -246,7 +246,7 @@ export const EventCategorySettingsPanel = memo(
                 setIsCreateInputOpen(false)
             } catch (error) {
                 console.error("Failed to create calendar category:", error)
-                toast.error("카테고리를 추가하지 못했습니다.")
+                toast.error("컬렉션을 추가하지 못했습니다.")
             } finally {
                 setIsCreatingCategory(false)
             }
@@ -278,7 +278,7 @@ export const EventCategorySettingsPanel = memo(
                 )
 
                 if (existingCategory) {
-                    toast.message("이미 같은 이름의 카테고리가 있습니다.")
+                    toast.message("이미 같은 이름의 컬렉션이 있습니다.")
                     return false
                 }
 
@@ -307,7 +307,7 @@ export const EventCategorySettingsPanel = memo(
                             "Failed to rename calendar category:",
                             error
                         )
-                        toast.error("카테고리 이름을 변경하지 못했습니다.")
+                        toast.error("컬렉션 이름을 변경하지 못했습니다.")
                     }
                 })
 
@@ -355,7 +355,7 @@ export const EventCategorySettingsPanel = memo(
                             "Failed to update calendar category color:",
                             error
                         )
-                        toast.error("카테고리 색상을 변경하지 못했습니다.")
+                        toast.error("컬렉션 색상을 변경하지 못했습니다.")
                     }
                 })
             },
@@ -389,7 +389,7 @@ export const EventCategorySettingsPanel = memo(
                             "Failed to delete calendar category:",
                             error
                         )
-                        toast.error("카테고리를 삭제하지 못했습니다.")
+                        toast.error("컬렉션을 삭제하지 못했습니다.")
                     }
                 })
             },
@@ -469,7 +469,7 @@ export const EventCategorySettingsPanel = memo(
                                     setNewCategoryName("")
                                 }
                             }}
-                            placeholder="새 카테고리 추가"
+                            placeholder="새 컬렉션 추가"
                             className="h-7 px-2 text-sm"
                         />
                     </div>
@@ -615,7 +615,7 @@ export const EventCategorySettingsPanel = memo(
                         })
                     ) : (
                         <div className="px-2 py-3 text-sm text-muted-foreground">
-                            등록된 카테고리가 없습니다.
+                            등록된 컬렉션이 없습니다.
                         </div>
                     )}
                 </div>

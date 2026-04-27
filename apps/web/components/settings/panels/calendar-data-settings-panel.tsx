@@ -402,8 +402,8 @@ export function CalendarDataSettingsPanel() {
 
                 toast.success(
                     nextCategoryId
-                        ? "일정 카테고리가 업데이트되었습니다."
-                        : "일정 카테고리를 제거했습니다."
+                        ? "일정 컬렉션이 업데이트되었습니다."
+                        : "일정 컬렉션을 제거했습니다."
                 )
             } catch (error) {
                 console.error(
@@ -411,7 +411,7 @@ export function CalendarDataSettingsPanel() {
                     error
                 )
                 setEvents(previousEvents)
-                toast.error("일정 카테고리를 변경하지 못했습니다.")
+                toast.error("일정 컬렉션을 변경하지 못했습니다.")
             }
         },
         [activeCalendarId, eventCategoryMap]
@@ -477,7 +477,7 @@ export function CalendarDataSettingsPanel() {
                     return true
                 } catch (error) {
                     console.error("Failed to rename calendar category:", error)
-                    toast.error("카테고리 이름을 변경하지 못했습니다.")
+                    toast.error("컬렉션 이름을 변경하지 못했습니다.")
                     return false
                 }
             })
@@ -573,7 +573,7 @@ export function CalendarDataSettingsPanel() {
                         "Failed to update calendar category color:",
                         error
                     )
-                    toast.error("카테고리 색상을 변경하지 못했습니다.")
+                    toast.error("컬렉션 색상을 변경하지 못했습니다.")
                 }
             })
         },
@@ -607,7 +607,7 @@ export function CalendarDataSettingsPanel() {
 
         if (existingCategory) {
             setNewCategoryName("")
-            toast.message("이미 같은 이름의 카테고리가 있습니다.")
+            toast.message("이미 같은 이름의 컬렉션이 있습니다.")
             return
         }
 
@@ -632,10 +632,10 @@ export function CalendarDataSettingsPanel() {
 
             upsertEventCategorySnapshot(createdCategory)
             setNewCategoryName("")
-            toast.success("카테고리를 추가했습니다.")
+            toast.success("컬렉션을 추가했습니다.")
         } catch (error) {
             console.error("Failed to create calendar category:", error)
-            toast.error("카테고리를 추가하지 못했습니다.")
+            toast.error("컬렉션을 추가하지 못했습니다.")
         } finally {
             setIsCreatingCategory(false)
         }
@@ -666,10 +666,10 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     removeEventCategorySnapshot(category.id)
-                    toast.success("카테고리를 삭제했습니다.")
+                    toast.success("컬렉션을 삭제했습니다.")
                 } catch (error) {
                     console.error("Failed to delete calendar category:", error)
-                    toast.error("카테고리를 삭제하지 못했습니다.")
+                    toast.error("컬렉션을 삭제하지 못했습니다.")
                 }
             })
         },
@@ -815,7 +815,7 @@ export function CalendarDataSettingsPanel() {
                         return [
                             {
                                 id: categoryId,
-                                label: "카테고리 없음",
+                                label: "컬렉션 없음",
                                 color: undefined,
                             },
                         ]
@@ -1149,7 +1149,7 @@ export function CalendarDataSettingsPanel() {
 
                                             <DropdownMenuSeparator />
                                             <DropdownMenuLabel>
-                                                카테고리
+                                                컬렉션
                                             </DropdownMenuLabel>
                                             <DropdownMenuCheckboxItem
                                                 checked={selectedCategoryIds.includes(
@@ -1173,7 +1173,7 @@ export function CalendarDataSettingsPanel() {
                                                     )
                                                 }}
                                             >
-                                                카테고리 없음
+                                                컬렉션 없음
                                             </DropdownMenuCheckboxItem>
                                             {categoryOptions.length ? (
                                                 categoryOptions.map(
@@ -1222,7 +1222,7 @@ export function CalendarDataSettingsPanel() {
                                                 )
                                             ) : (
                                                 <DropdownMenuItem disabled>
-                                                    카테고리 없음
+                                                    컬렉션 없음
                                                 </DropdownMenuItem>
                                             )}
 
@@ -1388,7 +1388,7 @@ export function CalendarDataSettingsPanel() {
                                                 <DropdownMenuSub>
                                                     <DropdownMenuSubTrigger>
                                                         <TagsIcon />
-                                                        카테고리 변경
+                                                        컬렉션 변경
                                                     </DropdownMenuSubTrigger>
                                                     <DropdownMenuSubContent className="w-52">
                                                         <DropdownMenuItem
@@ -1405,7 +1405,7 @@ export function CalendarDataSettingsPanel() {
                                                                 table.resetRowSelection()
                                                             }}
                                                         >
-                                                            카테고리 없음
+                                                            컬렉션 없음
                                                         </DropdownMenuItem>
                                                         {categoryOptions.length ? (
                                                             <>
@@ -1470,9 +1470,9 @@ export function CalendarDataSettingsPanel() {
 
                     <Field className="gap-4">
                         <FieldContent>
-                            <FieldLabel>카테고리 목록</FieldLabel>
+                            <FieldLabel>컬렉션 목록</FieldLabel>
                             <FieldDescription>
-                                모든 카테고리를 한 화면에서 추가하고, 이름을
+                                모든 컬렉션을 한 화면에서 추가하고, 이름을
                                 바로 수정하고, 사이드바 기본 체크 상태를 설정할
                                 수 있습니다.
                             </FieldDescription>

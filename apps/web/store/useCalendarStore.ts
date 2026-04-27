@@ -401,6 +401,7 @@ export const useCalendarStore = createSSRStore<
     eventFilters: {
         excludedStatuses: defaultExcludedStatuses,
         excludedCategoryIds: [],
+        excludedUncategorized: false,
     },
     subscriptionCatalogs: [],
     subscriptionState: defaultSubscriptionState,
@@ -489,6 +490,7 @@ export const useCalendarStore = createSSRStore<
             eventFilters: {
                 excludedStatuses: defaultExcludedStatuses,
                 excludedCategoryIds: [],
+                excludedUncategorized: false,
             },
             subscriptionCatalogs: [],
             subscriptionState: defaultSubscriptionState,
@@ -606,6 +608,13 @@ export const useCalendarStore = createSSRStore<
                 ),
             },
         })),
+    setExcludedUncategorizedFilter: (excluded) =>
+        set((state) => ({
+            eventFilters: {
+                ...state.eventFilters,
+                excludedUncategorized: excluded,
+            },
+        })),
     setSubscriptionCatalogs: (subscriptionCatalogs) =>
         set({
             subscriptionCatalogs,
@@ -694,7 +703,8 @@ export const useCalendarStore = createSSRStore<
                 state.eventFilters.excludedStatuses.every(
                     (status, index) => status === defaultExcludedStatuses[index]
                 ) &&
-                state.eventFilters.excludedCategoryIds.length === 0
+                state.eventFilters.excludedCategoryIds.length === 0 &&
+                !state.eventFilters.excludedUncategorized
             ) {
                 return state
             }
@@ -703,6 +713,7 @@ export const useCalendarStore = createSSRStore<
                 eventFilters: {
                     excludedStatuses: defaultExcludedStatuses,
                     excludedCategoryIds: [],
+                    excludedUncategorized: false,
                 },
             }
         }),

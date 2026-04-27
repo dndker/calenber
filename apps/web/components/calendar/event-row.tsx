@@ -12,6 +12,7 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { memo, useCallback, useMemo, useState } from "react"
 import type { PositionedCalendarEvent } from "./event-positioning"
+import { CALENDAR_EVENT_ITEM_STRIDE_PX } from "./event-item-layout.constants"
 import { EventItem, getEventPosition } from "./event-item"
 
 type PositionedSegment = {
@@ -29,7 +30,7 @@ const EVENT_ROW_TOP_OFFSET = 56
 const EVENT_ROW_BOTTOM_OFFSET = 4
 const EVENT_ROW_HEIGHT = 28
 const EVENT_ROW_GAP = 4
-const EVENT_ROW_STRIDE = EVENT_ROW_HEIGHT + EVENT_ROW_GAP
+const EVENT_ROW_STRIDE = CALENDAR_EVENT_ITEM_STRIDE_PX
 const SPLIT_VISIBLE_EVENT_LIMIT = 3
 const DAY_MS = 1000 * 60 * 60 * 24
 

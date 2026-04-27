@@ -1,14 +1,14 @@
-import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import { useCalendarSubscriptionEvents } from "@/hooks/use-calendar-subscription-events"
+import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
+import {
+    getCalendarWeekStart,
+    normalizeCalendarLayoutOptions,
+} from "@/lib/calendar/layout-options"
 import {
     expandCalendarEventsForRange,
     getCalendarEventRenderId,
     getCalendarVisibleEventRange,
 } from "@/lib/calendar/recurrence"
-import {
-    getCalendarWeekStart,
-    normalizeCalendarLayoutOptions,
-} from "@/lib/calendar/layout-options"
 import { toCalendarRange } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { shallow } from "@/store/createSSRStore"
@@ -50,15 +50,22 @@ export function MonthList({
 }) {
     const events = useCalendarStore((s) => s.events)
     const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-    const weekStartsOn = useCalendarStore((s) =>
-        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    const weekStartsOn = useCalendarStore(
+        (s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .weekStartsOn
     )
-    const hideWeekendColumns = useCalendarStore((s) =>
-        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
-            .hideWeekendColumns
+    const hideWeekendColumns = useCalendarStore(
+        (s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .hideWeekendColumns
     )
     const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
-    const newDate = getCalendarWeekStart(new Date(), calendarTz, weekStartsOn).toDate()
+    const newDate = getCalendarWeekStart(
+        new Date(),
+        calendarTz,
+        weekStartsOn
+    ).toDate()
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
     const dragFrameRef = useRef<number | null>(null)
@@ -212,8 +219,8 @@ export function MonthList({
                 // smooth 끝났다고 가정하고 잠깐 후 unlock
                 snapUnlockTimeoutRef.current = setTimeout(() => {
                     isSnapping = false
-                }, 150)
-            }, 100)
+                }, 250)
+            }, 200)
         }
 
         el.addEventListener("scroll", handleScroll)
@@ -241,7 +248,8 @@ export function MonthList({
     const filteredEvents = useMemo(() => {
         if (
             eventFilters.excludedStatuses.length === 0 &&
-            eventFilters.excludedCategoryIds.length === 0
+            eventFilters.excludedCategoryIds.length === 0 &&
+            !eventFilters.excludedUncategorized
         ) {
             return events
         }
@@ -254,10 +262,11 @@ export function MonthList({
                 return false
             }
 
-            if (
-                excludedCategoryIds.size === 0 ||
-                event.categoryIds.length === 0
-            ) {
+            if (event.categoryIds.length === 0) {
+                return !eventFilters.excludedUncategorized
+            }
+
+            if (excludedCategoryIds.size === 0) {
                 return true
             }
 
@@ -505,12 +514,15 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
     const dragEnd = useCalendarStore((s) => s.drag.end)
     const dragSegmentOffset = useCalendarStore((s) => s.drag.segmentOffset)
     const draggingEvent = useCalendarStore((s) => s.drag.previewEvent)
-    const weekStartsOn = useCalendarStore((s) =>
-        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    const weekStartsOn = useCalendarStore(
+        (s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .weekStartsOn
     )
-    const hideWeekendColumns = useCalendarStore((s) =>
-        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
-            .hideWeekendColumns
+    const hideWeekendColumns = useCalendarStore(
+        (s) =>
+            normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
+                .hideWeekendColumns
     )
 
     if (
@@ -532,7 +544,11 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
         calendarTz
     )
     const segmentStartDay = startDay.add(dragSegmentOffset, "day")
-    const overlayWeek = getWeek(segmentStartDay.toDate(), calendarTz, weekStartsOn)
+    const overlayWeek = getWeek(
+        segmentStartDay.toDate(),
+        calendarTz,
+        weekStartsOn
+    )
     const visibleOverlayWeek = hideWeekendColumns
         ? overlayWeek.filter((day) => {
               const weekday = day.getDay()

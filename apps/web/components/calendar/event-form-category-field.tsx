@@ -107,7 +107,7 @@ export function EventFormCategoryChipsField({
     disabled = false,
     invalid = false,
     portalContainer,
-    emptyText = "카테고리를 입력해 생성할 수 있습니다.",
+    emptyText = "컬렉션을 입력해 생성할 수 있습니다.",
     errors,
     listVariant = "popover",
 }: EventFormCategoryChipsFieldProps) {
@@ -161,7 +161,7 @@ export function EventFormCategoryChipsField({
                         >
                             {category.label}
                         </span>
-                        {category.isCreate ? "새 카테고리 생성" : null}
+                        {category.isCreate ? "새 컬렉션 생성" : null}
                     </span>
                 )}
                 createOptionFromQuery={(query) =>

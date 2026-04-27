@@ -109,9 +109,20 @@ export type CalendarEventStatus = (typeof eventStatus)[number]
 export type CalendarEventFilterState = {
     excludedStatuses: CalendarEventStatus[]
     excludedCategoryIds: string[]
+    excludedUncategorized: boolean
 }
 
 export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
+export type CalendarSubscriptionSourceType =
+    | "system_holiday"
+    | "shared_category"
+    | "custom"
+
+export type CalendarSubscriptionCalendarInfo = {
+    id: string | null
+    name: string | null
+    avatarUrl: string | null
+}
 
 export type CalendarSubscriptionDefinition = {
     id: string
@@ -123,13 +134,12 @@ export type CalendarSubscriptionDefinition = {
     verified: boolean
     tags: string[]
     categoryColor?: CalendarCategoryColor
-    sourceType?: "system_holiday" | "shared_category" | "custom"
+    sourceType?: CalendarSubscriptionSourceType
     status?: "active" | "source_deleted" | "archived"
     sourceDeletedAt?: string | null
     sourceDeletedReason?: string | null
     providerName?: string | null
-    sourceCalendarId?: string | null
-    sourceCalendarName?: string | null
+    calendar?: CalendarSubscriptionCalendarInfo | null
     config?: Record<string, unknown>
 }
 
@@ -139,6 +149,16 @@ export type CalendarSubscriptionState = {
 }
 
 export type CalendarSubscriptionCatalogItem = CalendarSubscriptionDefinition
+
+export type EventSubscriptionItem = {
+    id: string
+    slug?: string
+    name: string
+    sourceType?: CalendarSubscriptionSourceType
+    authority?: CalendarSubscriptionAuthority
+    providerName?: string | null
+    calendar?: CalendarSubscriptionCalendarInfo | null
+}
 
 export type CalendarEvent = {
     id: string
@@ -163,16 +183,7 @@ export type CalendarEvent = {
     author: CalendarEventAuthor | null
     updatedById: string | null
     updatedBy: CalendarEventAuthor | null
-    subscription?: {
-        id: string
-        slug?: string
-        name: string
-        sourceType?: "system_holiday" | "shared_category" | "custom"
-        authority?: CalendarSubscriptionAuthority
-        providerName?: string | null
-        sourceCalendarId?: string | null
-        sourceCalendarName?: string | null
-    }
+    subscription?: EventSubscriptionItem
     isLocked: boolean
     createdAt: number
     updatedAt: number
@@ -286,6 +297,7 @@ export type CalendarStoreState = {
     setEventCategories: (categories: CalendarEventCategory[]) => void
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
     toggleEventCategoryFilter: (categoryId: string) => void
+    setExcludedUncategorizedFilter: (excluded: boolean) => void
     setSubscriptionState: (state: CalendarSubscriptionState) => void
     setSubscriptionCatalogs: (
         catalogs: CalendarSubscriptionCatalogItem[]

@@ -251,8 +251,8 @@ export function EventChipsCombobox<TData = unknown>({
                             onMouseDown={(event) => {
                                 event.preventDefault()
                             }}
-                            onClick={(e) => {
-                                e.preventDefault()
+                            onSelect={(event) => {
+                                event.preventDefault()
                                 toggleOption(option.value)
                             }}
                         >
@@ -304,11 +304,12 @@ export function EventChipsCombobox<TData = unknown>({
                         <>
                             {selectedOptions.map((option) => (
                                 <ComboboxChip
-                                    className={
+                                    className={cn(
                                         typeof chipClassName === "function"
                                             ? chipClassName(option)
-                                            : chipClassName
-                                    }
+                                            : chipClassName,
+                                        disabled && "pr-1.5! [&>button]:hidden"
+                                    )}
                                     key={option.value}
                                     showRemove={showRemove}
                                 >

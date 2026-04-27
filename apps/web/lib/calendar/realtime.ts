@@ -86,6 +86,11 @@ export type CalendarWorkspacePresencePayload = {
     avatarUrl: string | null
     isAnonymous: boolean
     joinedAt: string
+    /**
+     * 마지막으로 presence를 서버에 갱신한 시각입니다.
+     * 브라우저 종료/네트워크 단절에서 leave 이벤트가 누락될 때 stale 멤버를 정리하는 기준으로 씁니다.
+     */
+    lastSeenAt?: string
     cursor?: CalendarWorkspaceCursor | null
 }
 

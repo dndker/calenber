@@ -1,0 +1,34 @@
+---
+description: Calendar subscription domain guardrails and pitfalls
+globs: apps/web/{lib/calendar/subscriptions/**,lib/calendar/queries.ts,store/calendar-store.types.ts,hooks/use-calendar-*.ts,components/calendar/**}
+alwaysApply: false
+---
+
+# 캘린더 구독 도메인 규칙
+
+## 1) 타입 구조 일관성 (필수)
+- 구독의 캘린더 메타는 플랫 필드로 분산하지 말고 `calendar` 객체로 유지한다.
+- 표준 형태: `calendar: { id: string | null; name: string | null; avatarUrl: string | null } | null`
+- `CalendarSubscriptionDefinition`과 `EventSubscriptionItem`은 동일한 구독 메타 구조를 공유한다.
+- 신규 필드 추가 시 `store types -> queries 매핑 -> hooks attachMeta -> UI` 순서로 전체 반영한다.
+
+## 2) 공휴일/절기 구독의 DB 비의존 원칙 (필수)
+- `korean-public-holidays`, `korean-solar-terms`는 DB 이벤트가 아니라 provider 코드에서 동적 생성한다.
+- Built-in 구독은 카탈로그 병합 시 DB 행이 없어도 동작해야 한다.
+- 이벤트 조회/표시 로직은 생성형 구독 ID(`isGeneratedSubscriptionEventId`)를 항상 고려한다.
+- 즐겨찾기/상세 조회에서 DB 미존재 이벤트가 누락되지 않도록 provider 기반 복원 경로를 유지한다.
+
+## 3) UI/폼 동작 규칙 (필수)
+- 구독 일정은 일반 일정과 편집 가능 범위가 다르다.
+- 속성 표시 제한이 필요한 UI(예: 이벤트 폼, 사이드바 HoverCard)는 구독 일정에서 `schedule`, `categories`만 노출한다.
+- 구독 일정은 삭제/일부 액션 제한 여부를 UI별로 일관되게 유지한다.
+
+## 4) 공휴일 네이밍 규칙 (필수)
+- 설날 3일 중 당일만 `설날`, 전/후일은 `설날 연휴`로 표기한다.
+- 대체공휴일 이름 포맷은 `대체공휴일(원래명)`을 사용한다. 예: `대체공휴일(삼일절)`
+
+## 5) 놓치기 쉬운 복잡 포인트 (체크리스트)
+- 구독 source calendar avatar는 카탈로그 조회 후 source calendar id 기반 추가 조회로 채운다.
+- Built-in 구독 slug/id 정합성이 깨지면 설치/표시/provider 매칭이 동시에 깨질 수 있다.
+- 타입 변경 시 `event.subscription` 참조 컴포넌트들을 함께 점검한다.
+- 변경 후 `bun run typecheck`로 타입 회귀를 반드시 확인한다.

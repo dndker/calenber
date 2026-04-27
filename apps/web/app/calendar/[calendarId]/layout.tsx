@@ -1,4 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { parseSidebarCollapseStateCookie } from "@/lib/calendar/sidebar-collapse-cookie"
+import { SidebarCollapseProvider } from "@/hooks/use-sidebar-collapse-state"
 import { CalendarLayoutContent } from "@/components/calendar/calendar-layout-content"
 import { SettingsModalProvider } from "@/components/settings/settings-modal-provider"
 import {
@@ -53,6 +55,9 @@ export default async function CalendarLayout({
     const cookieStore = await cookies()
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
+    const sidebarCollapseState = parseSidebarCollapseStateCookie(
+        cookieStore.get("sidebar-collapse-state")?.value
+    )
     const isDemo = calendarId === "demo"
     const demoEventCategories = isDemo ? getDemoEventCategories() : []
     const [initialData, myCalendars] = await Promise.all([
@@ -124,6 +129,7 @@ export default async function CalendarLayout({
                 eventFilters: {
                     excludedStatuses: ["completed", "cancelled"],
                     excludedCategoryIds: initialExcludedCategoryIds,
+                    excludedUncategorized: false,
                 },
                 subscriptionCatalogs: initialData?.subscriptionCatalogs ?? [],
                 subscriptionState: initialData?.subscriptionState ?? {
@@ -135,16 +141,18 @@ export default async function CalendarLayout({
                 viewportMini,
             }}
         >
-            <SidebarProvider className="h-screen overflow-hidden">
-                <SettingsModalProvider>
-                    <AppSidebar />
-                    <SidebarInset className="h-screen overflow-hidden">
-                        <CalendarLayoutContent>
-                            {children}
-                        </CalendarLayoutContent>
-                    </SidebarInset>
-                </SettingsModalProvider>
-            </SidebarProvider>
+            <SidebarCollapseProvider initialState={sidebarCollapseState}>
+                <SidebarProvider className="h-screen overflow-hidden">
+                    <SettingsModalProvider>
+                        <AppSidebar />
+                        <SidebarInset className="h-screen overflow-hidden">
+                            <CalendarLayoutContent>
+                                {children}
+                            </CalendarLayoutContent>
+                        </SidebarInset>
+                    </SettingsModalProvider>
+                </SidebarProvider>
+            </SidebarCollapseProvider>
         </CalendarStoreProvider>
     )
 }

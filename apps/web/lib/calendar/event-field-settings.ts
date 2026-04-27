@@ -27,7 +27,7 @@ export const calendarEventFieldDefinitions: {
     },
     {
         id: "categories",
-        label: "카테고리",
+        label: "컬렉션",
         description: "분류와 필터 기준",
     },
     {

@@ -14,6 +14,8 @@ import type {
     CalendarEventCategory,
 } from "@/store/calendar-store.types"
 import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { resolveSubscriptionCatalogIdForInstall } from "@/lib/calendar/resolve-subscription-catalog-id"
+import { KOREA_HOLIDAY_SUBSCRIPTION_ID } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
 
 type CalendarEventCategoryRow = {
     id: string
@@ -392,6 +394,37 @@ export async function createCalendar(
         console.error(
             "Failed to create calendar owner membership:",
             membershipError
+        )
+        return null
+    }
+
+    const holidayCatalogId = await resolveSubscriptionCatalogIdForInstall(
+        supabase,
+        KOREA_HOLIDAY_SUBSCRIPTION_ID
+    )
+
+    if (!holidayCatalogId) {
+        console.error(
+            "Missing Korea holiday subscription catalog row; run migrations."
+        )
+        return null
+    }
+
+    const { error: installSubscriptionError } = await supabase
+        .from("calendar_subscription_installs")
+        .upsert(
+            {
+                calendar_id: calendarId,
+                subscription_catalog_id: holidayCatalogId,
+                is_visible: true,
+            },
+            { onConflict: "calendar_id,subscription_catalog_id" }
+        )
+
+    if (installSubscriptionError) {
+        console.error(
+            "Failed to auto install Korea holiday subscription:",
+            installSubscriptionError
         )
         return null
     }

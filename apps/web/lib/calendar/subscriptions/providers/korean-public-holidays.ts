@@ -1,6 +1,5 @@
 import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
-import { defaultContent } from "@/store/calendar-store.types"
 import solarlunar from "solarlunar"
 import type {
     CalendarSubscription,
@@ -8,13 +7,17 @@ import type {
 } from "../types"
 
 const KOREA_TIMEZONE = "Asia/Seoul"
-const KOREA_HOLIDAY_SUBSCRIPTION_ID = "subscription.kr.public-holidays"
+export const KOREA_HOLIDAY_SUBSCRIPTION_ID = "subscription.kr.public-holidays"
+
+/** DB `calendar_subscription_catalogs.config.provider` 및 병합 카탈로그에서 사용 */
+export const KOREAN_HOLIDAY_PROVIDER_KEY = "korean_public_holidays_v1"
 const KOREA_HOLIDAY_CATEGORY_ID = "category.subscription.kr.public-holidays"
 const KOREA_HOLIDAY_COLOR = "red"
 
 type HolidaySeed = {
     id: string
     name: string
+    description: string
     resolveDates: (year: number) => string[]
     substituteOnWeekend: boolean
 }
@@ -37,14 +40,20 @@ function toIsoDateInKst(timestamp: number) {
 
 function createAllDaySubscriptionEvent(
     isoDate: string,
-    title: string
+    title: string,
+    description: string
 ): CalendarEvent {
     const start = dayjs.tz(isoDate, KOREA_TIMEZONE).startOf("day").valueOf()
 
     return {
         id: `${KOREA_HOLIDAY_SUBSCRIPTION_ID}:${isoDate}:${title}`,
         title,
-        content: defaultContent,
+        content: [
+            {
+                type: "paragraph",
+                content: [description],
+            },
+        ],
         start,
         end: start,
         allDay: true,
@@ -120,7 +129,7 @@ export function getKoreanPublicHolidaySubscriptionEventById(eventId: string) {
         return null
     }
 
-    return createAllDaySubscriptionEvent(isoDate, title)
+    return createAllDaySubscriptionEvent(isoDate, title, `${title} 일정입니다.`)
 }
 
 function resolveLunarToSolarDate(
@@ -137,12 +146,15 @@ function getKoreanHolidaySeeds(): HolidaySeed[] {
         {
             id: "new-year-day",
             name: "신정",
+            description: "양력 1월 1일 새해 첫날을 기념하는 공휴일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 1, 1)],
             substituteOnWeekend: true,
         },
         {
             id: "lunar-new-year",
             name: "설날",
+            description:
+                "음력 1월 1일 전후로 가족이 함께 새해를 맞이하는 대표 명절입니다.",
             resolveDates: (year) => {
                 const seollal = resolveLunarToSolarDate(year, 1, 1)
                 return [
@@ -156,42 +168,51 @@ function getKoreanHolidaySeeds(): HolidaySeed[] {
         {
             id: "independence-movement-day",
             name: "삼일절",
+            description: "1919년 3.1 독립운동을 기념하는 국경일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 3, 1)],
             substituteOnWeekend: true,
         },
         {
             id: "children-day",
             name: "어린이날",
+            description: "어린이의 건강한 성장과 행복을 기념하는 공휴일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 5, 5)],
             substituteOnWeekend: true,
         },
         {
             id: "labor-day",
             name: "근로자의날",
+            description: "근로자의 권익과 노고를 기리는 기념일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 5, 1)],
             substituteOnWeekend: false,
         },
         {
             id: "buddha-birthday",
             name: "부처님오신날",
+            description: "석가모니 탄생을 기념하는 불교계 주요 공휴일입니다.",
             resolveDates: (year) => [resolveLunarToSolarDate(year, 4, 8)],
             substituteOnWeekend: true,
         },
         {
             id: "memorial-day",
             name: "현충일",
+            description:
+                "나라를 위해 희생한 순국선열과 호국영령을 추모하는 날입니다.",
             resolveDates: (year) => [formatIsoDate(year, 6, 6)],
             substituteOnWeekend: false,
         },
         {
             id: "liberation-day",
             name: "광복절",
+            description: "1945년 광복을 기념하는 국경일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 8, 15)],
             substituteOnWeekend: true,
         },
         {
             id: "chuseok",
             name: "추석",
+            description:
+                "음력 8월 15일 전후로 조상께 감사하고 가족이 모이는 대표 명절입니다.",
             resolveDates: (year) => {
                 const chuseok = resolveLunarToSolarDate(year, 8, 15)
                 return [
@@ -205,18 +226,21 @@ function getKoreanHolidaySeeds(): HolidaySeed[] {
         {
             id: "national-foundation-day",
             name: "개천절",
+            description: "고조선 건국을 기념하는 국경일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 10, 3)],
             substituteOnWeekend: true,
         },
         {
             id: "hangul-day",
             name: "한글날",
+            description: "훈민정음 창제를 기념하는 국경일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 10, 9)],
             substituteOnWeekend: true,
         },
         {
             id: "christmas",
             name: "성탄절",
+            description: "예수 그리스도의 탄생을 기념하는 공휴일입니다.",
             resolveDates: (year) => [formatIsoDate(year, 12, 25)],
             substituteOnWeekend: true,
         },
@@ -261,21 +285,33 @@ function collectSubstituteHoliday(
 
 function buildYearlyKoreanHolidayMap(year: number) {
     const occupiedDates = new Set<string>()
-    const holidayMap = new Map<string, string>()
+    const holidayMap = new Map<string, { name: string; description: string }>()
     const seeds = getKoreanHolidaySeeds()
 
     for (const seed of seeds) {
         const holidayDates = new Set(seed.resolveDates(year))
+        const sortedHolidayDates = [...holidayDates].sort()
+        const centerHolidayDate =
+            sortedHolidayDates[Math.floor(sortedHolidayDates.length / 2)] ?? null
+
         for (const isoDate of holidayDates) {
             occupiedDates.add(isoDate)
-            holidayMap.set(isoDate, seed.name)
+            const isLunarNewYearHoliday =
+                seed.id === "lunar-new-year" && isoDate !== centerHolidayDate
+            holidayMap.set(isoDate, {
+                name: isLunarNewYearHoliday ? "설날 연휴" : seed.name,
+                description: seed.description,
+            })
         }
 
         collectSubstituteHoliday(seed, holidayDates, occupiedDates)
 
         for (const isoDate of holidayDates) {
             if (!holidayMap.has(isoDate)) {
-                holidayMap.set(isoDate, `${seed.name} 대체공휴일`)
+                holidayMap.set(isoDate, {
+                    name: `대체공휴일(${seed.name})`,
+                    description: `${seed.description} (대체공휴일)`,
+                })
             }
         }
     }
@@ -295,12 +331,18 @@ export function generateKoreanPublicHolidaySubscriptionEvents(
     for (let year = fromYear; year <= toYear; year += 1) {
         const holidayMap = buildYearlyKoreanHolidayMap(year)
 
-        for (const [isoDate, name] of holidayMap.entries()) {
+        for (const [isoDate, holiday] of holidayMap.entries()) {
             if (isoDate < rangeStartIso || isoDate > rangeEndIso) {
                 continue
             }
 
-            events.push(createAllDaySubscriptionEvent(isoDate, name))
+            events.push(
+                createAllDaySubscriptionEvent(
+                    isoDate,
+                    holiday.name,
+                    holiday.description
+                )
+            )
         }
     }
 
@@ -314,6 +356,7 @@ export function generateKoreanPublicHolidaySubscriptionEvents(
 
 export const koreanPublicHolidaySubscription: CalendarSubscription = {
     id: KOREA_HOLIDAY_SUBSCRIPTION_ID,
+    sourceType: "system_holiday",
     name: "대한민국 공휴일",
     description: "대한민국 법정 공휴일을 추가합니다.",
     authority: "system",

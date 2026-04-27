@@ -64,7 +64,7 @@ function renderCategoryBadges(categories: CalendarEventCategory[]) {
     if (categories.length === 0) {
         return (
             <Badge variant="outline" className="text-muted-foreground">
-                카테고리 없음
+                컬렉션 없음
             </Badge>
         )
     }
@@ -279,7 +279,7 @@ export function getCalendarDataColumns({
             } satisfies DataTableColumnMeta,
             accessorFn: (row) =>
                 row.categories.map((category) => category.name).join(" "),
-            header: "카테고리",
+            header: "컬렉션",
             cell: ({ row }) => {
                 const event = row.original
                 const selectedCategoryId = event.categoryIds[0] ?? "__none__"
@@ -308,13 +308,13 @@ export function getCalendarDataColumns({
                             disabled={!event.canManage}
                         >
                             <SelectTrigger className="-ml-2 w-32 border-0 px-2 shadow-none hover:bg-muted">
-                                <SelectValue placeholder="카테고리 선택" />
+                                <SelectValue placeholder="컬렉션 선택" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>카테고리</SelectLabel>
+                                    <SelectLabel>컬렉션</SelectLabel>
                                     <SelectItem value="__none__">
-                                        카테고리 없음
+                                        컬렉션 없음
                                     </SelectItem>
                                     {categoryOptions.map((category) => (
                                         <SelectItem

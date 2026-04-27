@@ -1,12 +1,21 @@
 "use client"
 
-import { getEventById } from "@/lib/calendar/queries"
 import {
     isCalendarEventUuid,
     isGeneratedSubscriptionEventId,
 } from "@/lib/calendar/event-id"
+import { getEventById } from "@/lib/calendar/queries"
 import { expandCalendarEventsForRange } from "@/lib/calendar/recurrence"
-import { generateKoreanPublicHolidaySubscriptionEvents } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
+import {
+    KOREA_HOLIDAY_SUBSCRIPTION_ID,
+    KOREAN_HOLIDAY_PROVIDER_KEY,
+    generateKoreanPublicHolidaySubscriptionEvents,
+} from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
+import {
+    KOREA_SOLAR_TERMS_SUBSCRIPTION_ID,
+    KOREAN_SOLAR_TERMS_PROVIDER_KEY,
+    generateKoreanSolarTermSubscriptionEvents,
+} from "@/lib/calendar/subscriptions/providers/korean-solar-terms"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -67,7 +76,8 @@ export function useCalendarEventDetail({
 
     const resolvedInitialEvent =
         initialEvent && initialEvent.id === eventId ? initialEvent : null
-    const resolvedViewEvent = viewEvent && viewEvent.id === eventId ? viewEvent : null
+    const resolvedViewEvent =
+        viewEvent && viewEvent.id === eventId ? viewEvent : null
     const resolvedRemoteEvent =
         remoteState.eventId === eventId ? remoteState.event : null
     const resolvedSubscriptionEvent = useMemo(() => {
@@ -84,25 +94,50 @@ export function useCalendarEventDetail({
             return null
         }
 
+        const rangeArgs = {
+            rangeStart: parsedDay - 24 * 60 * 60 * 1000,
+            rangeEnd: parsedDay + 24 * 60 * 60 * 1000,
+            timezone: "Asia/Seoul",
+        }
+
         for (const subscription of visibleSubscriptions) {
             const provider = String(subscription.config?.provider ?? "")
+            const slug = subscription.slug ?? ""
             const isKoreanHoliday =
-                subscription.slug === "subscription.kr.public-holidays" ||
-                provider === "korean_public_holidays_v1"
+                slug === KOREA_HOLIDAY_SUBSCRIPTION_ID ||
+                provider === KOREAN_HOLIDAY_PROVIDER_KEY
+            const isKoreanSolarTerms =
+                slug === KOREA_SOLAR_TERMS_SUBSCRIPTION_ID ||
+                provider === KOREAN_SOLAR_TERMS_PROVIDER_KEY
 
-            if (!isKoreanHoliday) {
-                continue
+            if (
+                isKoreanHoliday &&
+                eventId.startsWith(`${KOREA_HOLIDAY_SUBSCRIPTION_ID}:`)
+            ) {
+                const candidates =
+                    generateKoreanPublicHolidaySubscriptionEvents(rangeArgs)
+                const matched = candidates.find(
+                    (candidate) => candidate.id === eventId
+                )
+
+                if (matched) {
+                    return matched
+                }
             }
 
-            const candidates = generateKoreanPublicHolidaySubscriptionEvents({
-                rangeStart: parsedDay - 24 * 60 * 60 * 1000,
-                rangeEnd: parsedDay + 24 * 60 * 60 * 1000,
-                timezone: "Asia/Seoul",
-            })
-            const matched = candidates.find((candidate) => candidate.id === eventId)
+            if (
+                isKoreanSolarTerms &&
+                eventId.startsWith(`${KOREA_SOLAR_TERMS_SUBSCRIPTION_ID}:`)
+            ) {
+                const candidates =
+                    generateKoreanSolarTermSubscriptionEvents(rangeArgs)
+                const matched = candidates.find(
+                    (candidate) => candidate.id === eventId
+                )
 
-            if (matched) {
-                return matched
+                if (matched) {
+                    return matched
+                }
             }
         }
 
@@ -110,10 +145,10 @@ export function useCalendarEventDetail({
     }, [eventId, visibleSubscriptions])
     const shouldFetch = Boolean(
         eventId &&
-            isCalendarEventUuid(eventId) &&
-            !storeEvent &&
-            !resolvedViewEvent &&
-            !resolvedInitialEvent
+        isCalendarEventUuid(eventId) &&
+        !storeEvent &&
+        !resolvedViewEvent &&
+        !resolvedInitialEvent
     )
 
     const baseEvent = useMemo(() => {
@@ -163,7 +198,8 @@ export function useCalendarEventDetail({
             calendarTz: baseEvent.timezone || "Asia/Seoul",
         }).find(
             (candidate) =>
-                candidate.recurrenceInstance?.occurrenceStart === occurrenceStart
+                candidate.recurrenceInstance?.occurrenceStart ===
+                occurrenceStart
         )
 
         return resolved ?? baseEvent

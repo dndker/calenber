@@ -5,13 +5,14 @@ import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useEventQuickPropertySave } from "@/hooks/use-event-quick-property-save"
 import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import {
+    getCalendarCategoryDotClassName,
     getCalendarCategoryEventClassName,
     getCalendarCategoryEventHoverClassName,
 } from "@/lib/calendar/category-color"
 import { normalizeNames } from "@/lib/calendar/event-form-names"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
-import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     canDeleteCalendarEvent,
     canEditCalendarEvent,
@@ -51,6 +52,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import {
+    BadgeCheckIcon,
     CheckIcon,
     CircleCheckBigIcon,
     ListIcon,
@@ -64,6 +66,10 @@ import {
 import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import {
+    CALENDAR_EVENT_ITEM_HEIGHT_PX,
+    CALENDAR_EVENT_ITEM_STRIDE_PX,
+} from "./event-item-layout.constants"
 
 /**
  * 리사이즈로 `startIndex`/`endIndex`가 바뀌면 `EventRow`의 key가 달라져 `EventItem`이 언마운트된다.
@@ -308,11 +314,24 @@ export const EventItem = memo(
             propertyCategoryNames
         )
 
+        /**
+         * 카테고리 토글 저장 직후 store 동기화가 여러 번 들어오면
+         * 로컬 draft를 다시 덮어쓰며 칩이 한 프레임 사라졌다가 복구되는 깜빡임이 생긴다.
+         * 편집 중에는 로컬 draft를 유지하고, 카테고리 뷰 진입 시점/대상 이벤트 변경 시에만 초기화한다.
+         */
         useEffect(() => {
             if (ctxRootView === "category") {
                 setCategoryDraft(propertyCategoryNames)
             }
-        }, [ctxRootView, propertyCategoryNames])
+            // intentionally exclude propertyCategoryNames to keep inline editor stable while toggling
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [ctxRootView])
+
+        useEffect(() => {
+            setCategoryDraft(propertyCategoryNames)
+            // source event changed (different item/occurrence) when id changes.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [sourceEventId])
 
         const handleFavoriteToggle = useCallback(async () => {
             if (isFavoritePending || !canToggleFavorite) {
@@ -535,21 +554,53 @@ export const EventItem = memo(
             !overlay && eventLayout === "split" && resolvedDisplayLaneCount > 0
         const itemTop = useSplitLayout
             ? `calc(${(top / resolvedDisplayLaneCount) * 100}% + 2px)`
-            : `${top * 32}px`
+            : `${top * CALENDAR_EVENT_ITEM_STRIDE_PX}px`
         const itemHeight = useSplitLayout
             ? `calc(${100 / resolvedDisplayLaneCount}% - 4px)`
-            : "30px"
+            : `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`
 
         const eventMembers = useEventMembers(sourceEventId, user?.id)
         const isCompleted = event.status === "completed"
         const isCancelled = event.status === "cancelled"
         const primaryCategoryColor =
             event.categories[0]?.options.color ?? event.category?.options.color
+        const displayPrimaryCategoryColor = useMemo(() => {
+            // 컨텍스트 메뉴 카테고리 편집 중에는 로컬 draft 기준 색을 우선 사용해
+            // 실시간/낙관적 동기화 중간 프레임의 배경색 깜빡임을 줄인다.
+            if (ctxRootView !== "category" || !isCtxOpen) {
+                return primaryCategoryColor
+            }
+
+            const firstCategoryName = normalizeNames(categoryDraft)[0]
+
+            if (!firstCategoryName) {
+                return undefined
+            }
+
+            const matchedCategory =
+                eventCategories.find(
+                    (category) =>
+                        normalizeNames([category.name])[0] ===
+                        normalizeNames([firstCategoryName])[0]
+                ) ?? null
+
+            return (
+                matchedCategory?.options.color ??
+                getDraftCategoryColor(firstCategoryName)
+            )
+        }, [
+            categoryDraft,
+            ctxRootView,
+            eventCategories,
+            getDraftCategoryColor,
+            isCtxOpen,
+            primaryCategoryColor,
+        ])
         const resolvedSeriesHoverClassName =
-            isSeriesHover && !isDragging
-                ? primaryCategoryColor
+            isSeriesHover && !isDragging && event.allDay
+                ? displayPrimaryCategoryColor
                     ? getCalendarCategoryEventHoverClassName(
-                          primaryCategoryColor
+                          displayPrimaryCategoryColor
                       )
                     : "bg-muted text-foreground dark:bg-input/50"
                 : undefined
@@ -564,7 +615,7 @@ export const EventItem = memo(
             ? {
                   position: "relative" as const,
                   width: "100%",
-                  height: "30px",
+                  height: `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`,
                   zIndex: isDragging ? 10 : 1,
               }
             : {
@@ -612,7 +663,8 @@ export const EventItem = memo(
                             ref={!canDragResize ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                !event.allDay && "pl-1.75",
                                 !interactive && "pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
@@ -627,15 +679,18 @@ export const EventItem = memo(
                                 eventMembers.length > 0 && "shadow-lg/7",
                                 eventRadiusClass,
                                 // primaryCategoryColor && "pl-2.25",
-                                primaryCategoryColor &&
+                                displayPrimaryCategoryColor &&
+                                    event.allDay &&
                                     getCalendarCategoryEventClassName(
-                                        primaryCategoryColor
+                                        displayPrimaryCategoryColor
                                     ),
                                 resolvedSeriesHoverClassName,
                                 (isResizingThis || isCtxOpen) && "bg-muted",
                                 (isResizingThis || isCtxOpen) &&
+                                    event.allDay &&
+                                    displayPrimaryCategoryColor &&
                                     getCalendarCategoryEventHoverClassName(
-                                        primaryCategoryColor
+                                        displayPrimaryCategoryColor
                                     )
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
@@ -672,15 +727,34 @@ export const EventItem = memo(
                                 )
                             }}
                         >
-                            {event.isLocked && !isCompleted && !isCancelled && (
-                                <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            {event.subscription && (
+                                <BadgeCheckIcon className="ml-0.5 size-3.5 shrink-0" />
                             )}
+                            {event.isLocked &&
+                                !isCompleted &&
+                                !isCancelled &&
+                                !event.subscription && (
+                                    <LockIcon className="ml-0.5 size-3.5 shrink-0" />
+                                )}
                             {isCompleted && (
                                 <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
                             {isCancelled && (
                                 <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
+
+                            {displayPrimaryCategoryColor &&
+                                !event.allDay &&
+                                !continuesFromPrevWeek && (
+                                    <span
+                                        className={cn(
+                                            "absolute top-1/2 -left-1.25 inline-block h-[calc(100%-2.5px)] w-0.5 -translate-y-1/2 rounded-lg",
+                                            getCalendarCategoryDotClassName(
+                                                displayPrimaryCategoryColor
+                                            )
+                                        )}
+                                    ></span>
+                                )}
                             <span className="flex-initial truncate overflow-hidden">
                                 {event.title === "" ? "새 일정" : event.title}
                             </span>
@@ -755,7 +829,7 @@ export const EventItem = memo(
                                                 }}
                                             >
                                                 <TagsIcon />
-                                                카테고리
+                                                컬렉션
                                             </ContextMenuItem>
                                         </ContextMenuGroup>
                                     </ContextMenuSubContent>

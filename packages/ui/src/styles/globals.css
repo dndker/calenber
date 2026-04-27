@@ -43,33 +43,37 @@
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
     --category-blue-default: oklch(0.62 0.19 255);
-    --category-blue-muted: oklch(0.93 0.05 255);
+    --category-blue-muted: oklch(0.95 0.03 246.94);
     --category-blue-strong: oklch(0.55 0.17 255);
-    --category-blue-soft: oklch(0.9 0.05 255);
+    --category-blue-soft: oklch(0.93 0.04 254.3);
     --category-green-default: oklch(0.68 0.18 150);
-    --category-green-muted: oklch(0.93 0.05 150);
-    --category-green-strong: oklch(0.57 0.14 150);
-    --category-green-soft: oklch(0.91 0.05 150);
+    --category-green-muted: oklch(0.96 0.03 150.14);
+    --category-green-strong: oklch(0.5 0.16 148.96);
+    --category-green-soft: oklch(0.94 0.04 150.07);
     --category-sky-default: oklch(0.72 0.15 230);
-    --category-sky-muted: oklch(0.97 0.025 230);
-    --category-sky-strong: oklch(0.6 0.12 230);
-    --category-sky-soft: oklch(0.91 0.04 230);
+    --category-sky-muted: oklch(0.98 0.02 221.25);
+    --category-sky-strong: oklch(0.53 0.11 230.36);
+    --category-sky-soft: oklch(0.96 0.03 229.9);
     --category-purple-default: oklch(0.63 0.2 305);
-    --category-purple-muted: oklch(0.97 0.03 305);
-    --category-purple-strong: oklch(0.56 0.16 305);
-    --category-purple-soft: oklch(0.91 0.05 305);
+    --category-purple-muted: oklch(0.97 0.02 311.54);
+    --category-purple-strong: oklch(0.44 0.15 303.94);
+    --category-purple-soft: oklch(0.95 0.03 305.31);
     --category-red-default: oklch(0.64 0.21 24);
-    --category-red-muted: oklch(0.93 0.055 24);
+    --category-red-muted: oklch(0.96 0.02 24.5);
     --category-red-strong: oklch(0.57 0.18 24);
-    --category-red-soft: oklch(0.91 0.05 24);
+    --category-red-soft: oklch(0.94 0.03 23.81);
+    --category-orange-default: oklch(0.72 0.18 56);
+    --category-orange-muted: oklch(0.98 0.02 62.32);
+    --category-orange-strong: oklch(0.55 0.15 53.64);
+    --category-orange-soft: oklch(0.96 0.03 56.1);
     --category-yellow-default: oklch(0.78 0.16 92);
     --category-yellow-muted: oklch(0.98 0.03 92);
-    --category-yellow-strong: oklch(0.58 0.12 92);
-    --category-yellow-soft: oklch(0.93 0.05 92);
+    --category-yellow-strong: oklch(0.47 0.1 91.32);
+    --category-yellow-soft: oklch(0.96 0.04 91.88);
     --category-gray-default: oklch(0.63 0.01 255);
-    --category-gray-muted: oklch(0.97 0.002 255);
-    --category-gray-strong: oklch(0.5 0.01 255);
-    --category-gray-soft: oklch(0.88 0.005 255);
+    --category-gray-muted: oklch(0.98 0 0);
+    --category-gray-strong: oklch(0.26 0 0);
+    --category-gray-soft: oklch(0.95 0 0);
     --category-olive-default: oklch(0.62 0.09 118);
     --category-olive-muted: oklch(0.95 0.018 118);
     --category-olive-strong: oklch(0.5 0.075 118);
@@ -77,11 +81,11 @@
     --category-pink-default: oklch(0.72 0.2 354);
     --category-pink-muted: oklch(0.975 0.03 354);
     --category-pink-strong: oklch(0.6 0.17 354);
-    --category-pink-soft: oklch(0.91 0.05 354);
-    --category-mauve-default: oklch(0.5 0.08 338);
-    --category-mauve-muted: oklch(0.95 0.02 338);
-    --category-mauve-strong: oklch(0.42 0.07 338);
-    --category-mauve-soft: oklch(0.84 0.025 338);
+    --category-pink-soft: oklch(0.95 0.04 352.13);
+    --category-brown-default: oklch(0.62 0.06 58);
+    --category-brown-muted: oklch(0.95 0.012 58);
+    --category-brown-strong: oklch(0.33 0.06 56.92);
+    --category-brown-soft: oklch(0.92 0.02 58.34);
 }
 
 .dark {
@@ -117,45 +121,50 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
     --category-blue-default: oklch(0.5 0.14 255);
-    --category-blue-muted: oklch(0.28 0.05 255);
-    --category-blue-strong: oklch(0.82 0.08 255);
-    --category-blue-soft: oklch(0.38 0.07 255);
+    --category-blue-muted: oklch(0.23 0.03 255.25);
+    --category-blue-strong: oklch(0.67 0.1 254.7);
+    --category-blue-soft: oklch(0.28 0.05 254.99);
     --category-green-default: oklch(0.5 0.13 150);
-    --category-green-muted: oklch(0.28 0.045 150);
-    --category-green-strong: oklch(0.84 0.07 150);
-    --category-green-soft: oklch(0.37 0.06 150);
+    --category-green-muted: oklch(0.24 0.04 150.02);
+    --category-green-strong: oklch(0.68 0.08 149.68);
+    --category-green-soft: oklch(0.28 0.04 150.06);
     --category-sky-default: oklch(0.54 0.11 230);
-    --category-sky-muted: oklch(0.29 0.035 230);
-    --category-sky-strong: oklch(0.85 0.06 230);
-    --category-sky-soft: oklch(0.38 0.05 230);
+    --category-sky-muted: oklch(0.27 0.03 229.97);
+    --category-sky-strong: oklch(0.7 0.07 230.2);
+    --category-sky-soft: oklch(0.3 0.04 229.99);
     --category-purple-default: oklch(0.49 0.15 305);
-    --category-purple-muted: oklch(0.28 0.045 305);
-    --category-purple-strong: oklch(0.84 0.08 305);
-    --category-purple-soft: oklch(0.37 0.065 305);
+    --category-purple-muted: oklch(0.25 0.04 305.28);
+    --category-purple-strong: oklch(0.59 0.11 303.77);
+    --category-purple-soft: oklch(0.29 0.04 305.44);
     --category-red-default: oklch(0.5 0.16 24);
-    --category-red-muted: oklch(0.28 0.05 24);
-    --category-red-strong: oklch(0.84 0.08 24);
-    --category-red-soft: oklch(0.37 0.07 24);
+    --category-red-muted: oklch(0.24 0.04 23.95);
+    /* --category-red-strong: oklch(0.84 0.08 24); */
+    --category-red-strong: oklch(0.6 0.14 26.34);
+    --category-red-soft: oklch(0.27 0.05 23.99);
+    --category-orange-default: oklch(0.58 0.14 56);
+    --category-orange-muted: oklch(0.26 0.04 56.23);
+    --category-orange-strong: oklch(0.71 0.1 55.63);
+    --category-orange-soft: oklch(0.3 0.04 56.09);
     --category-yellow-default: oklch(0.58 0.12 92);
-    --category-yellow-muted: oklch(0.31 0.04 92);
-    --category-yellow-strong: oklch(0.8 0.06 92);
-    --category-yellow-soft: oklch(0.4 0.05 92);
+    --category-yellow-muted: oklch(0.28 0.04 92);
+    --category-yellow-strong: oklch(0.72 0.09 92.21);
+    --category-yellow-soft: oklch(0.31 0.04 91.97);
     --category-gray-default: oklch(0.48 0.008 255);
-    --category-gray-muted: oklch(0.27 0.003 255);
-    --category-gray-strong: oklch(0.83 0.008 255);
-    --category-gray-soft: oklch(0.36 0.005 255);
+    --category-gray-muted: oklch(0.22 0 0);
+    --category-gray-strong: oklch(0.76 0.02 254.85);
+    --category-gray-soft: oklch(0.26 0 0);
     --category-olive-default: oklch(0.48 0.07 118);
     --category-olive-muted: oklch(0.29 0.025 118);
     --category-olive-strong: oklch(0.81 0.045 118);
     --category-olive-soft: oklch(0.36 0.035 118);
     --category-pink-default: oklch(0.56 0.16 354);
-    --category-pink-muted: oklch(0.3 0.05 354);
-    --category-pink-strong: oklch(0.86 0.07 354);
-    --category-pink-soft: oklch(0.39 0.07 354);
-    --category-mauve-default: oklch(0.4 0.055 338);
-    --category-mauve-muted: oklch(0.28 0.03 338);
-    --category-mauve-strong: oklch(0.74 0.035 338);
-    --category-mauve-soft: oklch(0.33 0.03 338);
+    --category-pink-muted: oklch(0.28 0.04 353.87);
+    --category-pink-strong: oklch(0.75 0.07 354.27);
+    --category-pink-soft: oklch(0.31 0.05 353.81);
+    --category-brown-default: oklch(0.54 0.045 58);
+    --category-brown-muted: oklch(0.24 0.01 58.04);
+    --category-brown-strong: lab(68 9.22 16.16);
+    --category-brown-soft: oklch(0.27 0.02 58.05);
 }
 
 @theme inline {
@@ -217,6 +226,10 @@
     --color-category-red-muted: var(--category-red-muted);
     --color-category-red-strong: var(--category-red-strong);
     --color-category-red-soft: var(--category-red-soft);
+    --color-category-orange-default: var(--category-orange-default);
+    --color-category-orange-muted: var(--category-orange-muted);
+    --color-category-orange-strong: var(--category-orange-strong);
+    --color-category-orange-soft: var(--category-orange-soft);
     --color-category-yellow-default: var(--category-yellow-default);
     --color-category-yellow-muted: var(--category-yellow-muted);
     --color-category-yellow-strong: var(--category-yellow-strong);
@@ -233,10 +246,10 @@
     --color-category-pink-muted: var(--category-pink-muted);
     --color-category-pink-strong: var(--category-pink-strong);
     --color-category-pink-soft: var(--category-pink-soft);
-    --color-category-mauve-default: var(--category-mauve-default);
-    --color-category-mauve-muted: var(--category-mauve-muted);
-    --color-category-mauve-strong: var(--category-mauve-strong);
-    --color-category-mauve-soft: var(--category-mauve-soft);
+    --color-category-brown-default: var(--category-brown-default);
+    --color-category-brown-muted: var(--category-brown-muted);
+    --color-category-brown-strong: var(--category-brown-strong);
+    --color-category-brown-soft: var(--category-brown-soft);
     --font-sans: var(--font-sans);
     --font-heading: var(--font-heading);
 }
@@ -290,6 +303,10 @@
         @apply bg-category-red-muted text-category-red-strong;
     }
 
+    .cb-label-orange {
+        @apply bg-category-orange-muted text-category-orange-strong;
+    }
+
     .cb-label-yellow {
         @apply bg-category-yellow-muted text-category-yellow-strong;
     }
@@ -306,8 +323,8 @@
         @apply bg-category-pink-muted text-category-pink-strong;
     }
 
-    .cb-label-mauve {
-        @apply bg-category-mauve-muted text-category-mauve-strong;
+    .cb-label-brown {
+        @apply bg-category-brown-muted text-category-brown-strong;
     }
 
     .cb-palette-blue {
@@ -330,6 +347,10 @@
         @apply border border-category-red-soft bg-category-red-muted text-category-red-strong;
     }
 
+    .cb-palette-orange {
+        @apply border border-category-orange-soft bg-category-orange-muted text-category-orange-strong;
+    }
+
     .cb-palette-yellow {
         @apply border border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong;
     }
@@ -346,8 +367,8 @@
         @apply border border-category-pink-soft bg-category-pink-muted text-category-pink-strong;
     }
 
-    .cb-palette-mauve {
-        @apply border border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong;
+    .cb-palette-brown {
+        @apply border border-category-brown-soft bg-category-brown-muted text-category-brown-strong;
     }
 
     .cb-dot-blue {
@@ -370,6 +391,10 @@
         @apply bg-category-red-default;
     }
 
+    .cb-dot-orange {
+        @apply bg-category-orange-default;
+    }
+
     .cb-dot-yellow {
         @apply bg-category-yellow-default;
     }
@@ -386,48 +411,52 @@
         @apply bg-category-pink-default;
     }
 
-    .cb-dot-mauve {
-        @apply bg-category-mauve-default;
+    .cb-dot-brown {
+        @apply bg-category-brown-default;
     }
 
     .cb-checkbox-blue {
-        @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:border-category-blue-default/60 not-data-checked:hover:bg-category-blue-soft/55 data-checked:border-category-blue-default data-checked:bg-category-blue-default data-checked:text-white disabled:border-category-blue-soft/70 disabled:bg-category-blue-muted/60 disabled:text-category-blue-strong/70 dark:border-category-blue-soft dark:bg-category-blue-muted dark:text-category-blue-strong dark:data-checked:border-category-blue-default dark:data-checked:bg-category-blue-default dark:data-checked:text-white dark:disabled:border-category-blue-soft/70 dark:disabled:bg-category-blue-muted/60 dark:disabled:text-category-blue-strong/70;
+        @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:border-category-blue-default/60 not-data-checked:hover:bg-category-blue-soft/55 disabled:border-category-blue-soft/70 disabled:bg-category-blue-muted/60 disabled:text-category-blue-strong/70 dark:border-category-blue-soft dark:bg-category-blue-muted dark:text-category-blue-strong dark:disabled:border-category-blue-soft/70 dark:disabled:bg-category-blue-muted/60 dark:disabled:text-category-blue-strong/70 data-checked:border-category-blue-default data-checked:bg-category-blue-default data-checked:text-white dark:data-checked:border-category-blue-default dark:data-checked:bg-category-blue-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-green {
-        @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:border-category-green-default/60 not-data-checked:hover:bg-category-green-soft/55 data-checked:border-category-green-default data-checked:bg-category-green-default data-checked:text-white disabled:border-category-green-soft/70 disabled:bg-category-green-muted/60 disabled:text-category-green-strong/70 dark:border-category-green-soft dark:bg-category-green-muted dark:text-category-green-strong dark:data-checked:border-category-green-default dark:data-checked:bg-category-green-default dark:data-checked:text-white dark:disabled:border-category-green-soft/70 dark:disabled:bg-category-green-muted/60 dark:disabled:text-category-green-strong/70;
+        @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:border-category-green-default/60 not-data-checked:hover:bg-category-green-soft/55 disabled:border-category-green-soft/70 disabled:bg-category-green-muted/60 disabled:text-category-green-strong/70 dark:border-category-green-soft dark:bg-category-green-muted dark:text-category-green-strong dark:disabled:border-category-green-soft/70 dark:disabled:bg-category-green-muted/60 dark:disabled:text-category-green-strong/70 data-checked:border-category-green-default data-checked:bg-category-green-default data-checked:text-white dark:data-checked:border-category-green-default dark:data-checked:bg-category-green-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-sky {
-        @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:border-category-sky-default/60 not-data-checked:hover:bg-category-sky-soft/55 data-checked:border-category-sky-default data-checked:bg-category-sky-default data-checked:text-white disabled:border-category-sky-soft/70 disabled:bg-category-sky-muted/60 disabled:text-category-sky-strong/70 dark:border-category-sky-soft dark:bg-category-sky-muted dark:text-category-sky-strong dark:data-checked:border-category-sky-default dark:data-checked:bg-category-sky-default dark:data-checked:text-white dark:disabled:border-category-sky-soft/70 dark:disabled:bg-category-sky-muted/60 dark:disabled:text-category-sky-strong/70;
+        @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:border-category-sky-default/60 not-data-checked:hover:bg-category-sky-soft/55 disabled:border-category-sky-soft/70 disabled:bg-category-sky-muted/60 disabled:text-category-sky-strong/70 dark:border-category-sky-soft dark:bg-category-sky-muted dark:text-category-sky-strong dark:disabled:border-category-sky-soft/70 dark:disabled:bg-category-sky-muted/60 dark:disabled:text-category-sky-strong/70 data-checked:border-category-sky-default data-checked:bg-category-sky-default data-checked:text-white dark:data-checked:border-category-sky-default dark:data-checked:bg-category-sky-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-purple {
-        @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:border-category-purple-default/60 not-data-checked:hover:bg-category-purple-soft/55 data-checked:border-category-purple-default data-checked:bg-category-purple-default data-checked:text-white disabled:border-category-purple-soft/70 disabled:bg-category-purple-muted/60 disabled:text-category-purple-strong/70 dark:border-category-purple-soft dark:bg-category-purple-muted dark:text-category-purple-strong dark:data-checked:border-category-purple-default dark:data-checked:bg-category-purple-default dark:data-checked:text-white dark:disabled:border-category-purple-soft/70 dark:disabled:bg-category-purple-muted/60 dark:disabled:text-category-purple-strong/70;
+        @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:border-category-purple-default/60 not-data-checked:hover:bg-category-purple-soft/55 disabled:border-category-purple-soft/70 disabled:bg-category-purple-muted/60 disabled:text-category-purple-strong/70 dark:border-category-purple-soft dark:bg-category-purple-muted dark:text-category-purple-strong dark:disabled:border-category-purple-soft/70 dark:disabled:bg-category-purple-muted/60 dark:disabled:text-category-purple-strong/70 data-checked:border-category-purple-default data-checked:bg-category-purple-default data-checked:text-white dark:data-checked:border-category-purple-default dark:data-checked:bg-category-purple-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-red {
-        @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:border-category-red-default/60 not-data-checked:hover:bg-category-red-soft/55 data-checked:border-category-red-default data-checked:bg-category-red-default data-checked:text-white disabled:border-category-red-soft/70 disabled:bg-category-red-muted/60 disabled:text-category-red-strong/70 dark:border-category-red-soft dark:bg-category-red-muted dark:text-category-red-strong dark:data-checked:border-category-red-default dark:data-checked:bg-category-red-default dark:data-checked:text-white dark:disabled:border-category-red-soft/70 dark:disabled:bg-category-red-muted/60 dark:disabled:text-category-red-strong/70;
+        @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:border-category-red-default/60 not-data-checked:hover:bg-category-red-soft/55 disabled:border-category-red-soft/70 disabled:bg-category-red-muted/60 disabled:text-category-red-strong/70 dark:border-category-red-soft dark:bg-category-red-muted dark:text-category-red-strong dark:disabled:border-category-red-soft/70 dark:disabled:bg-category-red-muted/60 dark:disabled:text-category-red-strong/70 data-checked:border-category-red-default data-checked:bg-category-red-default data-checked:text-white dark:data-checked:border-category-red-default dark:data-checked:bg-category-red-default dark:data-checked:text-white;
+    }
+
+    .cb-checkbox-orange {
+        @apply border-category-orange-soft bg-category-orange-muted text-category-orange-strong hover:border-category-orange-default/60 not-data-checked:hover:bg-category-orange-soft/55 disabled:border-category-orange-soft/70 disabled:bg-category-orange-muted/60 disabled:text-category-orange-strong/70 dark:border-category-orange-soft dark:bg-category-orange-muted dark:text-category-orange-strong dark:disabled:border-category-orange-soft/70 dark:disabled:bg-category-orange-muted/60 dark:disabled:text-category-orange-strong/70 data-checked:border-category-orange-default data-checked:bg-category-orange-default data-checked:text-white dark:data-checked:border-category-orange-default dark:data-checked:bg-category-orange-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-yellow {
-        @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:border-category-yellow-default/60 not-data-checked:hover:bg-category-yellow-soft/55 data-checked:border-category-yellow-default data-checked:bg-category-yellow-default data-checked:text-white disabled:border-category-yellow-soft/70 disabled:bg-category-yellow-muted/60 disabled:text-category-yellow-strong/70 dark:border-category-yellow-soft dark:bg-category-yellow-muted dark:text-category-yellow-strong dark:data-checked:border-category-yellow-default dark:data-checked:bg-category-yellow-default dark:data-checked:text-white dark:disabled:border-category-yellow-soft/70 dark:disabled:bg-category-yellow-muted/60 dark:disabled:text-category-yellow-strong/70;
+        @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:border-category-yellow-default/60 not-data-checked:hover:bg-category-yellow-soft/55 disabled:border-category-yellow-soft/70 disabled:bg-category-yellow-muted/60 disabled:text-category-yellow-strong/70 dark:border-category-yellow-soft dark:bg-category-yellow-muted dark:text-category-yellow-strong dark:disabled:border-category-yellow-soft/70 dark:disabled:bg-category-yellow-muted/60 dark:disabled:text-category-yellow-strong/70 data-checked:border-category-yellow-default data-checked:bg-category-yellow-default data-checked:text-white dark:data-checked:border-category-yellow-default dark:data-checked:bg-category-yellow-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-gray {
-        @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:border-category-gray-default/60 not-data-checked:hover:bg-category-gray-soft/55 data-checked:border-category-gray-default data-checked:bg-category-gray-default data-checked:text-white disabled:border-category-gray-soft/70 disabled:bg-category-gray-muted/60 disabled:text-category-gray-strong/70 dark:border-category-gray-soft dark:bg-category-gray-muted dark:text-category-gray-strong dark:data-checked:border-category-gray-default dark:data-checked:bg-category-gray-default dark:data-checked:text-white dark:disabled:border-category-gray-soft/70 dark:disabled:bg-category-gray-muted/60 dark:disabled:text-category-gray-strong/70;
+        @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:border-category-gray-default/60 not-data-checked:hover:bg-category-gray-soft/55 disabled:border-category-gray-soft/70 disabled:bg-category-gray-muted/60 disabled:text-category-gray-strong/70 dark:border-category-gray-soft dark:bg-category-gray-muted dark:text-category-gray-strong dark:disabled:border-category-gray-soft/70 dark:disabled:bg-category-gray-muted/60 dark:disabled:text-category-gray-strong/70 data-checked:border-category-gray-default data-checked:bg-category-gray-default data-checked:text-white dark:data-checked:border-category-gray-default dark:data-checked:bg-category-gray-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-olive {
-        @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:border-category-olive-default/60 not-data-checked:hover:bg-category-olive-soft/55 data-checked:border-category-olive-default data-checked:bg-category-olive-default data-checked:text-white disabled:border-category-olive-soft/70 disabled:bg-category-olive-muted/60 disabled:text-category-olive-strong/70 dark:border-category-olive-soft dark:bg-category-olive-muted dark:text-category-olive-strong dark:data-checked:border-category-olive-default dark:data-checked:bg-category-olive-default dark:data-checked:text-white dark:disabled:border-category-olive-soft/70 dark:disabled:bg-category-olive-muted/60 dark:disabled:text-category-olive-strong/70;
+        @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:border-category-olive-default/60 not-data-checked:hover:bg-category-olive-soft/55 disabled:border-category-olive-soft/70 disabled:bg-category-olive-muted/60 disabled:text-category-olive-strong/70 dark:border-category-olive-soft dark:bg-category-olive-muted dark:text-category-olive-strong dark:disabled:border-category-olive-soft/70 dark:disabled:bg-category-olive-muted/60 dark:disabled:text-category-olive-strong/70 data-checked:border-category-olive-default data-checked:bg-category-olive-default data-checked:text-white dark:data-checked:border-category-olive-default dark:data-checked:bg-category-olive-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-pink {
-        @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:border-category-pink-default/60 not-data-checked:hover:bg-category-pink-soft/55 data-checked:border-category-pink-default data-checked:bg-category-pink-default data-checked:text-white disabled:border-category-pink-soft/70 disabled:bg-category-pink-muted/60 disabled:text-category-pink-strong/70 dark:border-category-pink-soft dark:bg-category-pink-muted dark:text-category-pink-strong dark:data-checked:border-category-pink-default dark:data-checked:bg-category-pink-default dark:data-checked:text-white dark:disabled:border-category-pink-soft/70 dark:disabled:bg-category-pink-muted/60 dark:disabled:text-category-pink-strong/70;
+        @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:border-category-pink-default/60 not-data-checked:hover:bg-category-pink-soft/55 disabled:border-category-pink-soft/70 disabled:bg-category-pink-muted/60 disabled:text-category-pink-strong/70 dark:border-category-pink-soft dark:bg-category-pink-muted dark:text-category-pink-strong dark:disabled:border-category-pink-soft/70 dark:disabled:bg-category-pink-muted/60 dark:disabled:text-category-pink-strong/70 data-checked:border-category-pink-default data-checked:bg-category-pink-default data-checked:text-white dark:data-checked:border-category-pink-default dark:data-checked:bg-category-pink-default dark:data-checked:text-white;
     }
 
-    .cb-checkbox-mauve {
-        @apply border-category-mauve-soft bg-category-mauve-muted text-category-mauve-strong hover:border-category-mauve-default/60 not-data-checked:hover:bg-category-mauve-soft/55 data-checked:border-category-mauve-default data-checked:bg-category-mauve-default data-checked:text-white disabled:border-category-mauve-soft/70 disabled:bg-category-mauve-muted/60 disabled:text-category-mauve-strong/70 dark:border-category-mauve-soft dark:bg-category-mauve-muted dark:text-category-mauve-strong dark:data-checked:border-category-mauve-default dark:data-checked:bg-category-mauve-default dark:data-checked:text-white dark:disabled:border-category-mauve-soft/70 dark:disabled:bg-category-mauve-muted/60 dark:disabled:text-category-mauve-strong/70;
+    .cb-checkbox-brown {
+        @apply border-category-brown-soft bg-category-brown-muted text-category-brown-strong hover:border-category-brown-default/60 not-data-checked:hover:bg-category-brown-soft/55 disabled:border-category-brown-soft/70 disabled:bg-category-brown-muted/60 disabled:text-category-brown-strong/70 dark:border-category-brown-soft dark:bg-category-brown-muted dark:text-category-brown-strong dark:disabled:border-category-brown-soft/70 dark:disabled:bg-category-brown-muted/60 dark:disabled:text-category-brown-strong/70 data-checked:border-category-brown-default data-checked:bg-category-brown-default data-checked:text-white dark:data-checked:border-category-brown-default dark:data-checked:bg-category-brown-default dark:data-checked:text-white;
     }
 
     .cb-event-blue {
@@ -470,6 +499,14 @@
         @apply !bg-category-red-soft;
     }
 
+    .cb-event-orange {
+        @apply !border-category-orange-soft !bg-category-orange-muted !text-category-orange-strong hover:!bg-category-orange-soft;
+    }
+
+    .cb-event-hover-orange {
+        @apply !bg-category-orange-soft;
+    }
+
     .cb-event-yellow {
         @apply !border-category-yellow-soft !bg-category-yellow-muted !text-category-yellow-strong hover:!bg-category-yellow-soft;
     }
@@ -502,12 +539,12 @@
         @apply !bg-category-pink-soft;
     }
 
-    .cb-event-mauve {
-        @apply !border-category-mauve-soft !bg-category-mauve-muted !text-category-mauve-strong hover:!bg-category-mauve-soft;
+    .cb-event-brown {
+        @apply !border-category-brown-soft !bg-category-brown-muted !text-category-brown-strong hover:!bg-category-brown-soft;
     }
 
-    .cb-event-hover-mauve {
-        @apply !bg-category-mauve-soft;
+    .cb-event-hover-brown {
+        @apply !bg-category-brown-soft;
     }
 
     .pointer-events-all {

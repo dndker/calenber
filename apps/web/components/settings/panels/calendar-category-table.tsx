@@ -136,7 +136,7 @@ function CategoryNameInput({
                         event.currentTarget.blur()
                     }
                 }}
-                placeholder="카테고리 이름"
+                placeholder="컬렉션 이름"
             />
             {isSaving ? (
                 <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
@@ -196,7 +196,7 @@ export function CalendarCategoryTable({
                                 onCreateCategory()
                             }
                         }}
-                        placeholder="새 카테고리 추가"
+                        placeholder="새 컬렉션 추가"
                         className="h-9"
                     />
                 </div>
@@ -366,7 +366,7 @@ export function CalendarCategoryTable({
                                                         )
                                                     }}
                                                 >
-                                                    카테고리 삭제
+                                                    컬렉션 삭제
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -380,7 +380,7 @@ export function CalendarCategoryTable({
                                 colSpan={5}
                                 className="h-24 text-center text-muted-foreground"
                             >
-                                등록된 카테고리가 없습니다.
+                                등록된 컬렉션이 없습니다.
                             </TableCell>
                         </TableRow>
                     )}

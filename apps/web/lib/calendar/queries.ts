@@ -18,6 +18,15 @@ import type {
     CalendarRole,
 } from "@/lib/calendar/permissions"
 import type { CalendarEventLayout } from "@/lib/calendar/types"
+import {
+    KOREA_HOLIDAY_SUBSCRIPTION_ID,
+    KOREAN_HOLIDAY_PROVIDER_KEY,
+} from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
+import {
+    KOREA_SOLAR_TERMS_SUBSCRIPTION_ID,
+    KOREAN_SOLAR_TERMS_PROVIDER_KEY,
+} from "@/lib/calendar/subscriptions/providers/korean-solar-terms"
+import { getCalendarSubscriptions } from "@/lib/calendar/subscriptions/registry"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const CALENDAR_MEMBER_DIRECTORY_CACHE_TTL_MS = 30_000
@@ -136,8 +145,11 @@ export type CalendarSubscriptionCatalog = {
     sourceDeletedAt: string | null
     sourceDeletedReason: string | null
     providerName: string | null
-    sourceCalendarId: string | null
-    sourceCalendarName: string | null
+    sourceCalendar: {
+        id: string | null
+        name: string | null
+        avatarUrl: string | null
+    } | null
     categoryColor: CalendarEvent["categories"][number]["options"]["color"] | null
     config: Record<string, unknown>
     installed: boolean
@@ -288,6 +300,11 @@ type CalendarSubscriptionCatalogRow = {
     is_visible: boolean
 }
 
+type SourceCalendarAvatarRow = {
+    id: string
+    avatar_url: string | null
+}
+
 function normalizeCalendarSubscriptionSourceType(
     sourceType: CalendarSubscriptionCatalogRow["source_type"]
 ): CalendarSubscriptionCatalog["sourceType"] {
@@ -296,6 +313,70 @@ function normalizeCalendarSubscriptionSourceType(
     }
 
     return sourceType
+}
+
+const BUILTIN_SUBSCRIPTION_PROVIDER_BY_SLUG: Record<string, string> = {
+    [KOREA_HOLIDAY_SUBSCRIPTION_ID]: KOREAN_HOLIDAY_PROVIDER_KEY,
+    [KOREA_SOLAR_TERMS_SUBSCRIPTION_ID]: KOREAN_SOLAR_TERMS_PROVIDER_KEY,
+}
+
+/**
+ * DB 카탈로그에 없는 코드 기반 시스템 구독(공휴일·절기 등)을 붙입니다.
+ * 일정은 DB가 아니라 각 provider에서 동적으로 생성합니다.
+ */
+function mergeBuiltinSystemSubscriptionCatalog(
+    rpcCatalog: CalendarSubscriptionCatalog[]
+): CalendarSubscriptionCatalog[] {
+    const bySlug = new Map(rpcCatalog.map((row) => [row.slug, row]))
+    const merged: CalendarSubscriptionCatalog[] = [...rpcCatalog]
+
+    for (const builtin of getCalendarSubscriptions()) {
+        const slug = builtin.slug ?? builtin.id
+
+        if (bySlug.has(slug)) {
+            continue
+        }
+
+        const builtinSource = builtin.sourceType ?? "system_holiday"
+
+        merged.push({
+            id: slug,
+            slug,
+            name: builtin.name,
+            description: builtin.description,
+            sourceType:
+                builtinSource === "shared_category"
+                    ? "shared_category"
+                    : builtinSource === "custom"
+                      ? "custom"
+                      : "system_holiday",
+            verified: builtin.verified,
+            status: builtin.status ?? "active",
+            sourceDeletedAt: builtin.sourceDeletedAt ?? null,
+            sourceDeletedReason: builtin.sourceDeletedReason ?? null,
+            providerName: builtin.ownerName ?? "캘린버",
+            sourceCalendar: builtin.calendar
+                ? {
+                      id: builtin.calendar.id ?? null,
+                      name: builtin.calendar.name ?? null,
+                      avatarUrl: builtin.calendar.avatarUrl ?? null,
+                  }
+                : null,
+            categoryColor: normalizeCalendarCategoryColor(
+                builtin.categoryColor ?? null
+            ),
+            config: {
+                locale: "ko-KR",
+                timezone: "Asia/Seoul",
+                provider: BUILTIN_SUBSCRIPTION_PROVIDER_BY_SLUG[slug] ?? "",
+            },
+            installed: false,
+            isVisible: true,
+        })
+        bySlug.set(slug, merged[merged.length - 1]!)
+    }
+
+    return merged
 }
 
 type CalendarSubscriptionFavoriteRow = {
@@ -494,7 +575,7 @@ export async function getCalendarInitialData(
     supabase: SupabaseClient,
     calendarId: string
 ): Promise<CalendarInitialData> {
-    const [{ data, error }, subscriptionCatalogs, subscriptionFavorites] =
+    const [{ data, error }, subscriptionCatalogRpc, subscriptionFavorites] =
         await Promise.all([
         supabase.rpc("get_calendar_initial_data", {
             target_calendar_id: calendarId,
@@ -502,6 +583,10 @@ export async function getCalendarInitialData(
         getCalendarSubscriptionCatalog(supabase, calendarId),
         getCalendarSubscriptionFavorites(supabase, calendarId),
     ])
+
+    const subscriptionCatalogs = mergeBuiltinSystemSubscriptionCatalog(
+        subscriptionCatalogRpc
+    )
 
     if (error || !data) {
         console.error("Failed to load calendar initial data:", error)
@@ -553,8 +638,13 @@ export async function getCalendarInitialData(
             tags: [],
             categoryColor: subscription.categoryColor ?? undefined,
             sourceType: subscription.sourceType,
-            sourceCalendarId: subscription.sourceCalendarId,
-            sourceCalendarName: subscription.sourceCalendarName,
+            calendar: subscription.sourceCalendar
+                ? {
+                      id: subscription.sourceCalendar.id,
+                      name: subscription.sourceCalendar.name,
+                      avatarUrl: subscription.sourceCalendar.avatarUrl,
+                  }
+                : null,
             status: subscription.status,
             sourceDeletedAt: subscription.sourceDeletedAt,
             sourceDeletedReason: subscription.sourceDeletedReason,
@@ -609,16 +699,55 @@ export async function getCalendarSubscriptionCatalog(
         console.error("Failed to load calendar subscription catalog:", error)
         return []
     }
+    const rows = data as CalendarSubscriptionCatalogRow[]
+    const sourceCalendarIds = Array.from(
+        new Set(
+            rows
+                .map((row) => row.source_calendar_id)
+                .filter((id): id is string => Boolean(id))
+        )
+    )
+    let sourceCalendarAvatarById = new Map<string, string | null>()
 
-    return (data as CalendarSubscriptionCatalogRow[]).map((row) => ({
+    if (sourceCalendarIds.length > 0) {
+        const { data: sourceCalendars, error: sourceCalendarError } = await supabase
+            .from("calendars")
+            .select("id, avatar_url")
+            .in("id", sourceCalendarIds)
+
+        if (sourceCalendarError) {
+            console.error(
+                "Failed to load source calendar avatars for subscriptions:",
+                sourceCalendarError
+            )
+        } else {
+            sourceCalendarAvatarById = new Map(
+                ((sourceCalendars ?? []) as SourceCalendarAvatarRow[]).map((row) => [
+                    row.id,
+                    row.avatar_url,
+                ])
+            )
+        }
+    }
+
+    return rows.map((row) => ({
         id: row.id,
         slug: row.slug,
         name: row.name,
         description: row.description,
         sourceType: normalizeCalendarSubscriptionSourceType(row.source_type),
         providerName: row.provider_name,
-        sourceCalendarId: row.source_calendar_id,
-        sourceCalendarName: row.source_calendar_name,
+        sourceCalendar:
+            row.source_calendar_id || row.source_calendar_name
+                ? {
+                      id: row.source_calendar_id,
+                      name: row.source_calendar_name,
+                      avatarUrl: row.source_calendar_id
+                          ? (sourceCalendarAvatarById.get(row.source_calendar_id) ??
+                            null)
+                          : null,
+                  }
+                : null,
         verified: row.verified,
         status: row.status,
         sourceDeletedAt: row.source_deleted_at,

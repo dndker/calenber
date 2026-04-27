@@ -48,6 +48,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const toggleEventCategoryFilter = useCalendarStore(
         (s) => s.toggleEventCategoryFilter
     )
+    const setExcludedUncategorizedFilter = useCalendarStore(
+        (s) => s.setExcludedUncategorizedFilter
+    )
 
     const excludedStatusSet = React.useMemo(
         () => new Set(eventFilters.excludedStatuses),
@@ -71,40 +74,50 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             },
             {
                 id: "category",
-                name: "카테고리",
-                items:
-                    eventCategories.length > 0
-                        ? eventCategories.map((category) => ({
-                              id: category.id,
-                              label: category.name,
-                              color: category.options.color,
-                              checked: !excludedCategoryIdSet.has(category.id),
-                          }))
-                        : [
-                              //   {
-                              //       id: "empty-category",
-                              //       label: "등록된 카테고리가 없습니다.",
-                              //       checked: false,
-                              //       disabled: false,
-                              //   },
-                          ],
+                name: "컬렉션",
+                items: [
+                    {
+                        id: "__uncategorized__",
+                        label: "컬렉션 없음",
+                        checked: !eventFilters.excludedUncategorized,
+                    },
+                    ...eventCategories.map((category) => ({
+                        id: category.id,
+                        label: category.name,
+                        color: category.options.color,
+                        checked: !excludedCategoryIdSet.has(category.id),
+                    })),
+                ],
             },
         ],
-        [eventCategories, excludedCategoryIdSet, excludedStatusSet]
+        [
+            eventCategories,
+            eventFilters.excludedUncategorized,
+            excludedCategoryIdSet,
+            excludedStatusSet,
+        ]
     )
 
     const handleFilterItemCheckedChange = React.useCallback(
-        (groupId: string, itemId: string) => {
+        (groupId: string, itemId: string, checked: boolean) => {
             if (groupId === "status") {
                 toggleEventStatusFilter(itemId as (typeof eventStatus)[number])
                 return
             }
 
             if (groupId === "category") {
+                if (itemId === "__uncategorized__") {
+                    setExcludedUncategorizedFilter(!checked)
+                    return
+                }
                 toggleEventCategoryFilter(itemId)
             }
         },
-        [toggleEventCategoryFilter, toggleEventStatusFilter]
+        [
+            setExcludedUncategorizedFilter,
+            toggleEventCategoryFilter,
+            toggleEventStatusFilter,
+        ]
     )
 
     return (

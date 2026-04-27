@@ -1,5 +1,6 @@
 "use client"
 
+import { resolveSubscriptionCatalogIdForInstall } from "@/lib/calendar/resolve-subscription-catalog-id"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useMemo } from "react"
@@ -61,15 +62,24 @@ export function useCalendarSubscriptions() {
             return true
         }
 
-        installSubscriptionSnapshot(subscriptionId)
+        const supabase = createBrowserSupabase()
+        const catalogUuid = await resolveSubscriptionCatalogIdForInstall(
+            supabase,
+            subscriptionId
+        )
+
+        if (!catalogUuid) {
+            return false
+        }
+
+        installSubscriptionSnapshot(catalogUuid)
         try {
-            const supabase = createBrowserSupabase()
             const { error } = await supabase
                 .from("calendar_subscription_installs")
                 .upsert(
                     {
                         calendar_id: activeCalendarId,
-                        subscription_catalog_id: subscriptionId,
+                        subscription_catalog_id: catalogUuid,
                         is_visible: true,
                     },
                     { onConflict: "calendar_id,subscription_catalog_id" }
@@ -82,10 +92,10 @@ export function useCalendarSubscriptions() {
             setSubscriptionState({
                 installedSubscriptionIds:
                     subscriptionState.installedSubscriptionIds.filter(
-                        (id) => id !== subscriptionId
+                        (id) => id !== catalogUuid
                     ),
                 hiddenSubscriptionIds: subscriptionState.hiddenSubscriptionIds.filter(
-                    (id) => id !== subscriptionId
+                    (id) => id !== catalogUuid
                 ),
             })
             return false
@@ -94,19 +104,30 @@ export function useCalendarSubscriptions() {
 
     const uninstallSubscription = async (subscriptionId: string) => {
         const prevState = subscriptionState
-        uninstallSubscriptionSnapshot(subscriptionId)
 
         if (!activeCalendarId || activeCalendarId === "demo") {
+            uninstallSubscriptionSnapshot(subscriptionId)
             return true
         }
 
+        const supabase = createBrowserSupabase()
+        const catalogUuid = await resolveSubscriptionCatalogIdForInstall(
+            supabase,
+            subscriptionId
+        )
+
+        if (!catalogUuid) {
+            return false
+        }
+
+        uninstallSubscriptionSnapshot(catalogUuid)
+
         try {
-            const supabase = createBrowserSupabase()
             const { error } = await supabase
                 .from("calendar_subscription_installs")
                 .delete()
                 .eq("calendar_id", activeCalendarId)
-                .eq("subscription_catalog_id", subscriptionId)
+                .eq("subscription_catalog_id", catalogUuid)
             if (error) {
                 throw error
             }
@@ -119,23 +140,32 @@ export function useCalendarSubscriptions() {
 
     const toggleSubscriptionVisibility = async (subscriptionId: string) => {
         const prevState = subscriptionState
-        toggleSubscriptionVisibilitySnapshot(subscriptionId)
 
         if (!activeCalendarId || activeCalendarId === "demo") {
+            toggleSubscriptionVisibilitySnapshot(subscriptionId)
             return true
         }
 
-        const nextHidden = hiddenIdSet.has(subscriptionId)
-            ? false
-            : true
+        const supabase = createBrowserSupabase()
+        const catalogUuid = await resolveSubscriptionCatalogIdForInstall(
+            supabase,
+            subscriptionId
+        )
+
+        if (!catalogUuid) {
+            return false
+        }
+
+        const nextHidden = hiddenIdSet.has(catalogUuid) ? false : true
+
+        toggleSubscriptionVisibilitySnapshot(catalogUuid)
 
         try {
-            const supabase = createBrowserSupabase()
             const { error } = await supabase
                 .from("calendar_subscription_installs")
                 .update({ is_visible: !nextHidden })
                 .eq("calendar_id", activeCalendarId)
-                .eq("subscription_catalog_id", subscriptionId)
+                .eq("subscription_catalog_id", catalogUuid)
             if (error) {
                 throw error
             }

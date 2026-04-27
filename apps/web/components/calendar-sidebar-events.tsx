@@ -2,16 +2,17 @@ import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
 import { useDeleteEvent } from "@/hooks/use-delete-event"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
 import {
     formatCalendarEventRecurrenceOrDateLabel,
     formatCalendarEventScheduleLabelFromEvent,
 } from "@/lib/calendar/event-date-format"
 import { orderCalendarEventFieldIds } from "@/lib/calendar/event-field-settings"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import { getKoreanPublicHolidaySubscriptionEventById } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
+import { getKoreanSolarTermSubscriptionEventById } from "@/lib/calendar/subscriptions/providers/korean-solar-terms"
 import dayjs from "@/lib/dayjs"
 import {
     type CalendarEvent,
@@ -59,9 +60,11 @@ import {
     Trash2Icon,
 } from "lucide-react"
 import { usePathname } from "next/navigation"
+import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse-state"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { EventStatusItem } from "./calendar/event-form-status-field"
+import { EventSubscriptionCard } from "./calendar/event-subscription-card"
 
 function normalizeWhitespace(value: string) {
     return value.replace(/\s+/g, " ").trim()
@@ -119,8 +122,12 @@ const hoverCardFieldIds: HoverCardPropertyItem["id"][] = [
     "status",
     "categories",
 ]
+const subscriptionEventVisibleHoverCardFieldIds = new Set<
+    HoverCardPropertyItem["id"]
+>(["schedule", "categories"])
 
 export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
+    const [isOpen, setIsOpen] = useSidebarCollapse("favorites")
     const events = useCalendarStore((s) => s.events)
     const favoriteEventMap = useCalendarStore((s) => s.favoriteEventMap)
     const allEvents = useMemo(() => {
@@ -137,9 +144,16 @@ export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
 
             const koreanHolidayEvent =
                 getKoreanPublicHolidaySubscriptionEventById(favoriteId)
+            const koreanSolarTermEvent =
+                getKoreanSolarTermSubscriptionEventById(favoriteId)
 
             if (koreanHolidayEvent) {
                 map.set(koreanHolidayEvent.id, koreanHolidayEvent)
+                continue
+            }
+
+            if (koreanSolarTermEvent) {
+                map.set(koreanSolarTermEvent.id, koreanSolarTermEvent)
             }
         }
 
@@ -180,7 +194,8 @@ export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
             <React.Fragment>
                 <SidebarGroup>
                     <Collapsible
-                        defaultOpen={true}
+                        open={isOpen}
+                        onOpenChange={setIsOpen}
                         className="group/collapsible"
                     >
                         <SidebarGroupLabel
@@ -343,7 +358,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <div className="flex gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <TagsIcon className="size-3.5" />
-                                카테고리
+                                컬렉션
                             </span>
                             <span className="flex-1 text-foreground">
                                 <span
@@ -361,7 +376,13 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
             ],
         ])
 
-        return orderCalendarEventFieldIds(eventFieldSettings, hoverCardFieldIds)
+        const visibleFieldIds = isSubscriptionEvent
+            ? hoverCardFieldIds.filter((fieldId) =>
+                  subscriptionEventVisibleHoverCardFieldIds.has(fieldId)
+              )
+            : hoverCardFieldIds
+
+        return orderCalendarEventFieldIds(eventFieldSettings, visibleFieldIds)
             .map((fieldId) => propertyMap.get(fieldId))
             .filter((property): property is HoverCardPropertyItem =>
                 Boolean(property?.content)
@@ -371,6 +392,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
         categoryName,
         event,
         eventFieldSettings,
+        isSubscriptionEvent,
         recurrencePreview,
     ])
 
@@ -417,6 +439,14 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                                 <span className="truncate text-[13px] leading-5 text-muted-foreground">
                                     {contentPreview}
                                 </span>
+                            )}
+
+                            {event.subscription && (
+                                <EventSubscriptionCard
+                                    subscription={event.subscription}
+                                    size="sm"
+                                    className="mt-1"
+                                />
                             )}
                         </div>
 
@@ -481,17 +511,19 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <ShareIcon className="text-muted-foreground" />
                         <span>일정 공유</span>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     {!isSubscriptionEvent ? (
-                        <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => {
-                                void deleteEvent(event.id)
-                            }}
-                        >
-                            <Trash2Icon className="text-muted-foreground" />
-                            <span>일정 삭제</span>
-                        </DropdownMenuItem>
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => {
+                                    void deleteEvent(event.id)
+                                }}
+                            >
+                                <Trash2Icon className="text-muted-foreground" />
+                                <span>일정 삭제</span>
+                            </DropdownMenuItem>
+                        </>
                     ) : null}
                 </DropdownMenuContent>
             </DropdownMenu>

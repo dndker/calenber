@@ -1,6 +1,7 @@
 "use client"
 
 import { useCalendarSubscriptions } from "@/hooks/use-calendar-subscriptions"
+import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse-state"
 import { getCalendarCategoryCheckboxClassName } from "@/lib/calendar/category-color"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -29,13 +30,9 @@ import {
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
-import {
-    BadgeCheckIcon,
-    ChevronRightIcon,
-    PlusIcon,
-    Trash2Icon,
-} from "lucide-react"
+import { ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useMemo, useState } from "react"
+import { VerifiedIcon } from "./icon/verified-icon"
 
 function normalizeKeyword(value: string) {
     return value.trim().toLowerCase()
@@ -51,6 +48,7 @@ export function CalendarSubscriptionManager() {
         uninstallSubscription,
         toggleSubscriptionVisibility,
     } = useCalendarSubscriptions()
+    const [isOpen, setIsOpen] = useSidebarCollapse("subscription")
     const [query, setQuery] = useState("")
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const keyword = normalizeKeyword(query)
@@ -74,7 +72,11 @@ export function CalendarSubscriptionManager() {
     return (
         <>
             <SidebarGroup>
-                <Collapsible defaultOpen className="group/collapsible">
+                <Collapsible
+                    open={isOpen}
+                    onOpenChange={setIsOpen}
+                    className="group/collapsible"
+                >
                     <SidebarGroupLabel
                         asChild
                         className={cn(
@@ -90,7 +92,7 @@ export function CalendarSubscriptionManager() {
                                     </Badge>
                                 ) : null} */}
                             </div>
-                            <div className="ml-auto flex items-center gap-1">
+                            <div className="ml-auto flex items-center gap-1.5">
                                 <div
                                     className="pointer-event-all ml-auto flex size-4 items-center justify-center rounded-lg hover:bg-muted"
                                     onClick={(event) => {
@@ -110,8 +112,9 @@ export function CalendarSubscriptionManager() {
                             <SidebarMenu>
                                 {installedSubscriptions.map(
                                     (subscription, index) => {
-                                        const isInstalled =
-                                            installedIdSet.has(subscription.id)
+                                        const isInstalled = installedIdSet.has(
+                                            subscription.id
+                                        )
                                         const isVisible =
                                             isInstalled &&
                                             !hiddenIdSet.has(subscription.id)
@@ -144,7 +147,7 @@ export function CalendarSubscriptionManager() {
                                                         />
                                                         <FieldLabel
                                                             htmlFor={`calendar-subscription-${subscription.id}-${index}`}
-                                                            className="-mt-0.25 h-full min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.75"
+                                                            className="-mt-px h-full min-w-0 flex-1 cursor-pointer flex-col items-start gap-0.75"
                                                         >
                                                             <div className="flex items-center gap-0.5 text-sm">
                                                                 <span className="truncate">
@@ -153,7 +156,10 @@ export function CalendarSubscriptionManager() {
                                                                     }
                                                                 </span>
                                                                 {subscription.verified && (
-                                                                    <BadgeCheckIcon className="size-3.5! text-primary" />
+                                                                    <VerifiedIcon
+                                                                        className="text-primary"
+                                                                        size="sm"
+                                                                    />
                                                                 )}
                                                             </div>
                                                         </FieldLabel>
@@ -213,8 +219,9 @@ export function CalendarSubscriptionManager() {
                             }
                         >
                             {searchableSubscriptions.map((subscription) => {
-                                const isInstalled =
-                                    installedIdSet.has(subscription.id)
+                                const isInstalled = installedIdSet.has(
+                                    subscription.id
+                                )
 
                                 return (
                                     <CommandItem
@@ -236,7 +243,7 @@ export function CalendarSubscriptionManager() {
                                                     {subscription.name}
                                                 </span>
                                                 {subscription.verified && (
-                                                    <BadgeCheckIcon className="size-3.5 text-primary" />
+                                                    <VerifiedIcon />
                                                 )}
                                             </div>
                                             <p className="line-clamp-2 text-xs break-keep text-muted-foreground">

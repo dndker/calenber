@@ -32,7 +32,6 @@ import {
     useSidebar,
 } from "@workspace/ui/components/sidebar"
 import {
-    BadgeCheckIcon,
     BellIcon,
     ChevronsUpDownIcon,
     CreditCardIcon,
@@ -268,10 +267,6 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                             </DropdownMenuGroup>
                             <DropdownMenuSeparator />
                             <DropdownMenuGroup>
-                                <DropdownMenuItem className="p-2">
-                                    <BadgeCheckIcon />
-                                    Account
-                                </DropdownMenuItem>
                                 <DropdownMenuItem className="p-2">
                                     <CreditCardIcon />
                                     Billing

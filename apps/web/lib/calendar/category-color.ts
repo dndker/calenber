@@ -6,11 +6,12 @@ export const calendarCategoryColors = [
     "sky",
     "purple",
     "red",
+    "orange",
     "yellow",
     "gray",
     "olive",
     "pink",
-    "mauve",
+    "brown",
 ] as const
 
 export type CalendarCategoryColor = (typeof calendarCategoryColors)[number]
@@ -24,11 +25,12 @@ export const calendarCategoryColorLabels: Record<
     sky: "Sky",
     purple: "Purple",
     red: "Red",
+    orange: "Orange",
     yellow: "Yellow",
     gray: "Gray",
     olive: "Olive",
     pink: "Pink",
-    mauve: "Mauve",
+    brown: "Brown",
 }
 
 export function isCalendarCategoryColor(

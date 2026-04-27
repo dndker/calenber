@@ -1,8 +1,10 @@
 import { koreanPublicHolidaySubscription } from "./providers/korean-public-holidays"
+import { koreanSolarTermSubscription } from "./providers/korean-solar-terms"
 import type { CalendarSubscription } from "./types"
 
 const calendarSubscriptions: CalendarSubscription[] = [
     koreanPublicHolidaySubscription,
+    koreanSolarTermSubscription,
 ]
 
 export function getCalendarSubscriptions() {

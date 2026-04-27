@@ -4,11 +4,11 @@ import {
     getDefaultNewEventTimedSchedule,
     getTimedScheduleRangeAfterAllDayOff,
 } from "@/lib/calendar/default-timed-schedule"
-import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     normalizeCategoryName,
     normalizeNames,
 } from "@/lib/calendar/event-form-names"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
 import { createCalendarEventCategory } from "@/lib/calendar/mutations"
 import {
@@ -60,13 +60,13 @@ import {
 } from "@workspace/ui/components/popover"
 
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
+import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
     calendarEventFieldDefinitions,
     isCalendarEventFieldVisible,
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
-import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
     defaultContent,
     eventStatus,
@@ -121,6 +121,7 @@ import {
     WheelPickerOption,
     WheelPickerWrapper,
 } from "../wheel-picker"
+import { EventSubscriptionCard } from "./event-subscription-card"
 
 const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
     Array.from({ length }, (_, i) => {
@@ -417,21 +418,6 @@ function formatExceptionDateTagLabel(
     return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
 }
 
-function getSubscriptionSourceTypeLabel(
-    sourceType?: "system_holiday" | "shared_category" | "custom"
-) {
-    switch (sourceType) {
-        case "system_holiday":
-            return "시스템 공휴일"
-        case "shared_category":
-            return "공유 카테고리"
-        case "custom":
-            return "커스텀"
-        default:
-            return null
-    }
-}
-
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
     const normalizedStart = dayjs(start).tz(timezone).startOf("day")
     const normalizedEnd = dayjs(end).tz(timezone).endOf("day")
@@ -726,10 +712,16 @@ export function EventForm({
         }))
     )
     const eventCategoryColorMap = useMemo(() => {
-        const map = new Map<string, NonNullable<CalendarEvent["category"]>["options"]["color"]>()
+        const map = new Map<
+            string,
+            NonNullable<CalendarEvent["category"]>["options"]["color"]
+        >()
 
         for (const category of event?.categories ?? []) {
-            map.set(normalizeCategoryName(category.name), category.options.color)
+            map.set(
+                normalizeCategoryName(category.name),
+                category.options.color
+            )
         }
 
         return map
@@ -1669,7 +1661,10 @@ export function EventForm({
             return orderedFields
         }
 
-        const systemSubscriptionVisibleFieldIds = new Set(["schedule", "categories"])
+        const systemSubscriptionVisibleFieldIds = new Set([
+            "schedule",
+            "categories",
+        ])
 
         return orderedFields.filter((field) =>
             systemSubscriptionVisibleFieldIds.has(field.id)
@@ -1680,7 +1675,9 @@ export function EventForm({
             return visiblePropertyFields
         }
 
-        return visiblePropertyFields.filter((field) => field.id !== "exceptions")
+        return visiblePropertyFields.filter(
+            (field) => field.id !== "exceptions"
+        )
     }, [visiblePropertyFields, watchedExceptions])
     const hiddenFieldCount = useMemo(
         () =>
@@ -2590,47 +2587,10 @@ export function EventForm({
                 />
 
                 {event?.subscription ? (
-                    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-2">
-                        <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="shrink-0">
-                            구독 일정
-                        </Badge>
-                        <div className="min-w-0 text-sm text-muted-foreground">
-                            <span className="truncate text-foreground">
-                                {event.subscription.name}
-                            </span>
-                            {getSubscriptionSourceTypeLabel(
-                                event.subscription.sourceType
-                            ) ? (
-                                <span className="ml-1">
-                                        ·{" "}
-                                    {
-                                        getSubscriptionSourceTypeLabel(
-                                            event.subscription.sourceType
-                                        )
-                                    }
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
-                        <div className="text-xs text-muted-foreground">
-                            제공:{" "}
-                            <span className="text-foreground">
-                                {event.subscription.providerName ??
-                                    (event.subscription.authority === "system"
-                                        ? "캘린버"
-                                        : "공유 사용자")}
-                            </span>
-                            {event.subscription.sourceCalendarName ? (
-                                <span className="ml-1">
-                                    · 캘린더:{" "}
-                                    <span className="text-foreground">
-                                        {event.subscription.sourceCalendarName}
-                                    </span>
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
+                    <EventSubscriptionCard
+                        subscription={event.subscription}
+                        className="-my-1"
+                    />
                 ) : null}
 
                 <Collapsible
