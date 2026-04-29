@@ -4,9 +4,9 @@ export const CALENDAR_WORKSPACE_REALTIME_EVENTS = {
     created: "calendar.event.created",
     updated: "calendar.event.updated",
     deleted: "calendar.event.deleted",
-    categoryCreated: "calendar.event-category.created",
-    categoryUpdated: "calendar.event-category.updated",
-    categoryDeleted: "calendar.event-category.deleted",
+    collectionCreated: "calendar.event-collection.created",
+    collectionUpdated: "calendar.event-collection.updated",
+    collectionDeleted: "calendar.event-collection.deleted",
     settingsUpdated: "calendar.settings.updated",
     cursorUpdated: "calendar.cursor.updated",
     cursorSnapshotRequested: "calendar.cursor.snapshot.requested",
@@ -42,11 +42,11 @@ export type CalendarEventRealtimePayload = {
     record?: (Partial<CalendarEventRecord> & { id: string }) | null
 }
 
-export type CalendarEventCategoryRealtimePayload = {
-    entity: "event_category"
+export type CalendarEventCollectionRealtimePayload = {
+    entity: "event_collection"
     operation: "insert" | "update" | "delete"
     calendarId: string
-    categoryId: string
+    collectionId: string
     occurredAt: string
     record?: {
         id: string
@@ -118,4 +118,56 @@ export type CalendarWorkspaceCursorSnapshotResponsePayload = {
     userId: string | null
     cursor: CalendarWorkspaceCursor | null
     occurredAt: string
+}
+
+/** 구독 카탈로그 채널 토픽: subscription:catalog:<catalogId> */
+export function getSubscriptionCatalogTopic(catalogId: string) {
+    return `subscription:catalog:${catalogId}`
+}
+
+export type SubscriptionEventChangePayload = {
+    entity: "subscription_event"
+    operation: "insert" | "update" | "delete"
+    sourceCalendarId: string
+    sourceCollectionId: string
+    catalogId: string
+    eventId: string
+    occurredAt: string
+}
+
+export type SubscriptionCatalogChangePayload = {
+    entity: "subscription_catalog"
+    operation: "updated"
+    catalogId: string
+    status: "active" | "source_deleted" | "archived"
+    isActive: boolean
+    occurredAt: string
+}
+
+export function isSubscriptionEventChangePayload(
+    value: unknown
+): value is SubscriptionEventChangePayload {
+    if (!value || typeof value !== "object") return false
+    const c = value as Partial<SubscriptionEventChangePayload>
+    return (
+        c.entity === "subscription_event" &&
+        typeof c.sourceCalendarId === "string" &&
+        typeof c.sourceCollectionId === "string" &&
+        typeof c.catalogId === "string" &&
+        typeof c.eventId === "string" &&
+        typeof c.occurredAt === "string"
+    )
+}
+
+export function isSubscriptionCatalogChangePayload(
+    value: unknown
+): value is SubscriptionCatalogChangePayload {
+    if (!value || typeof value !== "object") return false
+    const c = value as Partial<SubscriptionCatalogChangePayload>
+    return (
+        c.entity === "subscription_catalog" &&
+        c.operation === "updated" &&
+        typeof c.catalogId === "string" &&
+        typeof c.occurredAt === "string"
+    )
 }

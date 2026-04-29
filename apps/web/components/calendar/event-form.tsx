@@ -5,12 +5,12 @@ import {
     getTimedScheduleRangeAfterAllDayOff,
 } from "@/lib/calendar/default-timed-schedule"
 import {
-    normalizeCategoryName,
+    normalizeCollectionName,
     normalizeNames,
 } from "@/lib/calendar/event-form-names"
 import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
-import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
-import { createCalendarEventCategory } from "@/lib/calendar/mutations"
+import { buildEventCollectionsAssignmentPatch } from "@/lib/calendar/event-property-collection-patch"
+import { createCalendarEventCollection } from "@/lib/calendar/mutations"
 import {
     getCalendarMemberDirectory,
     type CalendarMemberDirectoryItem,
@@ -35,10 +35,10 @@ import {
 import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
-import { useEventFormDraftCategoryColor } from "@/hooks/use-event-form-draft-category-color"
-import { EventCategorySettingsPanel } from "./event-category-settings-panel"
+import { useEventFormDraftCollectionColor } from "@/hooks/use-event-form-draft-collection-color"
+import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
-import { EventFormCategoryChipsField } from "./event-form-category-field"
+import { EventFormCollectionChipsField } from "./event-form-collection-field"
 import {
     EventFormPropertyRow,
     type EventFormPropertyMenuItem,
@@ -146,7 +146,7 @@ const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
 const eventFieldIconMap = {
     schedule: CalendarRangeIcon,
     participants: UsersIcon,
-    categories: TagsIcon,
+    collections: TagsIcon,
     status: CircleCheckBigIcon,
     recurrence: Repeat2Icon,
     exceptions: ClockAlertIcon,
@@ -635,8 +635,8 @@ export function EventForm({
                   start: new Date(event.start),
                   end: new Date(event.end),
                   timezone: event.timezone || calendarTimezone || "Asia/Seoul",
-                  categoryNames: event.categories.map(
-                      (category) => category.name
+                  collectionNames: event.collections.map(
+                      (collection) => collection.name
                   ),
                   participantIds: defaultParticipantIds,
                   allDay: event.allDay ?? false,
@@ -654,7 +654,7 @@ export function EventForm({
                       start,
                       end,
                       timezone: tz,
-                      categoryNames: [],
+                      collectionNames: [],
                       participantIds: defaultParticipantIds,
                       allDay: false,
                       status: eventStatus[0],
@@ -663,9 +663,9 @@ export function EventForm({
     })
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
-    const upsertEventCategorySnapshot = useCalendarStore(
-        (s) => s.upsertEventCategorySnapshot
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
+    const upsertEventCollectionSnapshot = useCalendarStore(
+        (s) => s.upsertEventCollectionSnapshot
     )
     const { eventFieldSettings, saveEventFieldSettings } =
         useCalendarEventFieldSettings()
@@ -704,37 +704,37 @@ export function EventForm({
         name: "exceptions",
     })
 
-    const getDraftCategoryColorBase = useEventFormDraftCategoryColor(
-        eventCategories,
-        event?.categories.map((category) => ({
-            name: category.name,
-            color: category.options.color,
+    const getDraftCollectionColorBase = useEventFormDraftCollectionColor(
+        eventCollections,
+        event?.collections.map((collection) => ({
+            name: collection.name,
+            color: collection.options.color,
         }))
     )
-    const eventCategoryColorMap = useMemo(() => {
+    const eventCollectionColorMap = useMemo(() => {
         const map = new Map<
             string,
-            NonNullable<CalendarEvent["category"]>["options"]["color"]
+            NonNullable<CalendarEvent["primaryCollection"]>["options"]["color"]
         >()
 
-        for (const category of event?.categories ?? []) {
+        for (const collection of event?.collections ?? []) {
             map.set(
-                normalizeCategoryName(category.name),
-                category.options.color
+                normalizeCollectionName(collection.name),
+                collection.options.color
             )
         }
 
         return map
-    }, [event?.categories])
-    const getDraftCategoryColor = useCallback(
+    }, [event?.collections])
+    const getDraftCollectionColor = useCallback(
         (name: string) => {
-            const matchedEventColor = eventCategoryColorMap.get(
-                normalizeCategoryName(name)
+            const matchedEventColor = eventCollectionColorMap.get(
+                normalizeCollectionName(name)
             )
 
-            return matchedEventColor ?? getDraftCategoryColorBase(name)
+            return matchedEventColor ?? getDraftCollectionColorBase(name)
         },
-        [eventCategoryColorMap, getDraftCategoryColorBase]
+        [eventCollectionColorMap, getDraftCollectionColorBase]
     )
     const isSystemSubscriptionEventForm = Boolean(
         event?.id && isGeneratedSubscriptionEventId(event.id)
@@ -755,8 +755,8 @@ export function EventForm({
                 end: new Date(targetEvent.end),
                 timezone:
                     targetEvent.timezone || calendarTimezone || "Asia/Seoul",
-                categoryNames: targetEvent.categories.map(
-                    (category) => category.name
+                collectionNames: targetEvent.collections.map(
+                    (collection) => collection.name
                 ),
                 participantIds: getDefaultParticipantIds({
                     event: targetEvent,
@@ -798,7 +798,7 @@ export function EventForm({
         (
             sourceEvent: CalendarEvent,
             values: EventFormValues,
-            categorySource = eventCategories
+            collectionSource = eventCollections
         ): CalendarEventPatch => {
             const normalizedTitle =
                 values.title && values.title.trim() !== "" ? values.title : ""
@@ -836,17 +836,17 @@ export function EventForm({
                 patch.timezone = values.timezone
             }
 
-            const categoryPatch = buildEventCategoriesAssignmentPatch(
+            const collectionPatch = buildEventCollectionsAssignmentPatch(
                 sourceEvent,
-                values.categoryNames,
-                categorySource,
-                getDraftCategoryColor,
+                values.collectionNames,
+                collectionSource,
+                getDraftCollectionColor,
                 activeCalendar?.id ?? ""
             )
 
-            if (categoryPatch) {
-                patch.categories = categoryPatch.categories
-                patch.category = categoryPatch.category
+            if (collectionPatch) {
+                patch.collections = collectionPatch.collections
+                patch.primaryCollection = collectionPatch.primaryCollection
             }
 
             const nextParticipantIds = normalizeIds(values.participantIds)
@@ -939,67 +939,67 @@ export function EventForm({
         },
         [
             activeCalendar?.id,
-            eventCategories,
-            getDraftCategoryColor,
+            eventCollections,
+            getDraftCollectionColor,
             memberDirectory,
             user,
         ]
     )
 
-    const ensureEventCategories = useCallback(
-        async (categoryNames: string[]) => {
+    const ensureEventCollections = useCallback(
+        async (collectionNames: string[]) => {
             if (
                 !activeCalendar?.id ||
                 activeCalendar.id === "demo" ||
                 disabled ||
-                categoryNames.length === 0
+                collectionNames.length === 0
             ) {
-                return eventCategories
+                return eventCollections
             }
 
             const supabase = createBrowserSupabase()
-            const categoryMap = new Map(
-                eventCategories.map((category) => [
-                    normalizeCategoryName(category.name),
-                    category,
+            const collectionMap = new Map(
+                eventCollections.map((collection) => [
+                    normalizeCollectionName(collection.name),
+                    collection,
                 ])
             )
 
-            for (const categoryName of categoryNames) {
-                const categoryKey = normalizeCategoryName(categoryName)
+            for (const name of collectionNames) {
+                const collectionKey = normalizeCollectionName(name)
 
-                if (!categoryKey || categoryMap.has(categoryKey)) {
+                if (!collectionKey || collectionMap.has(collectionKey)) {
                     continue
                 }
 
-                const createdCategory = await createCalendarEventCategory(
+                const createdCollection = await createCalendarEventCollection(
                     supabase,
                     activeCalendar.id,
                     {
-                        name: categoryName,
+                        name,
                         options: {
                             visibleByDefault: true,
-                            color: getDraftCategoryColor(categoryName),
+                            color: getDraftCollectionColor(name),
                         },
                     }
                 )
 
-                if (!createdCategory) {
+                if (!createdCollection) {
                     continue
                 }
 
-                categoryMap.set(categoryKey, createdCategory)
-                upsertEventCategorySnapshot(createdCategory)
+                collectionMap.set(collectionKey, createdCollection)
+                upsertEventCollectionSnapshot(createdCollection)
             }
 
-            return Array.from(categoryMap.values())
+            return Array.from(collectionMap.values())
         },
         [
             activeCalendar?.id,
             disabled,
-            eventCategories,
-            getDraftCategoryColor,
-            upsertEventCategorySnapshot,
+            eventCollections,
+            getDraftCollectionColor,
+            upsertEventCollectionSnapshot,
         ]
     )
 
@@ -1041,21 +1041,21 @@ export function EventForm({
                 }
             }
 
-            const nextCategoryNames = normalizeNames(
-                normalizedValues.categoryNames
+            const nextCollectionNames = normalizeNames(
+                normalizedValues.collectionNames
             )
-            const sourceCategoryNames = normalizeNames(
-                event.categories.map((category) => category.name)
+            const sourceCollectionNames = normalizeNames(
+                event.collections.map((collection) => collection.name)
             )
-            const resolvedCategories =
-                JSON.stringify(sourceCategoryNames) ===
-                JSON.stringify(nextCategoryNames)
-                    ? eventCategories
-                    : await ensureEventCategories(nextCategoryNames)
+            const resolvedCollections =
+                JSON.stringify(sourceCollectionNames) ===
+                JSON.stringify(nextCollectionNames)
+                    ? eventCollections
+                    : await ensureEventCollections(nextCollectionNames)
             const patch = buildPatchFromValues(
                 event,
                 normalizedValues,
-                resolvedCategories
+                resolvedCollections
             )
 
             if (Object.keys(patch).length === 0) {
@@ -1070,9 +1070,9 @@ export function EventForm({
             activeCalendar?.id,
             buildPatchFromValues,
             disabled,
-            ensureEventCategories,
+            ensureEventCollections,
             event,
-            eventCategories,
+            eventCollections,
             form,
             onChange,
         ]
@@ -1451,57 +1451,57 @@ export function EventForm({
     }, [activeCalendar?.id])
 
     useEffect(() => {
-        if (!event || event.categoryIds.length === 0) {
+        if (!event || event.collectionIds.length === 0) {
             return
         }
 
-        const nextCategoryNames = event.categoryIds
+        const nextCollectionNames = event.collectionIds
             .map(
-                (categoryId) =>
-                    eventCategories.find(
-                        (category) => category.id === categoryId
+                (collectionId) =>
+                    eventCollections.find(
+                        (c) => c.id === collectionId
                     )?.name ??
-                    event.categories.find(
-                        (category) => category.id === categoryId
+                    event.collections.find(
+                        (c) => c.id === collectionId
                     )?.name ??
                     null
             )
             .filter((name): name is string => Boolean(name))
-        const currentCategoryNames = normalizeNames(
-            form.getValues("categoryNames") ?? []
+        const currentCollectionNames = normalizeNames(
+            form.getValues("collectionNames") ?? []
         )
-        const currentCategoryIds = currentCategoryNames
+        const currentCollectionIds = currentCollectionNames
             .map(
-                (categoryName) =>
-                    eventCategories.find(
-                        (category) =>
-                            normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(categoryName)
+                (name) =>
+                    eventCollections.find(
+                        (c) =>
+                            normalizeCollectionName(c.name) ===
+                            normalizeCollectionName(name)
                     )?.id ??
-                    event.categories.find(
-                        (category) =>
-                            normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(categoryName)
+                    event.collections.find(
+                        (c) =>
+                            normalizeCollectionName(c.name) ===
+                            normalizeCollectionName(name)
                     )?.id ??
                     null
             )
-            .filter((categoryId): categoryId is string => Boolean(categoryId))
+            .filter((id): id is string => Boolean(id))
 
         if (
-            nextCategoryNames.length !== event.categoryIds.length ||
-            JSON.stringify(currentCategoryIds.sort()) !==
-                JSON.stringify([...event.categoryIds].sort()) ||
-            JSON.stringify(currentCategoryNames) ===
-                JSON.stringify(normalizeNames(nextCategoryNames))
+            nextCollectionNames.length !== event.collectionIds.length ||
+            JSON.stringify(currentCollectionIds.sort()) !==
+                JSON.stringify([...event.collectionIds].sort()) ||
+            JSON.stringify(currentCollectionNames) ===
+                JSON.stringify(normalizeNames(nextCollectionNames))
         ) {
             return
         }
 
-        form.setValue("categoryNames", normalizeNames(nextCategoryNames), {
+        form.setValue("collectionNames", normalizeNames(nextCollectionNames), {
             shouldDirty: false,
             shouldTouch: false,
         })
-    }, [event, eventCategories, form])
+    }, [event, eventCollections, form])
 
     useEffect(() => {
         return () => {
@@ -1663,7 +1663,7 @@ export function EventForm({
 
         const systemSubscriptionVisibleFieldIds = new Set([
             "schedule",
-            "categories",
+            "collections",
         ])
 
         return orderedFields.filter((field) =>
@@ -1807,15 +1807,15 @@ export function EventForm({
             fieldId: (typeof orderedFields)[number]["id"]
         ): EventFormPropertyMenuItem[] => {
             switch (fieldId) {
-                case "categories":
+                case "collections":
                     return [
                         {
                             type: "panel",
-                            key: "edit-category-property",
+                            key: "edit-collection-property",
                             label: "속성 편집",
                             icon: Settings2Icon,
                             content: (
-                                <EventCategorySettingsPanel
+                                <EventCollectionSettingsPanel
                                     disabled={disabled}
                                 />
                             ),
@@ -2255,11 +2255,11 @@ export function EventForm({
             )
         }
 
-        if (propertyField.id === "categories") {
+        if (propertyField.id === "collections") {
             return (
                 <Controller
                     key={propertyField.id}
-                    name="categoryNames"
+                    name="collectionNames"
                     control={form.control}
                     render={({ field, fieldState }) => (
                         <div data-invalid={fieldState.invalid}>
@@ -2273,20 +2273,20 @@ export function EventForm({
                                 propertyMenuItems={propertyMenuItems}
                                 propertyMenuItemsPlacement="before-common"
                             >
-                                <EventFormCategoryChipsField
+                                <EventFormCollectionChipsField
                                     portalContainer={portalContainer}
                                     disabled={disabled}
                                     invalid={fieldState.invalid}
                                     value={field.value ?? []}
-                                    eventCategories={eventCategories}
-                                    getDraftCategoryColor={
-                                        getDraftCategoryColor
+                                    eventCollections={eventCollections}
+                                    getDraftCollectionColor={
+                                        getDraftCollectionColor
                                     }
-                                    onChange={(nextCategoryNames) => {
-                                        field.onChange(nextCategoryNames)
+                                    onChange={(nextCollectionNames) => {
+                                        field.onChange(nextCollectionNames)
                                         void saveNow({
                                             ...form.getValues(),
-                                            categoryNames: nextCategoryNames,
+                                            collectionNames: nextCollectionNames,
                                         })
                                     }}
                                     errors={

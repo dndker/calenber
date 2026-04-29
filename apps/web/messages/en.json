@@ -1,0 +1,154 @@
+{
+    "common": {
+        "actions": {
+            "save": "Save",
+            "cancel": "Cancel",
+            "delete": "Delete",
+            "edit": "Edit",
+            "confirm": "Confirm",
+            "close": "Close",
+            "add": "Add",
+            "search": "Search",
+            "back": "Back",
+            "next": "Next",
+            "prev": "Previous"
+        },
+        "status": {
+            "loading": "Loading...",
+            "empty": "No content",
+            "error": "Something went wrong"
+        },
+        "time": {
+            "today": "Today",
+            "yesterday": "Yesterday",
+            "tomorrow": "Tomorrow"
+        }
+    },
+
+    "auth": {
+        "signIn": {
+            "title": "Sign In",
+            "emailPlaceholder": "Enter your email",
+            "passwordPlaceholder": "Enter your password",
+            "submit": "Sign In",
+            "noAccount": "Don't have an account?",
+            "signUpLink": "Sign Up",
+            "forgotPassword": "Forgot your password?"
+        },
+        "signUp": {
+            "title": "Sign Up",
+            "namePlaceholder": "Enter your name",
+            "emailPlaceholder": "Enter your email",
+            "passwordPlaceholder": "Enter your password",
+            "submit": "Create Account",
+            "hasAccount": "Already have an account?",
+            "signInLink": "Sign In"
+        }
+    },
+
+    "calendar": {
+        "meta": {
+            "title": "Calendar",
+            "description": "Remember more than just events."
+        },
+        "views": {
+            "month": "Month",
+            "week": "Week",
+            "day": "Day",
+            "list": "List"
+        },
+        "navigation": {
+            "prev": "Previous",
+            "next": "Next",
+            "backToToday": "Today"
+        },
+        "subscription": {
+            "add": "Add Calendar",
+            "manage": "Manage Subscriptions",
+            "unsubscribe": "Unsubscribe",
+            "subscribed": "Subscribed",
+            "discover": "Discover Calendars"
+        },
+        "collection": {
+            "add": "Add Collection",
+            "edit": "Edit Collection",
+            "delete": "Delete Collection",
+            "noCollection": "No Collection"
+        },
+        "filter": {
+            "all": "All",
+            "favorites": "Favorites"
+        }
+    },
+
+    "event": {
+        "form": {
+            "title": "Title",
+            "titlePlaceholder": "Untitled",
+            "startDate": "Start Date",
+            "endDate": "End Date",
+            "allDay": "All Day",
+            "location": "Location",
+            "locationPlaceholder": "Add location",
+            "description": "Notes",
+            "descriptionPlaceholder": "Add notes",
+            "collection": "Collection",
+            "status": "Status",
+            "color": "Color",
+            "save": "Save Event",
+            "creating": "Adding event...",
+            "updating": "Updating event..."
+        },
+        "status": {
+            "scheduled": "Scheduled",
+            "inProgress": "In Progress",
+            "done": "Done",
+            "cancelled": "Cancelled"
+        },
+        "actions": {
+            "addFavorite": "Add to Favorites",
+            "removeFavorite": "Remove from Favorites",
+            "duplicate": "Duplicate",
+            "delete": "Delete Event",
+            "deleteConfirm": "Delete this event?",
+            "deleteRecurring": "Delete Recurring Event",
+            "deleteThis": "Delete this event only",
+            "deleteFollowing": "Delete this and following events",
+            "deleteAll": "Delete all recurring events"
+        },
+        "recurrence": {
+            "none": "Does not repeat",
+            "daily": "Daily",
+            "weekly": "Weekly",
+            "monthly": "Monthly",
+            "yearly": "Yearly",
+            "custom": "Custom"
+        },
+        "subscription": {
+            "readOnly": "Subscription events cannot be edited",
+            "source": "Source"
+        }
+    },
+
+    "settings": {
+        "title": "Settings",
+        "sections": {
+            "account": "Account",
+            "calendar": "Calendar",
+            "notifications": "Notifications",
+            "language": "Language",
+            "appearance": "Appearance"
+        },
+        "language": {
+            "label": "Language",
+            "ko": "한국어",
+            "en": "English"
+        },
+        "appearance": {
+            "theme": "Theme",
+            "light": "Light",
+            "dark": "Dark",
+            "system": "System"
+        }
+    }
+}

@@ -7,7 +7,6 @@ import { DEFAULT_CALENDAR_LAYOUT_OPTIONS } from "@/lib/calendar/layout-options"
 import { getCalendarPath } from "@/lib/calendar/routes"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { AppUser } from "@workspace/lib/supabase/map-user"
 import {
     Avatar,
     AvatarFallback,
@@ -47,10 +46,11 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useEffect, useMemo, useState } from "react"
 
-export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
+export const NavUser = memo(function NavUser() {
     const { isMobile } = useSidebar()
     const pathname = usePathname()
-    const isLoggedIn = useAuthStore((s) => s.user != null)
+    const user = useAuthStore((s) => s.user)
+    const isLoggedIn = user != null
     const { signOut } = useSignOut()
     const { openSettings } = useSettingsModal()
     const myCalendars = useCalendarStore((s) => s.myCalendars)
@@ -158,7 +158,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                                             </span>
                                             <span className="truncate text-xs">
                                                 {activeCalendarMembership.role ??
-                                                    user.name}
+                                                    user?.name}
                                             </span>
                                         </div>
                                     </div>
@@ -189,7 +189,7 @@ export const NavUser = memo(function NavUser({ user }: { user: AppUser }) {
                             <DropdownMenuSeparator />
                             <DropdownMenuGroup>
                                 <DropdownMenuLabel className="flex items-center justify-between pr-0.5! text-xs text-muted-foreground">
-                                    <div>{user.email}</div>
+                                    <div>{user?.email ?? ""}</div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button

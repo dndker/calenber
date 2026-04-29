@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { serializeEventContent } from "@/lib/calendar/event-content"
-import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { randomCalendarCollectionColor } from "@/lib/calendar/collection-color"
 import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import {
     mapCalendarEventRecordToCalendarEvent,
@@ -11,54 +11,54 @@ import type { CalendarMembership } from "@/lib/calendar/queries"
 import type {
     CalendarEvent,
     CalendarEventPatch,
-    CalendarEventCategory,
+    CalendarEventCollection,
 } from "@/store/calendar-store.types"
-import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { normalizeCalendarCollectionColor } from "@/lib/calendar/collection-color"
 import { resolveSubscriptionCatalogIdForInstall } from "@/lib/calendar/resolve-subscription-catalog-id"
 import { KOREA_HOLIDAY_SUBSCRIPTION_ID } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
 
-type CalendarEventCategoryRow = {
+type CalendarEventCollectionRow = {
     id: string
     calendar_id: string
     name: string
     options: {
         visibleByDefault?: boolean
-        color?: CalendarEventCategory["options"]["color"]
+        color?: CalendarEventCollection["options"]["color"]
     } | null
     created_by: string | null
     created_at: string
     updated_at: string
 }
 
-function normalizeEventCategoryOptions(
-    options?: Partial<CalendarEventCategory["options"]> | null
+function normalizeEventCollectionOptions(
+    options?: Partial<CalendarEventCollection["options"]> | null
 ) {
     return {
         visibleByDefault: options?.visibleByDefault !== false,
         color:
-            normalizeCalendarCategoryColor(options?.color) ??
-            randomCalendarCategoryColor(),
+            normalizeCalendarCollectionColor(options?.color) ??
+            randomCalendarCollectionColor(),
     }
 }
 
-function mapCalendarEventCategoryRow(
-    category: CalendarEventCategoryRow
-): CalendarEventCategory {
+function mapCalendarEventCollectionRow(
+    collection: CalendarEventCollectionRow
+): CalendarEventCollection {
     return {
-        id: category.id,
-        calendarId: category.calendar_id,
-        name: category.name,
-        options: normalizeEventCategoryOptions(category.options),
-        createdById: category.created_by,
-        createdAt: new Date(category.created_at).valueOf(),
-        updatedAt: new Date(category.updated_at).valueOf(),
+        id: collection.id,
+        calendarId: collection.calendar_id,
+        name: collection.name,
+        options: normalizeEventCollectionOptions(collection.options),
+        createdById: collection.created_by,
+        createdAt: new Date(collection.created_at).valueOf(),
+        updatedAt: new Date(collection.updated_at).valueOf(),
     }
 }
 
-async function ensureCalendarEventCategory(
+async function ensureCalendarEventCollection(
     supabase: SupabaseClient,
     calendarId: string,
-    input: CalendarEvent["category"]
+    input: CalendarEvent["primaryCollection"]
 ) {
     const trimmedName = input?.name?.trim()
 
@@ -71,44 +71,48 @@ async function ensureCalendarEventCategory(
     }
 
     const { data, error } = await supabase.rpc(
-        "upsert_calendar_event_category",
+        "upsert_calendar_event_collection",
         {
             target_calendar_id: calendarId,
             target_name: trimmedName,
             target_options:
                 input?.options != null
-                    ? normalizeEventCategoryOptions(input.options)
+                    ? normalizeEventCollectionOptions(input.options)
                     : null,
         }
     )
 
     if (error || !data) {
-        console.error("Failed to ensure calendar event category:", error)
+        console.error("Failed to ensure calendar event collection:", error)
         return null
     }
 
     return typeof data === "string" ? data : null
 }
 
-async function ensureCalendarEventCategories(
+async function ensureCalendarEventCollections(
     supabase: SupabaseClient,
     calendarId: string,
-    inputs: CalendarEvent["categories"]
+    inputs: CalendarEvent["collections"]
 ) {
     const entries = await Promise.all(
-        inputs.map(async (category) => {
-            const categoryId =
-                category.id ||
-                (await ensureCalendarEventCategory(
-                    supabase,
-                    calendarId,
-                    category
-                ))
+        inputs.map(async (collection) => {
+            const reuseExistingId =
+                Boolean(collection.id) &&
+                Boolean(collection.calendarId) &&
+                collection.calendarId === calendarId
 
-            return categoryId
+            const collectionId = reuseExistingId
+                ? collection.id
+                : await ensureCalendarEventCollection(supabase, calendarId, {
+                      ...collection,
+                      id: "",
+                  })
+
+            return collectionId
                 ? {
-                      ...category,
-                      id: categoryId,
+                      ...collection,
+                      id: collectionId,
                       calendarId,
                   }
                 : null
@@ -116,25 +120,27 @@ async function ensureCalendarEventCategories(
     )
 
     return entries.filter(
-        (category): category is NonNullable<(typeof entries)[number]> =>
-            Boolean(category)
+        (collection): collection is NonNullable<(typeof entries)[number]> =>
+            Boolean(collection)
     )
 }
 
-async function replaceCalendarEventCategories(
+async function replaceCalendarEventCollections(
     supabase: SupabaseClient,
     eventId: string,
-    categoryIds: string[]
+    collectionIds: string[]
 ) {
-    const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(Boolean)))
+    const uniqueCollectionIds = Array.from(
+        new Set(collectionIds.filter(Boolean))
+    )
 
-    const { error } = await supabase.rpc("replace_calendar_event_categories", {
+    const { error } = await supabase.rpc("replace_calendar_event_collections", {
         target_event_id: eventId,
-        target_category_ids: uniqueCategoryIds,
+        target_collection_ids: uniqueCollectionIds,
     })
 
     if (error) {
-        console.error("Failed to replace calendar event categories:", error)
+        console.error("Failed to replace calendar event collections:", error)
         return false
     }
 
@@ -163,12 +169,12 @@ async function replaceCalendarEventParticipants(
     return true
 }
 
-export async function createCalendarEventCategory(
+export async function createCalendarEventCollection(
     supabase: SupabaseClient,
     calendarId: string,
     input: {
         name: string
-        options?: Partial<CalendarEventCategory["options"]>
+        options?: Partial<CalendarEventCollection["options"]>
     }
 ) {
     const trimmedName = input.name.trim()
@@ -177,9 +183,9 @@ export async function createCalendarEventCategory(
         return null
     }
 
-    const normalizedOptions = normalizeEventCategoryOptions(input.options)
-    const { data: categoryId, error: upsertError } = await supabase.rpc(
-        "upsert_calendar_event_category",
+    const normalizedOptions = normalizeEventCollectionOptions(input.options)
+    const { data: collectionId, error: upsertError } = await supabase.rpc(
+        "upsert_calendar_event_collection",
         {
             target_calendar_id: calendarId,
             target_name: trimmedName,
@@ -187,36 +193,39 @@ export async function createCalendarEventCategory(
         }
     )
 
-    if (upsertError || !categoryId) {
-        console.error("Failed to create calendar event category:", upsertError)
+    if (upsertError || !collectionId) {
+        console.error(
+            "Failed to create calendar event collection:",
+            upsertError
+        )
         return null
     }
 
     const { data, error } = await supabase
-        .from("event_categories")
+        .from("event_collections")
         .select(
             "id, calendar_id, name, options, created_by, created_at, updated_at"
         )
-        .eq("id", categoryId)
+        .eq("id", collectionId)
         .single()
 
     if (error || !data) {
         console.error(
-            "Failed to fetch created calendar event category:",
+            "Failed to fetch created calendar event collection:",
             error
         )
         return null
     }
 
-    return mapCalendarEventCategoryRow(data as CalendarEventCategoryRow)
+    return mapCalendarEventCollectionRow(data as CalendarEventCollectionRow)
 }
 
-export async function updateCalendarEventCategory(
+export async function updateCalendarEventCollection(
     supabase: SupabaseClient,
-    categoryId: string,
+    collectionId: string,
     patch: {
         name?: string
-        options?: Partial<CalendarEventCategory["options"]>
+        options?: Partial<CalendarEventCollection["options"]>
     }
 ) {
     const updates: Record<string, unknown> = {}
@@ -232,7 +241,7 @@ export async function updateCalendarEventCategory(
     }
 
     if (patch.options !== undefined) {
-        updates.options = normalizeEventCategoryOptions(patch.options)
+        updates.options = normalizeEventCollectionOptions(patch.options)
     }
 
     if (Object.keys(updates).length === 0) {
@@ -240,32 +249,35 @@ export async function updateCalendarEventCategory(
     }
 
     const { data, error } = await supabase
-        .from("event_categories")
+        .from("event_collections")
         .update(updates)
-        .eq("id", categoryId)
+        .eq("id", collectionId)
         .select(
             "id, calendar_id, name, options, created_by, created_at, updated_at"
         )
         .single()
 
     if (error || !data) {
-        console.error("Failed to update calendar event category:", error)
+        console.error("Failed to update calendar event collection:", error)
         return null
     }
 
-    return mapCalendarEventCategoryRow(data as CalendarEventCategoryRow)
+    return mapCalendarEventCollectionRow(data as CalendarEventCollectionRow)
 }
 
-export async function deleteCalendarEventCategory(
+export async function deleteCalendarEventCollection(
     supabase: SupabaseClient,
-    categoryId: string
+    collectionId: string
 ) {
-    const { data, error } = await supabase.rpc("delete_calendar_event_category", {
-        target_category_id: categoryId,
-    })
+    const { data, error } = await supabase.rpc(
+        "delete_calendar_event_collection",
+        {
+            target_collection_id: collectionId,
+        }
+    )
 
     if (error) {
-        console.error("Failed to delete calendar event category:", error)
+        console.error("Failed to delete calendar event collection:", error)
         return false
     }
 
@@ -280,18 +292,21 @@ export async function createCalendarEvent(
     const {
         data: { user },
     } = await supabase.auth.getUser()
-    const ensuredCategories = await ensureCalendarEventCategories(
+    const ensuredCollections = await ensureCalendarEventCollections(
         supabase,
         calendarId,
-        event.categories
+        event.collections
     )
-    const primaryCategoryId =
-        ensuredCategories[0]?.id ?? event.categoryId ?? event.category?.id ?? null
-    const categoryIdsToSync =
-        ensuredCategories.length > 0
-            ? ensuredCategories.map((category) => category.id)
-            : primaryCategoryId
-              ? [primaryCategoryId]
+    const primaryCollectionId =
+        ensuredCollections[0]?.id ??
+        event.primaryCollectionId ??
+        event.primaryCollection?.id ??
+        null
+    const collectionIdsToSync =
+        ensuredCollections.length > 0
+            ? ensuredCollections.map((collection) => collection.id)
+            : primaryCollectionId
+              ? [primaryCollectionId]
               : []
 
     const { data, error } = await supabase
@@ -300,7 +315,7 @@ export async function createCalendarEvent(
             id: event.id,
             calendar_id: calendarId,
             created_by: user?.id ?? event.authorId,
-            category_id: primaryCategoryId,
+            primary_collection_id: primaryCollectionId,
             recurrence: event.recurrence ?? null,
             exceptions: event.exceptions ?? [],
             status: event.status,
@@ -320,14 +335,14 @@ export async function createCalendarEvent(
         return null
     }
 
-    if (categoryIdsToSync.length > 0) {
-        const syncedCategories = await replaceCalendarEventCategories(
+    if (collectionIdsToSync.length > 0) {
+        const syncedCollections = await replaceCalendarEventCollections(
             supabase,
             event.id,
-            categoryIdsToSync
+            collectionIdsToSync
         )
 
-        if (!syncedCategories) {
+        if (!syncedCollections) {
             return null
         }
     }
@@ -417,6 +432,7 @@ export async function createCalendar(
                 calendar_id: calendarId,
                 subscription_catalog_id: holidayCatalogId,
                 is_visible: true,
+                created_by: user.id,
             },
             { onConflict: "calendar_id,subscription_catalog_id" }
         )
@@ -442,8 +458,8 @@ export async function updateCalendarEvent(
 ) {
     const updates: Record<string, unknown> = {}
     const changedFields: string[] = []
-    let resolvedCategoryId = patch.categoryId
-    let resolvedCategories = patch.categories
+    let resolvedPrimaryCollectionId = patch.primaryCollectionId
+    let resolvedCollections = patch.collections
 
     if (patch.title !== undefined) {
         updates.title = patch.title
@@ -475,24 +491,19 @@ export async function updateCalendarEvent(
         changedFields.push("timezone")
     }
 
-    if (
-        patch.categories !== undefined ||
-        patch.categoryIds !== undefined ||
-        patch.category !== undefined ||
-        patch.categoryId !== undefined
-    ) {
+    if (patch.collections !== undefined || patch.collectionIds !== undefined) {
         if (
-            patch.categories?.length === 0 ||
-            patch.categoryIds?.length === 0 ||
-            patch.category === null ||
-            patch.categoryId === null
+            patch.collections?.length === 0 ||
+            patch.collectionIds?.length === 0 ||
+            patch.primaryCollectionId === null ||
+            patch.primaryCollection === null
         ) {
-            resolvedCategoryId = null
-            resolvedCategories = []
+            resolvedPrimaryCollectionId = null
+            resolvedCollections = []
         } else if (
-            patch.categories &&
-            patch.categories.length > 0 &&
-            patch.categoryIds === undefined
+            patch.collections &&
+            patch.collections.length > 0 &&
+            patch.collectionIds === undefined
         ) {
             const { data: eventRow, error: eventError } = await supabase
                 .from("events")
@@ -501,7 +512,10 @@ export async function updateCalendarEvent(
                 .single()
 
             if (eventError || !eventRow?.calendar_id) {
-                console.error("Failed to resolve event calendar for category:", eventError)
+                console.error(
+                    "Failed to resolve event calendar for collection:",
+                    eventError
+                )
                 return {
                     ok: false as const,
                     status: "error" as const,
@@ -510,15 +524,15 @@ export async function updateCalendarEvent(
                 }
             }
 
-            resolvedCategories = await ensureCalendarEventCategories(
+            resolvedCollections = await ensureCalendarEventCollections(
                 supabase,
                 eventRow.calendar_id as string,
-                patch.categories
+                patch.collections
             )
 
             if (
-                patch.categories.some((category) => category.name.trim()) &&
-                resolvedCategories.length === 0
+                patch.collections.some((collection) => collection.name.trim()) &&
+                resolvedCollections.length === 0
             ) {
                 return {
                     ok: false as const,
@@ -528,13 +542,13 @@ export async function updateCalendarEvent(
                 }
             }
 
-            resolvedCategoryId = resolvedCategories[0]?.id ?? null
-        } else if (patch.categoryIds && patch.categoryIds.length > 0) {
-            resolvedCategoryId = patch.categoryIds[0] ?? null
+            resolvedPrimaryCollectionId = resolvedCollections[0]?.id ?? null
+        } else if (patch.collectionIds && patch.collectionIds.length > 0) {
+            resolvedPrimaryCollectionId = patch.collectionIds[0] ?? null
         }
 
-        updates.category_id = resolvedCategoryId
-        changedFields.push("categories")
+        updates.primary_collection_id = resolvedPrimaryCollectionId
+        changedFields.push("collections")
     }
 
     if (patch.recurrence !== undefined) {
@@ -610,21 +624,16 @@ export async function updateCalendarEvent(
             }
         }
 
-        if (
-            patch.categories !== undefined ||
-            patch.categoryIds !== undefined ||
-            patch.category !== undefined ||
-            patch.categoryId !== undefined
-        ) {
-            const syncedCategories = await replaceCalendarEventCategories(
+        if (patch.collections !== undefined || patch.collectionIds !== undefined) {
+            const syncedCollections = await replaceCalendarEventCollections(
                 supabase,
                 eventId,
-                resolvedCategories?.map((category) => category.id) ??
-                    patch.categoryIds ??
+                resolvedCollections?.map((collection) => collection.id) ??
+                    patch.collectionIds ??
                     []
             )
 
-            if (!syncedCategories) {
+            if (!syncedCollections) {
                 return {
                     ok: false as const,
                     status: "error" as const,
@@ -683,22 +692,17 @@ export async function updateCalendarEvent(
 
     if (
         row?.status !== "conflict" &&
-        (
-            patch.categories !== undefined ||
-            patch.categoryIds !== undefined ||
-            patch.category !== undefined ||
-            patch.categoryId !== undefined
-        )
+        (patch.collections !== undefined || patch.collectionIds !== undefined)
     ) {
-        const syncedCategories = await replaceCalendarEventCategories(
+        const syncedCollections = await replaceCalendarEventCollections(
             supabase,
             eventId,
-            resolvedCategories?.map((category) => category.id) ??
-                patch.categoryIds ??
+            resolvedCollections?.map((collection) => collection.id) ??
+                patch.collectionIds ??
                 []
         )
 
-        if (!syncedCategories) {
+        if (!syncedCollections) {
             return {
                 ok: false as const,
                 status: "error" as const,
@@ -892,6 +896,156 @@ export async function deleteCurrentUserAccount(supabase: SupabaseClient) {
 
     if (error) {
         console.error("Failed to delete current user account:", error)
+        return false
+    }
+
+    return true
+}
+
+/**
+ * 컬렉션(카테고리)을 구독 카탈로그로 발행(공유 활성화).
+ * manager/owner만 호출 가능.
+ */
+export async function publishCollectionAsSubscription(
+    supabase: SupabaseClient,
+    input: {
+        calendarId: string
+        collectionId: string
+        name: string
+        description?: string
+        visibility?: "public" | "unlisted"
+    }
+): Promise<{ catalogId: string; slug: string; created: boolean } | null> {
+    const { data, error } = await supabase.rpc(
+        "publish_collection_as_subscription",
+        {
+            target_calendar_id: input.calendarId,
+            target_collection_id: input.collectionId,
+            p_name: input.name,
+            p_description: input.description ?? "",
+            p_visibility: input.visibility ?? "public",
+        }
+    )
+
+    if (error || !data || !Array.isArray(data) || data.length === 0) {
+        console.error("Failed to publish collection as subscription:", error)
+        return null
+    }
+
+    const row = data[0] as {
+        catalog_id: string
+        slug: string
+        created: boolean
+    }
+
+    return {
+        catalogId: row.catalog_id,
+        slug: row.slug,
+        created: row.created,
+    }
+}
+
+/**
+ * 컬렉션 공유(구독 발행)를 비활성화. manager/owner만 호출 가능.
+ */
+export async function unpublishCollectionSubscription(
+    supabase: SupabaseClient,
+    input: {
+        calendarId: string
+        collectionId: string
+    }
+): Promise<boolean> {
+    const { data, error } = await supabase.rpc(
+        "unpublish_collection_subscription",
+        {
+            target_calendar_id: input.calendarId,
+            target_collection_id: input.collectionId,
+        }
+    )
+
+    if (error) {
+        console.error("Failed to unpublish collection subscription:", error)
+        return false
+    }
+
+    return Boolean(data)
+}
+
+/**
+ * 캘린더의 각 카테고리별 공유 발행 상태 조회. manager/owner만 조회 가능.
+ */
+export async function getCollectionPublishStatus(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<
+    Array<{
+        collectionId: string
+        catalogId: string | null
+        isPublished: boolean
+        visibility: string | null
+        status: string | null
+        subscriberCount: number
+        description: string
+    }>
+> {
+    const { data, error } = await supabase.rpc("get_collection_publish_status", {
+        target_calendar_id: calendarId,
+    })
+
+    if (error || !data) {
+        console.error("Failed to get collection publish status:", error)
+        return []
+    }
+
+    return (
+        data as Array<{
+            collection_id: string
+            catalog_id: string | null
+            is_published: boolean
+            visibility: string | null
+            status: string | null
+            subscriber_count: number
+            description: string
+        }>
+    ).map((row) => ({
+        collectionId: row.collection_id,
+        catalogId: row.catalog_id,
+        isPublished: row.is_published,
+        visibility: row.visibility,
+        status: row.status,
+        subscriberCount: Number(row.subscriber_count),
+        description: row.description ?? "",
+    }))
+}
+
+/**
+ * 이미 발행된 컬렉션 구독 카탈로그의 이름·설명·공개 범위를 수정.
+ * manager/owner만 호출 가능.
+ *
+ * @param input.name       구독 카탈로그 표시 이름 (미 입력 시 현재 값 유지)
+ * @param input.description 구독 설명 (빈 문자열 허용)
+ * @param input.visibility  공개 범위: "public" | "unlisted"
+ */
+export async function updateCollectionSubscription(
+    supabase: SupabaseClient,
+    input: {
+        calendarId: string
+        collectionId: string
+        name: string
+        description: string
+        visibility: "public" | "unlisted"
+    }
+): Promise<boolean> {
+    const { error } = await supabase.rpc("publish_collection_as_subscription", {
+        target_calendar_id: input.calendarId,
+        target_collection_id: input.collectionId,
+        p_name: input.name,
+        p_description: input.description,
+        p_visibility: input.visibility,
+    })
+
+    if (error) {
+        console.error("Failed to update collection subscription:", error)
         return false
     }
 

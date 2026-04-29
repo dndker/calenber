@@ -1,5 +1,5 @@
 import { parseEventContent } from "@/lib/calendar/event-content"
-import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { normalizeCalendarCollectionColor } from "@/lib/calendar/collection-color"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 
 export type CalendarEventRecord = {
@@ -11,13 +11,12 @@ export type CalendarEventRecord = {
     end_at: string | null
     all_day: boolean | null
     timezone: string | null
-    categories: CalendarEvent["categories"] | null
-    category_id: string | null
-    category_name: string | null
-    category_options: CalendarEvent["categories"][number]["options"] | null
-    category_created_by: string | null
-    category_created_at: string | null
-    category_updated_at: string | null
+    collections: CalendarEvent["collections"] | null
+    primary_collection_id: string | null
+    primary_collection_name: string | null
+    primary_collection_created_by: string | null
+    primary_collection_created_at: string | null
+    primary_collection_updated_at: string | null
     recurrence: CalendarEvent["recurrence"] | null
     exceptions: CalendarEvent["exceptions"] | null
     participants: CalendarEvent["participants"] | null
@@ -44,41 +43,38 @@ export function mapCalendarEventRecordToCalendarEvent(
         ? new Date(event.start_at).valueOf()
         : Date.now()
     const end = event.end_at ? new Date(event.end_at).valueOf() : start
-    const categories =
-        event.categories?.map((category) => ({
-            ...category,
-            calendarId: category.calendarId || event.calendar_id,
+    const collections =
+        event.collections?.map((collection) => ({
+            ...collection,
+            calendarId: collection.calendarId || event.calendar_id,
             options: {
-                visibleByDefault: category.options?.visibleByDefault !== false,
-                color: normalizeCalendarCategoryColor(category.options?.color),
+                visibleByDefault: collection.options?.visibleByDefault !== false,
+                color: normalizeCalendarCollectionColor(collection.options?.color),
             },
         })) ??
-        (event.category_id && event.category_name
+        (event.primary_collection_id && event.primary_collection_name
             ? [
                   {
-                      id: event.category_id,
+                      id: event.primary_collection_id,
                       calendarId: event.calendar_id,
-                      name: event.category_name,
+                      name: event.primary_collection_name,
                       options: {
-                          visibleByDefault:
-                              event.category_options?.visibleByDefault !== false,
-                          color: normalizeCalendarCategoryColor(
-                              event.category_options?.color
-                          ),
+                          visibleByDefault: true,
+                          color: undefined,
                       },
-                      createdById: event.category_created_by,
+                      createdById: event.primary_collection_created_by,
                       createdAt: new Date(
-                          event.category_created_at ?? event.created_at
+                          event.primary_collection_created_at ?? event.created_at
                       ).valueOf(),
                       updatedAt: new Date(
-                          event.category_updated_at ??
-                              event.category_created_at ??
+                          event.primary_collection_updated_at ??
+                              event.primary_collection_created_at ??
                               event.created_at
                       ).valueOf(),
                   },
               ]
             : [])
-    const primaryCategory = categories[0] ?? null
+    const primaryCollection = collections[0] ?? null
 
     return {
         id: event.id,
@@ -88,10 +84,10 @@ export function mapCalendarEventRecordToCalendarEvent(
         end,
         allDay: event.all_day ?? false,
         timezone: event.timezone?.trim() || "Asia/Seoul",
-        categoryIds: categories.map((category) => category.id),
-        categories,
-        categoryId: primaryCategory?.id ?? null,
-        category: primaryCategory,
+        collectionIds: collections.map((collection) => collection.id),
+        collections,
+        primaryCollectionId: primaryCollection?.id ?? null,
+        primaryCollection,
         recurrence: event.recurrence ?? undefined,
         exceptions: event.exceptions ?? undefined,
         participants: event.participants ?? [],

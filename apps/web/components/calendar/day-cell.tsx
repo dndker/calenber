@@ -52,7 +52,23 @@ function getHolidayDateSetForYear(year: number) {
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
         const createEvent = useOpenEvent()
-        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
+        const {
+            calendarTz,
+            showWeekendTextColors,
+            showHolidayBackground,
+        } = useCalendarStore(
+            (s) => {
+                const layout = normalizeCalendarLayoutOptions(
+                    s.activeCalendar?.layoutOptions
+                )
+                return {
+                    calendarTz: s.calendarTimezone,
+                    showWeekendTextColors: layout.showWeekendTextColors,
+                    showHolidayBackground: layout.showHolidayBackground,
+                }
+            },
+            shallow
+        )
         const user = useAuthStore((s) => s.user)
 
         const isDraggingRef = useRef(false)
@@ -67,28 +83,17 @@ export const DayCell = memo(
         const dayValue = useMemo(() => {
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
-        const dayOfMonth = useMemo(
-            () => dayjs(day).tz(calendarTz).date(),
-            [calendarTz, day]
-        )
-        const weekday = useMemo(
-            () => dayjs(day).tz(calendarTz).day(),
-            [calendarTz, day]
-        )
+        const { dayOfMonth, weekday } = useMemo(() => {
+            const inTz = dayjs(day).tz(calendarTz)
+            return {
+                dayOfMonth: inTz.date(),
+                weekday: inTz.day(),
+            }
+        }, [calendarTz, day])
         const isSunday = weekday === 0
         const isSaturday = weekday === 6
         const { todayDate } = useCalendarToday(calendarTz)
 
-        const showWeekendTextColors = useCalendarStore(
-            (s) =>
-                normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
-                    .showWeekendTextColors
-        )
-        const showHolidayBackground = useCalendarStore(
-            (s) =>
-                normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
-                    .showHolidayBackground
-        )
         const {
             activeCalendar,
             activeCalendarMembership,
@@ -252,7 +257,7 @@ export const DayCell = memo(
                 : ""
         const weekendBackgroundClass =
             showHolidayBackground && (isSunday || isSaturday)
-                ? "bg-background/85"
+                ? "bg-background/75"
                 : ""
 
         return (
@@ -271,7 +276,7 @@ export const DayCell = memo(
                               "bg-background text-foreground",
                               weekendBackgroundClass,
                           ]
-                        : "bg-background/70 text-muted-foreground/60",
+                        : "bg-background/60 text-muted-foreground/60",
                     isHover && "drag-event bg-blue-50/99.5 dark:bg-blue-50/0.5",
                     isSelectingRange &&
                         "select-event bg-blue-50/99.5 dark:bg-blue-50/0.5"

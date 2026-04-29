@@ -2,6 +2,7 @@ import type { CalendarEventLayout } from "@/lib/calendar/types"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
+import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -45,13 +46,23 @@ export const EventRow = memo(function EventRow({
     size?: number
     assumeWeekScoped?: boolean
 }) {
-    const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-    const eventLayout = useCalendarStore((s) => s.eventLayout)
-    const dragMode = useCalendarStore((s) => s.drag.mode)
-    const dragRenderId = useCalendarStore((s) => s.drag.renderId)
-    const resizePinnedLane = useCalendarStore((s) => s.drag.resizePinnedLane)
-    const resizeLayoutWeekStart = useCalendarStore(
-        (s) => s.drag.resizeLayoutWeekStart
+    const {
+        calendarTz,
+        eventLayout,
+        dragMode,
+        dragRenderId,
+        resizePinnedLane,
+        resizeLayoutWeekStart,
+    } = useCalendarStore(
+        (s) => ({
+            calendarTz: s.calendarTimezone,
+            eventLayout: s.eventLayout,
+            dragMode: s.drag.mode,
+            dragRenderId: s.drag.renderId,
+            resizePinnedLane: s.drag.resizePinnedLane,
+            resizeLayoutWeekStart: s.drag.resizeLayoutWeekStart,
+        }),
+        shallow
     )
 
     const weekStart = useMemo(
@@ -306,18 +317,21 @@ export const EventRow = memo(function EventRow({
     return (
         <div className={memoEventRowClass()}>
             {visibleSegments.map(
-                ({
-                    event,
-                    lane,
-                    laneCount,
-                    startIndex,
-                    endIndex,
-                    continuesFromPrevWeek,
-                    continuesToNextWeek,
-                    dragOffsetStart,
-                }) => (
+                (
+                    {
+                        event,
+                        lane,
+                        laneCount,
+                        startIndex,
+                        endIndex,
+                        continuesFromPrevWeek,
+                        continuesToNextWeek,
+                        dragOffsetStart,
+                    },
+                    segmentIndex
+                ) => (
                     <EventItem
-                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
+                        key={`w${weekStart}-s${segmentIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}-L${lane}`}
                         event={event}
                         top={lane}
                         startIndex={startIndex}
@@ -339,13 +353,14 @@ export const EventRow = memo(function EventRow({
 
                 return (
                     <OverflowButton
-                        key={`overflow-${dayIndex}`}
+                        key={`overflow-${weekStart}-${dayIndex}`}
                         dayIndex={dayIndex}
                         dayCount={week.length}
                         hiddenSegments={hiddenSegments}
                         eventLayout={eventLayout}
                         topIndex={visibleLaneLimit}
                         splitDisplayLaneCount={splitDisplayLaneCount}
+                        weekStart={weekStart}
                     />
                 )
             })}
@@ -364,6 +379,7 @@ const OverflowButton = memo(function OverflowButton({
     eventLayout,
     topIndex,
     splitDisplayLaneCount,
+    weekStart,
 }: {
     dayIndex: number
     dayCount: number
@@ -371,6 +387,7 @@ const OverflowButton = memo(function OverflowButton({
     eventLayout: CalendarEventLayout
     topIndex: number
     splitDisplayLaneCount: number
+    weekStart: number
 }) {
     const [open, setOpen] = useState(false)
     const pos = getOverflowPosition(dayIndex, dayCount)
@@ -423,16 +440,19 @@ const OverflowButton = memo(function OverflowButton({
                     <div className="max-h-30">
                         <div className="flex flex-col gap-1 p-1.5 pt-0">
                             {hiddenSegments.map(
-                                ({
-                                    event,
-                                    startIndex,
-                                    endIndex,
-                                    continuesFromPrevWeek,
-                                    continuesToNextWeek,
-                                    dragOffsetStart,
-                                }) => (
+                                (
+                                    {
+                                        event,
+                                        startIndex,
+                                        endIndex,
+                                        continuesFromPrevWeek,
+                                        continuesToNextWeek,
+                                        dragOffsetStart,
+                                    },
+                                    hiddenIndex
+                                ) => (
                                     <div
-                                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
+                                        key={`w${weekStart}-h${hiddenIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                                         className="relative"
                                     >
                                         <EventItem

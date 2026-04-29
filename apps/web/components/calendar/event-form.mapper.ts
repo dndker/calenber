@@ -1,5 +1,5 @@
 import type { CalendarEvent } from "@/store/calendar-store.types"
-import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { randomCalendarCollectionColor } from "@/lib/calendar/collection-color"
 import { EventFormValues } from "./event-form.schema"
 
 export function toCalendarEvent(values: EventFormValues): CalendarEvent {
@@ -17,21 +17,21 @@ export function toCalendarEvent(values: EventFormValues): CalendarEvent {
         allDay: values.allDay,
 
         timezone: values.timezone,
-        categoryIds: [],
-        categories: values.categoryNames.map((name) => ({
+        collectionIds: [],
+        collections: values.collectionNames.map((name) => ({
             id: "",
             calendarId: "",
             name: name.trim(),
             options: {
                 visibleByDefault: true,
-                color: randomCalendarCategoryColor(),
+                color: randomCalendarCollectionColor(),
             },
             createdById: null,
             createdAt: now,
             updatedAt: now,
         })),
-        categoryId: null,
-        category: null,
+        primaryCollectionId: null,
+        primaryCollection: null,
 
         recurrence: values.recurrence,
 
@@ -62,21 +62,21 @@ export function mapToEvent(values: EventFormValues): Partial<CalendarEvent> {
         allDay: values.allDay,
 
         timezone: values.timezone,
-        categoryIds: [],
-        categories: values.categoryNames.map((name) => ({
+        collectionIds: [],
+        collections: values.collectionNames.map((name) => ({
             id: "",
             calendarId: "",
             name: name.trim(),
             options: {
                 visibleByDefault: true,
-                color: randomCalendarCategoryColor(),
+                color: randomCalendarCollectionColor(),
             },
             createdById: null,
             createdAt: Date.now(),
             updatedAt: Date.now(),
         })),
-        category: null,
-        categoryId: null,
+        primaryCollection: null,
+        primaryCollectionId: null,
         participants: [],
 
         recurrence: values.recurrence,

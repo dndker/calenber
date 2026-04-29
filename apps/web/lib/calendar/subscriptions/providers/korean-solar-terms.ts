@@ -10,7 +10,7 @@ export const KOREA_SOLAR_TERMS_SUBSCRIPTION_ID = "subscription.kr.solar-terms"
 
 /** DB `calendar_subscription_catalogs.config.provider` 및 병합 카탈로그에서 사용 */
 export const KOREAN_SOLAR_TERMS_PROVIDER_KEY = "korean_solar_terms_v1"
-const KOREA_SOLAR_TERMS_CATEGORY_ID = "category.subscription.kr.solar-terms"
+const KOREA_SOLAR_TERMS_COLLECTION_ID = "collection.subscription.kr.solar-terms"
 const KOREA_SOLAR_TERMS_COLOR = "gray"
 
 type SolarTermSeed = {
@@ -220,10 +220,10 @@ function createAllDaySubscriptionEvent(
         end: start,
         allDay: true,
         timezone: KOREA_TIMEZONE,
-        categoryIds: [KOREA_SOLAR_TERMS_CATEGORY_ID],
-        categories: [
+        collectionIds: [KOREA_SOLAR_TERMS_COLLECTION_ID],
+        collections: [
             {
-                id: KOREA_SOLAR_TERMS_CATEGORY_ID,
+                id: KOREA_SOLAR_TERMS_COLLECTION_ID,
                 calendarId: "subscriptions",
                 name: "대한민국 절기",
                 options: {
@@ -235,9 +235,9 @@ function createAllDaySubscriptionEvent(
                 updatedAt: start,
             },
         ],
-        categoryId: KOREA_SOLAR_TERMS_CATEGORY_ID,
-        category: {
-            id: KOREA_SOLAR_TERMS_CATEGORY_ID,
+        primaryCollectionId: KOREA_SOLAR_TERMS_COLLECTION_ID,
+        primaryCollection: {
+            id: KOREA_SOLAR_TERMS_COLLECTION_ID,
             calendarId: "subscriptions",
             name: "대한민국 절기",
             options: {
@@ -329,6 +329,6 @@ export const koreanSolarTermSubscription: CalendarSubscription = {
     ownerName: "Calenber",
     verified: true,
     tags: ["절기", "대한민국", "24절기", "계절"],
-    categoryColor: KOREA_SOLAR_TERMS_COLOR,
+    collectionColor: KOREA_SOLAR_TERMS_COLOR,
     generateEvents: generateKoreanSolarTermSubscriptionEvents,
 }

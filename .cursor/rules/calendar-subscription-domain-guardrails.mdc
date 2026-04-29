@@ -6,6 +6,17 @@ alwaysApply: false
 
 # 캘린더 구독 도메인 규칙
 
+## 0) 타입이 어디에 정의되는가 (캘린더 전반)
+
+| 단일 소스 | `apps/web/store/calendar-store.types.ts` — `CalendarEvent`, `CalendarEventCollection`, 구독·필터·스토어 상태 |
+| 팔레트·색 | `apps/web/lib/calendar/collection-color.ts` — `CalendarCollectionColor` |
+| DB 행 매핑 | `apps/web/lib/calendar/event-record.ts` — `CalendarEventRecord` → `CalendarEvent` |
+| 캘린더 메타(RPC) | `apps/web/lib/calendar/queries.ts` — `CalendarSummary`, `MyCalendarItem` 등 |
+| Realtime | `apps/web/lib/calendar/realtime.ts` |
+| 필드 설정 마이그레이션 | `apps/web/lib/calendar/event-field-settings.ts` — 레거시 필드 id `categories` → `collections` |
+
+새 도메인 필드 추가 시 **`calendar-store.types.ts` → queries/event-record 매핑 → hooks → UI** 순으로 반영한다. DB 스키마와의 이름 매핑은 루트 `MIGRATION_CATEGORY_TO_COLLECTION.md`를 따른다.
+
 ## 1) 타입 구조 일관성 (필수)
 - 구독의 캘린더 메타는 플랫 필드로 분산하지 말고 `calendar` 객체로 유지한다.
 - 표준 형태: `calendar: { id: string | null; name: string | null; avatarUrl: string | null } | null`
@@ -20,8 +31,12 @@ alwaysApply: false
 
 ## 3) UI/폼 동작 규칙 (필수)
 - 구독 일정은 일반 일정과 편집 가능 범위가 다르다.
-- 속성 표시 제한이 필요한 UI(예: 이벤트 폼, 사이드바 HoverCard)는 구독 일정에서 `schedule`, `categories`만 노출한다.
+- 속성 표시 제한이 필요한 UI(예: 이벤트 폼, 사이드바 HoverCard)는 구독 일정에서 `schedule`, `collections`만 노출한다.
 - 구독 일정은 삭제/일부 액션 제한 여부를 UI별로 일관되게 유지한다.
+
+## 3.1) 컬렉션 네이밍 (category 레거시)
+- 신규 코드는 `collection` / `collections` 용어를 쓴다. DB는 `event_collections`, `primary_collection_id` 등과 정합을 맞춘다.
+- Realtime·구 필드 id 등 **와이어 호환**으로 남은 `category` 접두는 `realtime.ts`·`event-field-settings` 주석을 참고하고, 새로 늘리지 않는다.
 
 ## 4) 공휴일 네이밍 규칙 (필수)
 - 설날 3일 중 당일만 `설날`, 전/후일은 `설날 연휴`로 표기한다.

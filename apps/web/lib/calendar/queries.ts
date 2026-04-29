@@ -4,13 +4,22 @@ import {
 } from "@/lib/calendar/event-record"
 import { normalizeCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
-import { normalizeCalendarCategoryColor } from "@/lib/calendar/category-color"
-import { isCalendarEventUuid } from "@/lib/calendar/event-id"
+import { normalizeCalendarCollectionColor } from "@/lib/calendar/collection-color"
+import {
+    isCalendarEventUuid,
+    parseSubscriptionCompositeEventId,
+} from "@/lib/calendar/event-id"
+import {
+    calendarEventFromSharedCollectionRow,
+    parseSharedCollectionRpcRow,
+    type SharedCollectionRpcRow,
+} from "@/lib/calendar/shared-collection-rpc-row"
 import { parseEventContent } from "@/lib/calendar/event-content"
 import type {
     CalendarSubscriptionCatalogItem,
     CalendarEvent,
     CalendarEventFieldSettings,
+    EventSubscriptionItem,
 } from "@/store/calendar-store.types"
 import type {
     CalendarAccessMode,
@@ -104,13 +113,13 @@ export type CalendarMemberDirectoryItem = {
     avatarUrl: string | null
 }
 
-export type CalendarEventCategorySummary = {
+export type CalendarEventCollectionSummary = {
     id: string
     calendarId: string
     name: string
     options: {
         visibleByDefault: boolean
-        color: CalendarEvent["categories"][number]["options"]["color"]
+        color: CalendarEvent["collections"][number]["options"]["color"]
     }
     createdById: string | null
     createdAt: string
@@ -121,7 +130,7 @@ export type CalendarInitialData = {
     calendar: CalendarSummary | null
     membership: CalendarMembership
     myCalendars: MyCalendarItem[]
-    eventCategories: CalendarEventCategorySummary[]
+    eventCollections: CalendarEventCollectionSummary[]
     events: CalendarEvent[]
     subscriptionCatalogs: CalendarSubscriptionCatalogItem[]
     subscriptionState: {
@@ -139,7 +148,7 @@ export type CalendarSubscriptionCatalog = {
     slug: string
     name: string
     description: string
-    sourceType: "system_holiday" | "shared_category" | "custom"
+    sourceType: "system_holiday" | "shared_collection" | "custom"
     verified: boolean
     status: "active" | "source_deleted" | "archived"
     sourceDeletedAt: string | null
@@ -150,10 +159,12 @@ export type CalendarSubscriptionCatalog = {
         name: string | null
         avatarUrl: string | null
     } | null
-    categoryColor: CalendarEvent["categories"][number]["options"]["color"] | null
+    collectionColor: CalendarEvent["collections"][number]["options"]["color"] | null
     config: Record<string, unknown>
     installed: boolean
     isVisible: boolean
+    /** 구독 카탈로그의 공개 범위. shared_collection 타입에만 존재. */
+    visibility: "public" | "unlisted" | null
 }
 
 type CalendarRow = {
@@ -208,8 +219,8 @@ type CalendarEventWithCalendarRow = {
     content: CalendarEvent["content"] | string | null
     start_at: string | null
     end_at: string | null
-    categories: CalendarEvent["categories"] | null
-    category_id: string | null
+    collections: CalendarEvent["collections"] | null
+    primary_collection_id: string | null
     recurrence: CalendarEvent["recurrence"] | null
     exceptions: CalendarEvent["exceptions"] | null
     participants: CalendarEvent["participants"] | null
@@ -219,13 +230,13 @@ type CalendarEventWithCalendarRow = {
     is_locked: boolean | null
     created_at: string
     updated_at: string | null
-    event_categories: {
+    event_collections: {
         id: string
         calendar_id: string
         name: string
         options: {
             visibleByDefault?: boolean
-            color?: CalendarEvent["categories"][number]["options"]["color"]
+            color?: CalendarEvent["collections"][number]["options"]["color"]
         } | null
         created_by: string | null
         created_at: string
@@ -260,13 +271,13 @@ type CalendarEventWithCalendarRow = {
     } | null
 }
 
-type CalendarEventCategoryRow = {
+type CalendarEventCollectionRow = {
     id: string
     calendar_id: string
     name: string
     options: {
         visibleByDefault?: boolean
-        color?: CalendarEvent["categories"][number]["options"]["color"]
+        color?: CalendarEvent["collections"][number]["options"]["color"]
     } | null
     created_by: string | null
     created_at: string
@@ -277,7 +288,7 @@ type CalendarInitialDataPayload = {
     calendar: CalendarSummary | null
     membership: CalendarMembership | null
     myCalendars: MyCalendarItem[] | null
-    eventCategories: CalendarEventCategorySummary[] | null
+    eventCollections: CalendarEventCollectionSummary[] | null
     events: CalendarEventRecord[] | null
 }
 
@@ -286,7 +297,11 @@ type CalendarSubscriptionCatalogRow = {
     slug: string
     name: string
     description: string
-    source_type: "system_holiday" | "shared_category" | "shared_calendar" | "custom"
+    source_type:
+        | "system_holiday"
+        | "shared_collection"
+        | "shared_calendar"
+        | "custom"
     verified: boolean
     status: "active" | "source_deleted" | "archived"
     source_deleted_at: string | null
@@ -294,14 +309,16 @@ type CalendarSubscriptionCatalogRow = {
     provider_name: string | null
     source_calendar_id: string | null
     source_calendar_name: string | null
-    category_color: string | null
+    collection_color: string | null
     config: Record<string, unknown> | null
     installed: boolean
     is_visible: boolean
+    visibility: string | null
 }
 
-type SourceCalendarAvatarRow = {
+type SourceCalendarMetaRow = {
     id: string
+    name: string
     avatar_url: string | null
 }
 
@@ -345,8 +362,8 @@ function mergeBuiltinSystemSubscriptionCatalog(
             name: builtin.name,
             description: builtin.description,
             sourceType:
-                builtinSource === "shared_category"
-                    ? "shared_category"
+                builtinSource === "shared_collection"
+                    ? "shared_collection"
                     : builtinSource === "custom"
                       ? "custom"
                       : "system_holiday",
@@ -362,8 +379,8 @@ function mergeBuiltinSystemSubscriptionCatalog(
                       avatarUrl: builtin.calendar.avatarUrl ?? null,
                   }
                 : null,
-            categoryColor: normalizeCalendarCategoryColor(
-                builtin.categoryColor ?? null
+            collectionColor: normalizeCalendarCollectionColor(
+                builtin.collectionColor ?? null
             ),
             config: {
                 locale: "ko-KR",
@@ -372,6 +389,7 @@ function mergeBuiltinSystemSubscriptionCatalog(
             },
             installed: false,
             isVisible: true,
+            visibility: null,
         })
         bySlug.set(slug, merged[merged.length - 1]!)
     }
@@ -420,25 +438,25 @@ function normalizeMyCalendarItem(calendar: MyCalendarItem): MyCalendarItem {
     }
 }
 
-function normalizeCalendarEventCategorySummary(
-    category: CalendarEventCategorySummary | CalendarEventCategoryRow
-): CalendarEventCategorySummary {
+function normalizeCalendarEventCollectionSummary(
+    collection: CalendarEventCollectionSummary | CalendarEventCollectionRow
+): CalendarEventCollectionSummary {
     const calendarId =
-        "calendarId" in category ? category.calendarId : category.calendar_id
+        "calendarId" in collection ? collection.calendarId : collection.calendar_id
     const createdById =
-        "createdById" in category ? category.createdById : category.created_by
+        "createdById" in collection ? collection.createdById : collection.created_by
     const createdAt =
-        "createdAt" in category ? category.createdAt : category.created_at
+        "createdAt" in collection ? collection.createdAt : collection.created_at
     const updatedAt =
-        "updatedAt" in category ? category.updatedAt : category.updated_at
+        "updatedAt" in collection ? collection.updatedAt : collection.updated_at
 
     return {
-        id: category.id,
+        id: collection.id,
         calendarId,
-        name: category.name,
+        name: collection.name,
         options: {
-            visibleByDefault: category.options?.visibleByDefault !== false,
-            color: normalizeCalendarCategoryColor(category.options?.color),
+            visibleByDefault: collection.options?.visibleByDefault !== false,
+            color: normalizeCalendarCollectionColor(collection.options?.color),
         },
         createdById,
         createdAt,
@@ -598,7 +616,7 @@ export async function getCalendarInitialData(
                 status: null,
             },
             myCalendars: [],
-            eventCategories: [],
+            eventCollections: [],
             events: [],
             subscriptionCatalogs: [],
             subscriptionState: {
@@ -615,8 +633,8 @@ export async function getCalendarInitialData(
         calendar: normalizeCalendarSummary(payload.calendar ?? null),
         membership: normalizeCalendarMembership(payload.membership),
         myCalendars: (payload.myCalendars ?? []).map(normalizeMyCalendarItem),
-        eventCategories: (payload.eventCategories ?? []).map(
-            normalizeCalendarEventCategorySummary
+        eventCollections: (payload.eventCollections ?? []).map(
+            normalizeCalendarEventCollectionSummary
         ),
         events: (payload.events ?? []).map((event) =>
             normalizeCalendarEventForCalendar(
@@ -636,7 +654,7 @@ export async function getCalendarInitialData(
             providerName: subscription.providerName,
             verified: subscription.verified,
             tags: [],
-            categoryColor: subscription.categoryColor ?? undefined,
+            collectionColor: subscription.collectionColor ?? undefined,
             sourceType: subscription.sourceType,
             calendar: subscription.sourceCalendar
                 ? {
@@ -649,6 +667,7 @@ export async function getCalendarInitialData(
             sourceDeletedAt: subscription.sourceDeletedAt,
             sourceDeletedReason: subscription.sourceDeletedReason,
             config: subscription.config,
+            visibility: subscription.visibility,
         })),
         subscriptionState: {
             installedSubscriptionIds: subscriptionCatalogs
@@ -707,56 +726,70 @@ export async function getCalendarSubscriptionCatalog(
                 .filter((id): id is string => Boolean(id))
         )
     )
-    let sourceCalendarAvatarById = new Map<string, string | null>()
+    /** 원본 캘린더 ID → 이름·아바타 (구독자에게 RLS 로 calendars 행이 보이면 채워짐) */
+    let sourceCalendarMetaById = new Map<
+        string,
+        { name: string; avatarUrl: string | null }
+    >()
 
     if (sourceCalendarIds.length > 0) {
         const { data: sourceCalendars, error: sourceCalendarError } = await supabase
             .from("calendars")
-            .select("id, avatar_url")
+            .select("id, name, avatar_url")
             .in("id", sourceCalendarIds)
 
         if (sourceCalendarError) {
             console.error(
-                "Failed to load source calendar avatars for subscriptions:",
+                "Failed to load source calendar meta for subscriptions:",
                 sourceCalendarError
             )
         } else {
-            sourceCalendarAvatarById = new Map(
-                ((sourceCalendars ?? []) as SourceCalendarAvatarRow[]).map((row) => [
+            sourceCalendarMetaById = new Map(
+                ((sourceCalendars ?? []) as SourceCalendarMetaRow[]).map((row) => [
                     row.id,
-                    row.avatar_url,
+                    {
+                        name: row.name,
+                        avatarUrl: row.avatar_url,
+                    },
                 ])
             )
         }
     }
 
-    return rows.map((row) => ({
-        id: row.id,
-        slug: row.slug,
-        name: row.name,
-        description: row.description,
-        sourceType: normalizeCalendarSubscriptionSourceType(row.source_type),
-        providerName: row.provider_name,
-        sourceCalendar:
-            row.source_calendar_id || row.source_calendar_name
-                ? {
-                      id: row.source_calendar_id,
-                      name: row.source_calendar_name,
-                      avatarUrl: row.source_calendar_id
-                          ? (sourceCalendarAvatarById.get(row.source_calendar_id) ??
-                            null)
-                          : null,
-                  }
-                : null,
-        verified: row.verified,
-        status: row.status,
-        sourceDeletedAt: row.source_deleted_at,
-        sourceDeletedReason: row.source_deleted_reason,
-        categoryColor: normalizeCalendarCategoryColor(row.category_color),
-        config: (row.config ?? {}) as Record<string, unknown>,
-        installed: row.installed,
-        isVisible: row.is_visible,
-    }))
+    return rows.map((row) => {
+        const meta = row.source_calendar_id
+            ? sourceCalendarMetaById.get(row.source_calendar_id)
+            : undefined
+
+        return {
+            id: row.id,
+            slug: row.slug,
+            name: row.name,
+            description: row.description,
+            sourceType: normalizeCalendarSubscriptionSourceType(row.source_type),
+            providerName: row.provider_name,
+            sourceCalendar:
+                row.source_calendar_id || row.source_calendar_name
+                    ? {
+                          id: row.source_calendar_id,
+                          name: meta?.name ?? row.source_calendar_name ?? null,
+                          avatarUrl: meta?.avatarUrl ?? null,
+                      }
+                    : null,
+            verified: row.verified,
+            status: row.status,
+            sourceDeletedAt: row.source_deleted_at,
+            sourceDeletedReason: row.source_deleted_reason,
+            collectionColor: normalizeCalendarCollectionColor(row.collection_color),
+            config: (row.config ?? {}) as Record<string, unknown>,
+            installed: row.installed,
+            isVisible: row.is_visible,
+            visibility:
+                row.visibility === "public" || row.visibility === "unlisted"
+                    ? row.visibility
+                    : null,
+        }
+    })
 }
 
 export async function getCalendarMembership(
@@ -823,37 +856,37 @@ function normalizeCalendarEventForCalendar(
     event: CalendarEvent,
     calendarId: string
 ) {
-    if (event.categories.length === 0) {
+    if (event.collections.length === 0) {
         return event
     }
 
-    const categories = event.categories.map((category) => ({
-        ...category,
+    const collections = event.collections.map((collection) => ({
+        ...collection,
         calendarId,
     }))
 
     return {
         ...event,
-        categories,
-        category: categories[0] ?? null,
+        collections,
+        primaryCollection: collections[0] ?? null,
     }
 }
 
-export async function getCalendarEventCategories(
+export async function getCalendarEventCollections(
     supabase: SupabaseClient,
     calendarId: string
-): Promise<CalendarEventCategorySummary[]> {
-    const { data, error } = await supabase.rpc("get_calendar_event_categories", {
+): Promise<CalendarEventCollectionSummary[]> {
+    const { data, error } = await supabase.rpc("get_calendar_event_collections", {
         target_calendar_id: calendarId,
     })
 
     if (error || !data) {
-        console.error("Failed to load calendar event categories:", error)
+        console.error("Failed to load calendar event collections:", error)
         return []
     }
 
-    return (data as CalendarEventCategoryRow[]).map(
-        normalizeCalendarEventCategorySummary
+    return (data as CalendarEventCollectionRow[]).map(
+        normalizeCalendarEventCollectionSummary
     )
 }
 
@@ -926,13 +959,152 @@ export async function getCalendarMemberDirectory(
     return request
 }
 
+function mapSharedCollectionRowToEventMetadata(
+    row: SharedCollectionRpcRow,
+    compositeEventId: string
+): CalendarEventMetadata {
+    const start = row.start_at ? new Date(row.start_at).valueOf() : Date.now()
+    const end = row.end_at ? new Date(row.end_at).valueOf() : start
+
+    return {
+        id: compositeEventId,
+        title: row.title,
+        content: parseEventContent(
+            row.content as CalendarEvent["content"] | string | null
+        ),
+        start,
+        end,
+        status: row.event_status as CalendarEvent["status"],
+        author: null,
+    }
+}
+
+function calendarCatalogRowToEventSubscriptionItem(
+    row: CalendarSubscriptionCatalog
+): EventSubscriptionItem {
+    return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        sourceType: row.sourceType,
+        authority: row.verified ? "system" : "user",
+        providerName: row.providerName,
+        calendar: row.sourceCalendar
+            ? {
+                  id: row.sourceCalendar.id ?? row.id,
+                  name: row.sourceCalendar.name,
+                  avatarUrl: row.sourceCalendar.avatarUrl,
+              }
+            : null,
+    }
+}
+
+function subscriptionMetaFromViewerCatalogLookup(
+    catalogs: CalendarSubscriptionCatalog[],
+    catalogId: string
+): EventSubscriptionItem {
+    const catalog = catalogs.find((c) => c.id === catalogId)
+
+    if (!catalog) {
+        return {
+            id: catalogId,
+            name: "",
+            sourceType: "shared_collection",
+            authority: "user",
+            providerName: null,
+            calendar: null,
+        }
+    }
+
+    return calendarCatalogRowToEventSubscriptionItem(catalog)
+}
+
+async function fetchSharedCollectionEventRowForViewer(
+    supabase: SupabaseClient,
+    viewerCalendarId: string,
+    catalogId: string,
+    sourceEventId: string
+): Promise<SharedCollectionRpcRow | null> {
+    const rangeStart = new Date("2000-01-01T00:00:00.000Z").toISOString()
+    const rangeEnd = new Date("2100-01-01T00:00:00.000Z").toISOString()
+
+    const { data, error } = await supabase.rpc(
+        "get_shared_collection_subscription_events",
+        {
+            p_catalog_id: catalogId,
+            p_calendar_id: viewerCalendarId,
+            p_range_start: rangeStart,
+            p_range_end: rangeEnd,
+        }
+    )
+
+    if (error) {
+        console.error("Failed to load shared collection event row:", error)
+        return null
+    }
+
+    if (!Array.isArray(data)) {
+        return null
+    }
+
+    for (const raw of data) {
+        const row = parseSharedCollectionRpcRow(raw)
+        if (row.event_id === sourceEventId) {
+            return row
+        }
+    }
+
+    return null
+}
+
 export async function getEventById(
     supabase: SupabaseClient,
     eventId: string,
     options?: {
         silentMissing?: boolean
+        /** 구독 복합 ID(`sub:…`) 조회 시 설치된 캘린더(보는 사용자 워크스페이스) */
+        viewerCalendarId?: string
     }
 ) {
+    const parsedSub = parseSubscriptionCompositeEventId(eventId)
+
+    if (parsedSub) {
+        const viewerCal = options?.viewerCalendarId
+
+        if (!viewerCal) {
+            return null
+        }
+
+        const [row, catalogs] = await Promise.all([
+            fetchSharedCollectionEventRowForViewer(
+                supabase,
+                viewerCal,
+                parsedSub.catalogId,
+                parsedSub.sourceEventId
+            ),
+            getCalendarSubscriptionCatalog(supabase, viewerCal),
+        ])
+
+        if (!row) {
+            if (!options?.silentMissing) {
+                console.warn("Calendar event not found:", eventId)
+            }
+
+            return null
+        }
+
+        const subscriptionMeta = subscriptionMetaFromViewerCatalogLookup(
+            catalogs,
+            parsedSub.catalogId
+        )
+
+        return calendarEventFromSharedCollectionRow(
+            row,
+            eventId,
+            subscriptionMeta
+        )
+    }
+
     if (!isCalendarEventUuid(eventId)) {
         return null
     }
@@ -977,10 +1149,40 @@ export async function getEventMetadataByCalendarId(
     calendar: CalendarSummary | null
     event: CalendarEventMetadata | null
 }> {
+    const parsedSub = parseSubscriptionCompositeEventId(eventId)
+
+    if (parsedSub) {
+        const [calendar, row] = await Promise.all([
+            getCalendarById(supabase, calendarId),
+            fetchSharedCollectionEventRowForViewer(
+                supabase,
+                calendarId,
+                parsedSub.catalogId,
+                parsedSub.sourceEventId
+            ),
+        ])
+
+        if (!calendar || !row) {
+            if (!options?.silentMissing && !row) {
+                console.warn("Calendar event metadata not found:", eventId)
+            }
+
+            return {
+                calendar: calendar ?? null,
+                event: null,
+            }
+        }
+
+        return {
+            calendar,
+            event: mapSharedCollectionRowToEventMetadata(row, eventId),
+        }
+    }
+
     const { data, error } = await supabase
         .from("events")
         .select(
-            "id, title, content, start_at, end_at, category_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, event_field_settings, layout_options, updated_at, created_at), event_categories(id, calendar_id, name, options, created_by, created_at, updated_at)"
+            "id, title, content, start_at, end_at, primary_collection_id, recurrence, exceptions, status, calendars!inner(id, name, avatar_url, access_mode, event_layout, event_field_settings, layout_options, updated_at, created_at), event_collections(id, calendar_id, name, options, created_by, created_at, updated_at)"
         )
         .eq("id", eventId)
         .eq("calendar_id", calendarId)
@@ -1062,7 +1264,10 @@ export async function getEventPageDataByCalendarId(
 }> {
     const [calendar, event] = await Promise.all([
         getCalendarById(supabase, calendarId),
-        getEventById(supabase, eventId, options),
+        getEventById(supabase, eventId, {
+            ...options,
+            viewerCalendarId: calendarId,
+        }),
     ])
 
     if (!calendar || !event) {

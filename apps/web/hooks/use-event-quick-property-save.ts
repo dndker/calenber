@@ -1,16 +1,16 @@
 "use client"
 
-import { createCalendarEventCategory } from "@/lib/calendar/mutations"
+import { createCalendarEventCollection } from "@/lib/calendar/mutations"
 import {
-    normalizeCategoryName,
+    normalizeCollectionName,
     normalizeNames,
 } from "@/lib/calendar/event-form-names"
-import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
+import { buildEventCollectionsAssignmentPatch } from "@/lib/calendar/event-property-collection-patch"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import type { CalendarEventStatus } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useCallback } from "react"
-import { useEventFormDraftCategoryColor } from "./use-event-form-draft-category-color"
+import { useEventFormDraftCollectionColor } from "./use-event-form-draft-collection-color"
 
 type UseEventQuickPropertySaveOptions = {
     /** `getCalendarEventSourceId`와 동일: 원본 일정 id */
@@ -19,7 +19,7 @@ type UseEventQuickPropertySaveOptions = {
 }
 
 /**
- * 컨텍스트 메뉴 등 EventForm 밖에서 상태·카테고리만 갱신할 때 사용.
+ * 컨텍스트 메뉴 등 EventForm 밖에서 상태·컬렉션만 갱신할 때 사용.
  * 스토어 `updateEvent` → `persistUpdatedEvent` 경로로 실시간/낙관적 갱신과 동일하게 동작한다.
  */
 export function useEventQuickPropertySave({
@@ -27,68 +27,69 @@ export function useEventQuickPropertySave({
     disabled = false,
 }: UseEventQuickPropertySaveOptions) {
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
-    const upsertEventCategorySnapshot = useCalendarStore(
-        (s) => s.upsertEventCategorySnapshot
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
+    const upsertEventCollectionSnapshot = useCalendarStore(
+        (s) => s.upsertEventCollectionSnapshot
     )
     const updateEvent = useCalendarStore((s) => s.updateEvent)
-    const getDraftCategoryColor = useEventFormDraftCategoryColor(eventCategories)
+    const getDraftCollectionColor =
+        useEventFormDraftCollectionColor(eventCollections)
 
-    const ensureEventCategories = useCallback(
-        async (categoryNames: string[]) => {
+    const ensureEventCollections = useCallback(
+        async (collectionNames: string[]) => {
             if (
                 !activeCalendar?.id ||
                 activeCalendar.id === "demo" ||
                 disabled ||
-                categoryNames.length === 0
+                collectionNames.length === 0
             ) {
-                return useCalendarStore.getState().eventCategories
+                return useCalendarStore.getState().eventCollections
             }
 
             const supabase = createBrowserSupabase()
-            const categoryMap = new Map(
+            const collectionMap = new Map(
                 useCalendarStore
                     .getState()
-                    .eventCategories.map((category) => [
-                        normalizeCategoryName(category.name),
-                        category,
+                    .eventCollections.map((collection) => [
+                        normalizeCollectionName(collection.name),
+                        collection,
                     ])
             )
 
-            for (const categoryName of categoryNames) {
-                const categoryKey = normalizeCategoryName(categoryName)
+            for (const name of collectionNames) {
+                const collectionKey = normalizeCollectionName(name)
 
-                if (!categoryKey || categoryMap.has(categoryKey)) {
+                if (!collectionKey || collectionMap.has(collectionKey)) {
                     continue
                 }
 
-                const createdCategory = await createCalendarEventCategory(
+                const createdCollection = await createCalendarEventCollection(
                     supabase,
                     activeCalendar.id,
                     {
-                        name: categoryName,
+                        name,
                         options: {
                             visibleByDefault: true,
-                            color: getDraftCategoryColor(categoryName),
+                            color: getDraftCollectionColor(name),
                         },
                     }
                 )
 
-                if (!createdCategory) {
+                if (!createdCollection) {
                     continue
                 }
 
-                categoryMap.set(categoryKey, createdCategory)
-                upsertEventCategorySnapshot(createdCategory)
+                collectionMap.set(collectionKey, createdCollection)
+                upsertEventCollectionSnapshot(createdCollection)
             }
 
-            return useCalendarStore.getState().eventCategories
+            return useCalendarStore.getState().eventCollections
         },
         [
             activeCalendar?.id,
             disabled,
-            getDraftCategoryColor,
-            upsertEventCategorySnapshot,
+            getDraftCollectionColor,
+            upsertEventCollectionSnapshot,
         ]
     )
 
@@ -115,7 +116,7 @@ export function useEventQuickPropertySave({
         [disabled, sourceEventId, updateEvent]
     )
 
-    const saveCategoryNames = useCallback(
+    const saveCollectionNames = useCallback(
         async (rawNames: string[]) => {
             if (disabled) {
                 return
@@ -129,23 +130,23 @@ export function useEventQuickPropertySave({
                 return
             }
 
-            const nextCategoryNames = normalizeNames(rawNames)
-            const sourceCategoryNames = normalizeNames(
-                event.categories.map((category) => category.name)
+            const nextCollectionNames = normalizeNames(rawNames)
+            const sourceCollectionNames = normalizeNames(
+                event.collections.map((collection) => collection.name)
             )
 
-            const resolvedCategories =
-                JSON.stringify(sourceCategoryNames) ===
-                JSON.stringify(nextCategoryNames)
-                    ? useCalendarStore.getState().eventCategories
-                    : await ensureEventCategories(nextCategoryNames)
+            const resolvedCollections =
+                JSON.stringify(sourceCollectionNames) ===
+                JSON.stringify(nextCollectionNames)
+                    ? useCalendarStore.getState().eventCollections
+                    : await ensureEventCollections(nextCollectionNames)
 
-            const patch = buildEventCategoriesAssignmentPatch(
+            const patch = buildEventCollectionsAssignmentPatch(
                 event,
-                nextCategoryNames,
-                resolvedCategories,
-                getDraftCategoryColor,
-                activeCalendar?.id ?? event.categories[0]?.calendarId ?? ""
+                nextCollectionNames,
+                resolvedCollections,
+                getDraftCollectionColor,
+                activeCalendar?.id ?? event.collections[0]?.calendarId ?? ""
             )
 
             if (!patch) {
@@ -159,8 +160,8 @@ export function useEventQuickPropertySave({
         [
             activeCalendar?.id,
             disabled,
-            ensureEventCategories,
-            getDraftCategoryColor,
+            ensureEventCollections,
+            getDraftCollectionColor,
             sourceEventId,
             updateEvent,
         ]
@@ -168,8 +169,8 @@ export function useEventQuickPropertySave({
 
     return {
         saveStatus,
-        saveCategoryNames,
-        getDraftCategoryColor,
-        eventCategories,
+        saveCollectionNames,
+        getDraftCollectionColor,
+        eventCollections,
     }
 }

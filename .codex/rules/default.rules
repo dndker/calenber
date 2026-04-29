@@ -31,6 +31,18 @@ alwaysApply: true
 - UI는 기존 화면의 톤과 구조를 우선적으로 따른다.
 - 사용자 흐름, 예외 케이스, 회귀 위험을 함께 고려한다.
 
+## i18n 키 네이밍 규칙
+
+- 번역 키는 `domain.section.meaning` 3단계 camelCase 구조로 작성한다.
+- `domain`: 기능 영역 — `common`, `auth`, `calendar`, `event`, `settings`
+- `section`: 도메인 내 구분 — `actions`, `form`, `views`, `navigation`
+- `meaning`: 텍스트 의미 — `title`, `placeholder`, `label`, `description`
+- 4단계 이상 중첩 금지: `event.form.title.placeholder` (X) → `event.form.titlePlaceholder` (O)
+- snake_case 금지: `event.form.title_placeholder` (X)
+- 번역 파일: `apps/web/messages/ko.json`, `apps/web/messages/en.json` — 구조는 항상 동일하게 유지
+- ko.json에 키를 추가하면 en.json에도 동시에 추가한다
+- 클라이언트: `useTranslations("event.form")` / 서버: `await getTranslations("event.form")`
+
 ## React 원칙
 
 - 불필요한 리렌더를 줄이도록 상태와 이펙트를 설계한다.

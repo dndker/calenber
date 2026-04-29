@@ -42,50 +42,50 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
-    --category-blue-default: oklch(0.62 0.19 255);
-    --category-blue-muted: oklch(0.95 0.03 246.94);
-    --category-blue-strong: oklch(0.55 0.17 255);
-    --category-blue-soft: oklch(0.93 0.04 254.3);
-    --category-green-default: oklch(0.68 0.18 150);
-    --category-green-muted: oklch(0.96 0.03 150.14);
-    --category-green-strong: oklch(0.5 0.16 148.96);
-    --category-green-soft: oklch(0.94 0.04 150.07);
-    --category-sky-default: oklch(0.72 0.15 230);
-    --category-sky-muted: oklch(0.98 0.02 221.25);
-    --category-sky-strong: oklch(0.53 0.11 230.36);
-    --category-sky-soft: oklch(0.96 0.03 229.9);
-    --category-purple-default: oklch(0.63 0.2 305);
-    --category-purple-muted: oklch(0.97 0.02 311.54);
-    --category-purple-strong: oklch(0.44 0.15 303.94);
-    --category-purple-soft: oklch(0.95 0.03 305.31);
-    --category-red-default: oklch(0.64 0.21 24);
-    --category-red-muted: oklch(0.96 0.02 24.5);
-    --category-red-strong: oklch(0.57 0.18 24);
-    --category-red-soft: oklch(0.94 0.03 23.81);
-    --category-orange-default: oklch(0.72 0.18 56);
-    --category-orange-muted: oklch(0.98 0.02 62.32);
-    --category-orange-strong: oklch(0.55 0.15 53.64);
-    --category-orange-soft: oklch(0.96 0.03 56.1);
-    --category-yellow-default: oklch(0.78 0.16 92);
-    --category-yellow-muted: oklch(0.98 0.03 92);
-    --category-yellow-strong: oklch(0.47 0.1 91.32);
-    --category-yellow-soft: oklch(0.96 0.04 91.88);
-    --category-gray-default: oklch(0.63 0.01 255);
-    --category-gray-muted: oklch(0.98 0 0);
-    --category-gray-strong: oklch(0.26 0 0);
-    --category-gray-soft: oklch(0.95 0 0);
-    --category-olive-default: oklch(0.62 0.09 118);
-    --category-olive-muted: oklch(0.95 0.018 118);
-    --category-olive-strong: oklch(0.5 0.075 118);
-    --category-olive-soft: oklch(0.88 0.025 118);
-    --category-pink-default: oklch(0.72 0.2 354);
-    --category-pink-muted: oklch(0.975 0.03 354);
-    --category-pink-strong: oklch(0.6 0.17 354);
-    --category-pink-soft: oklch(0.95 0.04 352.13);
-    --category-brown-default: oklch(0.62 0.06 58);
-    --category-brown-muted: oklch(0.95 0.012 58);
-    --category-brown-strong: oklch(0.33 0.06 56.92);
-    --category-brown-soft: oklch(0.92 0.02 58.34);
+    --collection-blue-default: oklch(0.62 0.19 255);
+    --collection-blue-muted: oklch(0.95 0.03 246.94);
+    --collection-blue-strong: oklch(0.55 0.17 255);
+    --collection-blue-soft: oklch(0.93 0.04 254.3);
+    --collection-green-default: oklch(0.68 0.18 150);
+    --collection-green-muted: oklch(0.96 0.03 150.14);
+    --collection-green-strong: oklch(0.5 0.16 148.96);
+    --collection-green-soft: oklch(0.94 0.04 150.07);
+    --collection-sky-default: oklch(0.72 0.15 230);
+    --collection-sky-muted: oklch(0.98 0.02 221.25);
+    --collection-sky-strong: oklch(0.53 0.11 230.36);
+    --collection-sky-soft: oklch(0.96 0.03 229.9);
+    --collection-purple-default: oklch(0.63 0.2 305);
+    --collection-purple-muted: oklch(0.97 0.02 311.54);
+    --collection-purple-strong: oklch(0.44 0.15 303.94);
+    --collection-purple-soft: oklch(0.95 0.03 305.31);
+    --collection-red-default: oklch(0.64 0.21 24);
+    --collection-red-muted: oklch(0.96 0.02 24.5);
+    --collection-red-strong: oklch(0.57 0.18 24);
+    --collection-red-soft: oklch(0.94 0.03 23.81);
+    --collection-orange-default: oklch(0.72 0.18 56);
+    --collection-orange-muted: oklch(0.98 0.02 62.32);
+    --collection-orange-strong: oklch(0.55 0.15 53.64);
+    --collection-orange-soft: oklch(0.96 0.03 56.1);
+    --collection-yellow-default: oklch(0.78 0.16 92);
+    --collection-yellow-muted: oklch(0.98 0.03 92);
+    --collection-yellow-strong: oklch(0.47 0.1 91.32);
+    --collection-yellow-soft: oklch(0.96 0.04 91.88);
+    --collection-gray-default: oklch(0.63 0.01 255);
+    --collection-gray-muted: oklch(0.98 0 0);
+    --collection-gray-strong: oklch(0.26 0 0);
+    --collection-gray-soft: oklch(0.95 0 0);
+    --collection-olive-default: oklch(0.62 0.09 118);
+    --collection-olive-muted: oklch(0.95 0.018 118);
+    --collection-olive-strong: oklch(0.5 0.075 118);
+    --collection-olive-soft: oklch(0.88 0.025 118);
+    --collection-pink-default: oklch(0.72 0.2 354);
+    --collection-pink-muted: oklch(0.975 0.03 354);
+    --collection-pink-strong: oklch(0.6 0.17 354);
+    --collection-pink-soft: oklch(0.95 0.04 352.13);
+    --collection-brown-default: oklch(0.62 0.06 58);
+    --collection-brown-muted: oklch(0.95 0.012 58);
+    --collection-brown-strong: oklch(0.33 0.06 56.92);
+    --collection-brown-soft: oklch(0.92 0.02 58.34);
 }
 
 .dark {
@@ -120,51 +120,51 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
-    --category-blue-default: oklch(0.5 0.14 255);
-    --category-blue-muted: oklch(0.23 0.03 255.25);
-    --category-blue-strong: oklch(0.67 0.1 254.7);
-    --category-blue-soft: oklch(0.28 0.05 254.99);
-    --category-green-default: oklch(0.5 0.13 150);
-    --category-green-muted: oklch(0.24 0.04 150.02);
-    --category-green-strong: oklch(0.68 0.08 149.68);
-    --category-green-soft: oklch(0.28 0.04 150.06);
-    --category-sky-default: oklch(0.54 0.11 230);
-    --category-sky-muted: oklch(0.27 0.03 229.97);
-    --category-sky-strong: oklch(0.7 0.07 230.2);
-    --category-sky-soft: oklch(0.3 0.04 229.99);
-    --category-purple-default: oklch(0.49 0.15 305);
-    --category-purple-muted: oklch(0.25 0.04 305.28);
-    --category-purple-strong: oklch(0.59 0.11 303.77);
-    --category-purple-soft: oklch(0.29 0.04 305.44);
-    --category-red-default: oklch(0.5 0.16 24);
-    --category-red-muted: oklch(0.24 0.04 23.95);
-    /* --category-red-strong: oklch(0.84 0.08 24); */
-    --category-red-strong: oklch(0.6 0.14 26.34);
-    --category-red-soft: oklch(0.27 0.05 23.99);
-    --category-orange-default: oklch(0.58 0.14 56);
-    --category-orange-muted: oklch(0.26 0.04 56.23);
-    --category-orange-strong: oklch(0.71 0.1 55.63);
-    --category-orange-soft: oklch(0.3 0.04 56.09);
-    --category-yellow-default: oklch(0.58 0.12 92);
-    --category-yellow-muted: oklch(0.28 0.04 92);
-    --category-yellow-strong: oklch(0.72 0.09 92.21);
-    --category-yellow-soft: oklch(0.31 0.04 91.97);
-    --category-gray-default: oklch(0.48 0.008 255);
-    --category-gray-muted: oklch(0.22 0 0);
-    --category-gray-strong: oklch(0.76 0.02 254.85);
-    --category-gray-soft: oklch(0.26 0 0);
-    --category-olive-default: oklch(0.48 0.07 118);
-    --category-olive-muted: oklch(0.29 0.025 118);
-    --category-olive-strong: oklch(0.81 0.045 118);
-    --category-olive-soft: oklch(0.36 0.035 118);
-    --category-pink-default: oklch(0.56 0.16 354);
-    --category-pink-muted: oklch(0.28 0.04 353.87);
-    --category-pink-strong: oklch(0.75 0.07 354.27);
-    --category-pink-soft: oklch(0.31 0.05 353.81);
-    --category-brown-default: oklch(0.54 0.045 58);
-    --category-brown-muted: oklch(0.24 0.01 58.04);
-    --category-brown-strong: lab(68 9.22 16.16);
-    --category-brown-soft: oklch(0.27 0.02 58.05);
+    --collection-blue-default: oklch(0.5 0.14 255);
+    --collection-blue-muted: oklch(0.23 0.03 255.25);
+    --collection-blue-strong: oklch(0.67 0.1 254.7);
+    --collection-blue-soft: oklch(0.28 0.05 254.99);
+    --collection-green-default: oklch(0.5 0.13 150);
+    --collection-green-muted: oklch(0.24 0.04 150.02);
+    --collection-green-strong: oklch(0.68 0.08 149.68);
+    --collection-green-soft: oklch(0.28 0.04 150.06);
+    --collection-sky-default: oklch(0.54 0.11 230);
+    --collection-sky-muted: oklch(0.27 0.03 229.97);
+    --collection-sky-strong: oklch(0.7 0.07 230.2);
+    --collection-sky-soft: oklch(0.3 0.04 229.99);
+    --collection-purple-default: oklch(0.49 0.15 305);
+    --collection-purple-muted: oklch(0.25 0.04 305.28);
+    --collection-purple-strong: oklch(0.59 0.11 303.77);
+    --collection-purple-soft: oklch(0.29 0.04 305.44);
+    --collection-red-default: oklch(0.5 0.16 24);
+    --collection-red-muted: oklch(0.24 0.04 23.95);
+    /* --collection-red-strong: oklch(0.84 0.08 24); */
+    --collection-red-strong: oklch(0.6 0.14 26.34);
+    --collection-red-soft: oklch(0.27 0.05 23.99);
+    --collection-orange-default: oklch(0.58 0.14 56);
+    --collection-orange-muted: oklch(0.26 0.04 56.23);
+    --collection-orange-strong: oklch(0.71 0.1 55.63);
+    --collection-orange-soft: oklch(0.3 0.04 56.09);
+    --collection-yellow-default: oklch(0.58 0.12 92);
+    --collection-yellow-muted: oklch(0.28 0.04 92);
+    --collection-yellow-strong: oklch(0.72 0.09 92.21);
+    --collection-yellow-soft: oklch(0.31 0.04 91.97);
+    --collection-gray-default: oklch(0.48 0.008 255);
+    --collection-gray-muted: oklch(0.22 0 0);
+    --collection-gray-strong: oklch(0.76 0.02 254.85);
+    --collection-gray-soft: oklch(0.26 0 0);
+    --collection-olive-default: oklch(0.48 0.07 118);
+    --collection-olive-muted: oklch(0.29 0.025 118);
+    --collection-olive-strong: oklch(0.81 0.045 118);
+    --collection-olive-soft: oklch(0.36 0.035 118);
+    --collection-pink-default: oklch(0.56 0.16 354);
+    --collection-pink-muted: oklch(0.28 0.04 353.87);
+    --collection-pink-strong: oklch(0.75 0.07 354.27);
+    --collection-pink-soft: oklch(0.31 0.05 353.81);
+    --collection-brown-default: oklch(0.54 0.045 58);
+    --collection-brown-muted: oklch(0.24 0.01 58.04);
+    --collection-brown-strong: lab(68 9.22 16.16);
+    --collection-brown-soft: oklch(0.27 0.02 58.05);
 }
 
 @theme inline {
@@ -206,50 +206,50 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    --color-category-blue-default: var(--category-blue-default);
-    --color-category-blue-muted: var(--category-blue-muted);
-    --color-category-blue-strong: var(--category-blue-strong);
-    --color-category-blue-soft: var(--category-blue-soft);
-    --color-category-green-default: var(--category-green-default);
-    --color-category-green-muted: var(--category-green-muted);
-    --color-category-green-strong: var(--category-green-strong);
-    --color-category-green-soft: var(--category-green-soft);
-    --color-category-sky-default: var(--category-sky-default);
-    --color-category-sky-muted: var(--category-sky-muted);
-    --color-category-sky-strong: var(--category-sky-strong);
-    --color-category-sky-soft: var(--category-sky-soft);
-    --color-category-purple-default: var(--category-purple-default);
-    --color-category-purple-muted: var(--category-purple-muted);
-    --color-category-purple-strong: var(--category-purple-strong);
-    --color-category-purple-soft: var(--category-purple-soft);
-    --color-category-red-default: var(--category-red-default);
-    --color-category-red-muted: var(--category-red-muted);
-    --color-category-red-strong: var(--category-red-strong);
-    --color-category-red-soft: var(--category-red-soft);
-    --color-category-orange-default: var(--category-orange-default);
-    --color-category-orange-muted: var(--category-orange-muted);
-    --color-category-orange-strong: var(--category-orange-strong);
-    --color-category-orange-soft: var(--category-orange-soft);
-    --color-category-yellow-default: var(--category-yellow-default);
-    --color-category-yellow-muted: var(--category-yellow-muted);
-    --color-category-yellow-strong: var(--category-yellow-strong);
-    --color-category-yellow-soft: var(--category-yellow-soft);
-    --color-category-gray-default: var(--category-gray-default);
-    --color-category-gray-muted: var(--category-gray-muted);
-    --color-category-gray-strong: var(--category-gray-strong);
-    --color-category-gray-soft: var(--category-gray-soft);
-    --color-category-olive-default: var(--category-olive-default);
-    --color-category-olive-muted: var(--category-olive-muted);
-    --color-category-olive-strong: var(--category-olive-strong);
-    --color-category-olive-soft: var(--category-olive-soft);
-    --color-category-pink-default: var(--category-pink-default);
-    --color-category-pink-muted: var(--category-pink-muted);
-    --color-category-pink-strong: var(--category-pink-strong);
-    --color-category-pink-soft: var(--category-pink-soft);
-    --color-category-brown-default: var(--category-brown-default);
-    --color-category-brown-muted: var(--category-brown-muted);
-    --color-category-brown-strong: var(--category-brown-strong);
-    --color-category-brown-soft: var(--category-brown-soft);
+    --color-collection-blue-default: var(--collection-blue-default);
+    --color-collection-blue-muted: var(--collection-blue-muted);
+    --color-collection-blue-strong: var(--collection-blue-strong);
+    --color-collection-blue-soft: var(--collection-blue-soft);
+    --color-collection-green-default: var(--collection-green-default);
+    --color-collection-green-muted: var(--collection-green-muted);
+    --color-collection-green-strong: var(--collection-green-strong);
+    --color-collection-green-soft: var(--collection-green-soft);
+    --color-collection-sky-default: var(--collection-sky-default);
+    --color-collection-sky-muted: var(--collection-sky-muted);
+    --color-collection-sky-strong: var(--collection-sky-strong);
+    --color-collection-sky-soft: var(--collection-sky-soft);
+    --color-collection-purple-default: var(--collection-purple-default);
+    --color-collection-purple-muted: var(--collection-purple-muted);
+    --color-collection-purple-strong: var(--collection-purple-strong);
+    --color-collection-purple-soft: var(--collection-purple-soft);
+    --color-collection-red-default: var(--collection-red-default);
+    --color-collection-red-muted: var(--collection-red-muted);
+    --color-collection-red-strong: var(--collection-red-strong);
+    --color-collection-red-soft: var(--collection-red-soft);
+    --color-collection-orange-default: var(--collection-orange-default);
+    --color-collection-orange-muted: var(--collection-orange-muted);
+    --color-collection-orange-strong: var(--collection-orange-strong);
+    --color-collection-orange-soft: var(--collection-orange-soft);
+    --color-collection-yellow-default: var(--collection-yellow-default);
+    --color-collection-yellow-muted: var(--collection-yellow-muted);
+    --color-collection-yellow-strong: var(--collection-yellow-strong);
+    --color-collection-yellow-soft: var(--collection-yellow-soft);
+    --color-collection-gray-default: var(--collection-gray-default);
+    --color-collection-gray-muted: var(--collection-gray-muted);
+    --color-collection-gray-strong: var(--collection-gray-strong);
+    --color-collection-gray-soft: var(--collection-gray-soft);
+    --color-collection-olive-default: var(--collection-olive-default);
+    --color-collection-olive-muted: var(--collection-olive-muted);
+    --color-collection-olive-strong: var(--collection-olive-strong);
+    --color-collection-olive-soft: var(--collection-olive-soft);
+    --color-collection-pink-default: var(--collection-pink-default);
+    --color-collection-pink-muted: var(--collection-pink-muted);
+    --color-collection-pink-strong: var(--collection-pink-strong);
+    --color-collection-pink-soft: var(--collection-pink-soft);
+    --color-collection-brown-default: var(--collection-brown-default);
+    --color-collection-brown-muted: var(--collection-brown-muted);
+    --color-collection-brown-strong: var(--collection-brown-strong);
+    --color-collection-brown-soft: var(--collection-brown-soft);
     --font-sans: var(--font-sans);
     --font-heading: var(--font-heading);
 }
@@ -284,267 +284,267 @@
 
 @layer utilities {
     .cb-label-blue {
-        @apply bg-category-blue-muted text-category-blue-strong;
+        @apply bg-collection-blue-muted text-collection-blue-strong;
     }
 
     .cb-label-green {
-        @apply bg-category-green-muted text-category-green-strong;
+        @apply bg-collection-green-muted text-collection-green-strong;
     }
 
     .cb-label-sky {
-        @apply bg-category-sky-muted text-category-sky-strong;
+        @apply bg-collection-sky-muted text-collection-sky-strong;
     }
 
     .cb-label-purple {
-        @apply bg-category-purple-muted text-category-purple-strong;
+        @apply bg-collection-purple-muted text-collection-purple-strong;
     }
 
     .cb-label-red {
-        @apply bg-category-red-muted text-category-red-strong;
+        @apply bg-collection-red-muted text-collection-red-strong;
     }
 
     .cb-label-orange {
-        @apply bg-category-orange-muted text-category-orange-strong;
+        @apply bg-collection-orange-muted text-collection-orange-strong;
     }
 
     .cb-label-yellow {
-        @apply bg-category-yellow-muted text-category-yellow-strong;
+        @apply bg-collection-yellow-muted text-collection-yellow-strong;
     }
 
     .cb-label-gray {
-        @apply bg-category-gray-muted text-category-gray-strong;
+        @apply bg-collection-gray-muted text-collection-gray-strong;
     }
 
     .cb-label-olive {
-        @apply bg-category-olive-muted text-category-olive-strong;
+        @apply bg-collection-olive-muted text-collection-olive-strong;
     }
 
     .cb-label-pink {
-        @apply bg-category-pink-muted text-category-pink-strong;
+        @apply bg-collection-pink-muted text-collection-pink-strong;
     }
 
     .cb-label-brown {
-        @apply bg-category-brown-muted text-category-brown-strong;
+        @apply bg-collection-brown-muted text-collection-brown-strong;
     }
 
     .cb-palette-blue {
-        @apply border border-category-blue-soft bg-category-blue-muted text-category-blue-strong;
+        @apply border border-collection-blue-soft bg-collection-blue-muted text-collection-blue-strong;
     }
 
     .cb-palette-green {
-        @apply border border-category-green-soft bg-category-green-muted text-category-green-strong;
+        @apply border border-collection-green-soft bg-collection-green-muted text-collection-green-strong;
     }
 
     .cb-palette-sky {
-        @apply border border-category-sky-soft bg-category-sky-muted text-category-sky-strong;
+        @apply border border-collection-sky-soft bg-collection-sky-muted text-collection-sky-strong;
     }
 
     .cb-palette-purple {
-        @apply border border-category-purple-soft bg-category-purple-muted text-category-purple-strong;
+        @apply border border-collection-purple-soft bg-collection-purple-muted text-collection-purple-strong;
     }
 
     .cb-palette-red {
-        @apply border border-category-red-soft bg-category-red-muted text-category-red-strong;
+        @apply border border-collection-red-soft bg-collection-red-muted text-collection-red-strong;
     }
 
     .cb-palette-orange {
-        @apply border border-category-orange-soft bg-category-orange-muted text-category-orange-strong;
+        @apply border border-collection-orange-soft bg-collection-orange-muted text-collection-orange-strong;
     }
 
     .cb-palette-yellow {
-        @apply border border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong;
+        @apply border border-collection-yellow-soft bg-collection-yellow-muted text-collection-yellow-strong;
     }
 
     .cb-palette-gray {
-        @apply border border-category-gray-soft bg-category-gray-muted text-category-gray-strong;
+        @apply border border-collection-gray-soft bg-collection-gray-muted text-collection-gray-strong;
     }
 
     .cb-palette-olive {
-        @apply border border-category-olive-soft bg-category-olive-muted text-category-olive-strong;
+        @apply border border-collection-olive-soft bg-collection-olive-muted text-collection-olive-strong;
     }
 
     .cb-palette-pink {
-        @apply border border-category-pink-soft bg-category-pink-muted text-category-pink-strong;
+        @apply border border-collection-pink-soft bg-collection-pink-muted text-collection-pink-strong;
     }
 
     .cb-palette-brown {
-        @apply border border-category-brown-soft bg-category-brown-muted text-category-brown-strong;
+        @apply border border-collection-brown-soft bg-collection-brown-muted text-collection-brown-strong;
     }
 
     .cb-dot-blue {
-        @apply bg-category-blue-default;
+        @apply bg-collection-blue-default;
     }
 
     .cb-dot-green {
-        @apply bg-category-green-default;
+        @apply bg-collection-green-default;
     }
 
     .cb-dot-sky {
-        @apply bg-category-sky-default;
+        @apply bg-collection-sky-default;
     }
 
     .cb-dot-purple {
-        @apply bg-category-purple-default;
+        @apply bg-collection-purple-default;
     }
 
     .cb-dot-red {
-        @apply bg-category-red-default;
+        @apply bg-collection-red-default;
     }
 
     .cb-dot-orange {
-        @apply bg-category-orange-default;
+        @apply bg-collection-orange-default;
     }
 
     .cb-dot-yellow {
-        @apply bg-category-yellow-default;
+        @apply bg-collection-yellow-default;
     }
 
     .cb-dot-gray {
-        @apply bg-category-gray-default;
+        @apply bg-collection-gray-default;
     }
 
     .cb-dot-olive {
-        @apply bg-category-olive-default;
+        @apply bg-collection-olive-default;
     }
 
     .cb-dot-pink {
-        @apply bg-category-pink-default;
+        @apply bg-collection-pink-default;
     }
 
     .cb-dot-brown {
-        @apply bg-category-brown-default;
+        @apply bg-collection-brown-default;
     }
 
     .cb-checkbox-blue {
-        @apply border-category-blue-soft bg-category-blue-muted text-category-blue-strong hover:border-category-blue-default/60 not-data-checked:hover:bg-category-blue-soft/55 disabled:border-category-blue-soft/70 disabled:bg-category-blue-muted/60 disabled:text-category-blue-strong/70 dark:border-category-blue-soft dark:bg-category-blue-muted dark:text-category-blue-strong dark:disabled:border-category-blue-soft/70 dark:disabled:bg-category-blue-muted/60 dark:disabled:text-category-blue-strong/70 data-checked:border-category-blue-default data-checked:bg-category-blue-default data-checked:text-white dark:data-checked:border-category-blue-default dark:data-checked:bg-category-blue-default dark:data-checked:text-white;
+        @apply border-collection-blue-soft bg-collection-blue-muted text-collection-blue-strong hover:border-collection-blue-default/60 not-data-checked:hover:bg-collection-blue-soft/55 disabled:border-collection-blue-soft/70 disabled:bg-collection-blue-muted/60 disabled:text-collection-blue-strong/70 dark:border-collection-blue-soft dark:bg-collection-blue-muted dark:text-collection-blue-strong dark:disabled:border-collection-blue-soft/70 dark:disabled:bg-collection-blue-muted/60 dark:disabled:text-collection-blue-strong/70 data-checked:border-collection-blue-default data-checked:bg-collection-blue-default data-checked:text-white dark:data-checked:border-collection-blue-default dark:data-checked:bg-collection-blue-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-green {
-        @apply border-category-green-soft bg-category-green-muted text-category-green-strong hover:border-category-green-default/60 not-data-checked:hover:bg-category-green-soft/55 disabled:border-category-green-soft/70 disabled:bg-category-green-muted/60 disabled:text-category-green-strong/70 dark:border-category-green-soft dark:bg-category-green-muted dark:text-category-green-strong dark:disabled:border-category-green-soft/70 dark:disabled:bg-category-green-muted/60 dark:disabled:text-category-green-strong/70 data-checked:border-category-green-default data-checked:bg-category-green-default data-checked:text-white dark:data-checked:border-category-green-default dark:data-checked:bg-category-green-default dark:data-checked:text-white;
+        @apply border-collection-green-soft bg-collection-green-muted text-collection-green-strong hover:border-collection-green-default/60 not-data-checked:hover:bg-collection-green-soft/55 disabled:border-collection-green-soft/70 disabled:bg-collection-green-muted/60 disabled:text-collection-green-strong/70 dark:border-collection-green-soft dark:bg-collection-green-muted dark:text-collection-green-strong dark:disabled:border-collection-green-soft/70 dark:disabled:bg-collection-green-muted/60 dark:disabled:text-collection-green-strong/70 data-checked:border-collection-green-default data-checked:bg-collection-green-default data-checked:text-white dark:data-checked:border-collection-green-default dark:data-checked:bg-collection-green-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-sky {
-        @apply border-category-sky-soft bg-category-sky-muted text-category-sky-strong hover:border-category-sky-default/60 not-data-checked:hover:bg-category-sky-soft/55 disabled:border-category-sky-soft/70 disabled:bg-category-sky-muted/60 disabled:text-category-sky-strong/70 dark:border-category-sky-soft dark:bg-category-sky-muted dark:text-category-sky-strong dark:disabled:border-category-sky-soft/70 dark:disabled:bg-category-sky-muted/60 dark:disabled:text-category-sky-strong/70 data-checked:border-category-sky-default data-checked:bg-category-sky-default data-checked:text-white dark:data-checked:border-category-sky-default dark:data-checked:bg-category-sky-default dark:data-checked:text-white;
+        @apply border-collection-sky-soft bg-collection-sky-muted text-collection-sky-strong hover:border-collection-sky-default/60 not-data-checked:hover:bg-collection-sky-soft/55 disabled:border-collection-sky-soft/70 disabled:bg-collection-sky-muted/60 disabled:text-collection-sky-strong/70 dark:border-collection-sky-soft dark:bg-collection-sky-muted dark:text-collection-sky-strong dark:disabled:border-collection-sky-soft/70 dark:disabled:bg-collection-sky-muted/60 dark:disabled:text-collection-sky-strong/70 data-checked:border-collection-sky-default data-checked:bg-collection-sky-default data-checked:text-white dark:data-checked:border-collection-sky-default dark:data-checked:bg-collection-sky-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-purple {
-        @apply border-category-purple-soft bg-category-purple-muted text-category-purple-strong hover:border-category-purple-default/60 not-data-checked:hover:bg-category-purple-soft/55 disabled:border-category-purple-soft/70 disabled:bg-category-purple-muted/60 disabled:text-category-purple-strong/70 dark:border-category-purple-soft dark:bg-category-purple-muted dark:text-category-purple-strong dark:disabled:border-category-purple-soft/70 dark:disabled:bg-category-purple-muted/60 dark:disabled:text-category-purple-strong/70 data-checked:border-category-purple-default data-checked:bg-category-purple-default data-checked:text-white dark:data-checked:border-category-purple-default dark:data-checked:bg-category-purple-default dark:data-checked:text-white;
+        @apply border-collection-purple-soft bg-collection-purple-muted text-collection-purple-strong hover:border-collection-purple-default/60 not-data-checked:hover:bg-collection-purple-soft/55 disabled:border-collection-purple-soft/70 disabled:bg-collection-purple-muted/60 disabled:text-collection-purple-strong/70 dark:border-collection-purple-soft dark:bg-collection-purple-muted dark:text-collection-purple-strong dark:disabled:border-collection-purple-soft/70 dark:disabled:bg-collection-purple-muted/60 dark:disabled:text-collection-purple-strong/70 data-checked:border-collection-purple-default data-checked:bg-collection-purple-default data-checked:text-white dark:data-checked:border-collection-purple-default dark:data-checked:bg-collection-purple-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-red {
-        @apply border-category-red-soft bg-category-red-muted text-category-red-strong hover:border-category-red-default/60 not-data-checked:hover:bg-category-red-soft/55 disabled:border-category-red-soft/70 disabled:bg-category-red-muted/60 disabled:text-category-red-strong/70 dark:border-category-red-soft dark:bg-category-red-muted dark:text-category-red-strong dark:disabled:border-category-red-soft/70 dark:disabled:bg-category-red-muted/60 dark:disabled:text-category-red-strong/70 data-checked:border-category-red-default data-checked:bg-category-red-default data-checked:text-white dark:data-checked:border-category-red-default dark:data-checked:bg-category-red-default dark:data-checked:text-white;
+        @apply border-collection-red-soft bg-collection-red-muted text-collection-red-strong hover:border-collection-red-default/60 not-data-checked:hover:bg-collection-red-soft/55 disabled:border-collection-red-soft/70 disabled:bg-collection-red-muted/60 disabled:text-collection-red-strong/70 dark:border-collection-red-soft dark:bg-collection-red-muted dark:text-collection-red-strong dark:disabled:border-collection-red-soft/70 dark:disabled:bg-collection-red-muted/60 dark:disabled:text-collection-red-strong/70 data-checked:border-collection-red-default data-checked:bg-collection-red-default data-checked:text-white dark:data-checked:border-collection-red-default dark:data-checked:bg-collection-red-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-orange {
-        @apply border-category-orange-soft bg-category-orange-muted text-category-orange-strong hover:border-category-orange-default/60 not-data-checked:hover:bg-category-orange-soft/55 disabled:border-category-orange-soft/70 disabled:bg-category-orange-muted/60 disabled:text-category-orange-strong/70 dark:border-category-orange-soft dark:bg-category-orange-muted dark:text-category-orange-strong dark:disabled:border-category-orange-soft/70 dark:disabled:bg-category-orange-muted/60 dark:disabled:text-category-orange-strong/70 data-checked:border-category-orange-default data-checked:bg-category-orange-default data-checked:text-white dark:data-checked:border-category-orange-default dark:data-checked:bg-category-orange-default dark:data-checked:text-white;
+        @apply border-collection-orange-soft bg-collection-orange-muted text-collection-orange-strong hover:border-collection-orange-default/60 not-data-checked:hover:bg-collection-orange-soft/55 disabled:border-collection-orange-soft/70 disabled:bg-collection-orange-muted/60 disabled:text-collection-orange-strong/70 dark:border-collection-orange-soft dark:bg-collection-orange-muted dark:text-collection-orange-strong dark:disabled:border-collection-orange-soft/70 dark:disabled:bg-collection-orange-muted/60 dark:disabled:text-collection-orange-strong/70 data-checked:border-collection-orange-default data-checked:bg-collection-orange-default data-checked:text-white dark:data-checked:border-collection-orange-default dark:data-checked:bg-collection-orange-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-yellow {
-        @apply border-category-yellow-soft bg-category-yellow-muted text-category-yellow-strong hover:border-category-yellow-default/60 not-data-checked:hover:bg-category-yellow-soft/55 disabled:border-category-yellow-soft/70 disabled:bg-category-yellow-muted/60 disabled:text-category-yellow-strong/70 dark:border-category-yellow-soft dark:bg-category-yellow-muted dark:text-category-yellow-strong dark:disabled:border-category-yellow-soft/70 dark:disabled:bg-category-yellow-muted/60 dark:disabled:text-category-yellow-strong/70 data-checked:border-category-yellow-default data-checked:bg-category-yellow-default data-checked:text-white dark:data-checked:border-category-yellow-default dark:data-checked:bg-category-yellow-default dark:data-checked:text-white;
+        @apply border-collection-yellow-soft bg-collection-yellow-muted text-collection-yellow-strong hover:border-collection-yellow-default/60 not-data-checked:hover:bg-collection-yellow-soft/55 disabled:border-collection-yellow-soft/70 disabled:bg-collection-yellow-muted/60 disabled:text-collection-yellow-strong/70 dark:border-collection-yellow-soft dark:bg-collection-yellow-muted dark:text-collection-yellow-strong dark:disabled:border-collection-yellow-soft/70 dark:disabled:bg-collection-yellow-muted/60 dark:disabled:text-collection-yellow-strong/70 data-checked:border-collection-yellow-default data-checked:bg-collection-yellow-default data-checked:text-white dark:data-checked:border-collection-yellow-default dark:data-checked:bg-collection-yellow-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-gray {
-        @apply border-category-gray-soft bg-category-gray-muted text-category-gray-strong hover:border-category-gray-default/60 not-data-checked:hover:bg-category-gray-soft/55 disabled:border-category-gray-soft/70 disabled:bg-category-gray-muted/60 disabled:text-category-gray-strong/70 dark:border-category-gray-soft dark:bg-category-gray-muted dark:text-category-gray-strong dark:disabled:border-category-gray-soft/70 dark:disabled:bg-category-gray-muted/60 dark:disabled:text-category-gray-strong/70 data-checked:border-category-gray-default data-checked:bg-category-gray-default data-checked:text-white dark:data-checked:border-category-gray-default dark:data-checked:bg-category-gray-default dark:data-checked:text-white;
+        @apply border-collection-gray-soft bg-collection-gray-muted text-collection-gray-strong hover:border-collection-gray-default/60 not-data-checked:hover:bg-collection-gray-soft/55 disabled:border-collection-gray-soft/70 disabled:bg-collection-gray-muted/60 disabled:text-collection-gray-strong/70 dark:border-collection-gray-soft dark:bg-collection-gray-muted dark:text-collection-gray-strong dark:disabled:border-collection-gray-soft/70 dark:disabled:bg-collection-gray-muted/60 dark:disabled:text-collection-gray-strong/70 data-checked:border-collection-gray-default data-checked:bg-collection-gray-default data-checked:text-white dark:data-checked:border-collection-gray-default dark:data-checked:bg-collection-gray-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-olive {
-        @apply border-category-olive-soft bg-category-olive-muted text-category-olive-strong hover:border-category-olive-default/60 not-data-checked:hover:bg-category-olive-soft/55 disabled:border-category-olive-soft/70 disabled:bg-category-olive-muted/60 disabled:text-category-olive-strong/70 dark:border-category-olive-soft dark:bg-category-olive-muted dark:text-category-olive-strong dark:disabled:border-category-olive-soft/70 dark:disabled:bg-category-olive-muted/60 dark:disabled:text-category-olive-strong/70 data-checked:border-category-olive-default data-checked:bg-category-olive-default data-checked:text-white dark:data-checked:border-category-olive-default dark:data-checked:bg-category-olive-default dark:data-checked:text-white;
+        @apply border-collection-olive-soft bg-collection-olive-muted text-collection-olive-strong hover:border-collection-olive-default/60 not-data-checked:hover:bg-collection-olive-soft/55 disabled:border-collection-olive-soft/70 disabled:bg-collection-olive-muted/60 disabled:text-collection-olive-strong/70 dark:border-collection-olive-soft dark:bg-collection-olive-muted dark:text-collection-olive-strong dark:disabled:border-collection-olive-soft/70 dark:disabled:bg-collection-olive-muted/60 dark:disabled:text-collection-olive-strong/70 data-checked:border-collection-olive-default data-checked:bg-collection-olive-default data-checked:text-white dark:data-checked:border-collection-olive-default dark:data-checked:bg-collection-olive-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-pink {
-        @apply border-category-pink-soft bg-category-pink-muted text-category-pink-strong hover:border-category-pink-default/60 not-data-checked:hover:bg-category-pink-soft/55 disabled:border-category-pink-soft/70 disabled:bg-category-pink-muted/60 disabled:text-category-pink-strong/70 dark:border-category-pink-soft dark:bg-category-pink-muted dark:text-category-pink-strong dark:disabled:border-category-pink-soft/70 dark:disabled:bg-category-pink-muted/60 dark:disabled:text-category-pink-strong/70 data-checked:border-category-pink-default data-checked:bg-category-pink-default data-checked:text-white dark:data-checked:border-category-pink-default dark:data-checked:bg-category-pink-default dark:data-checked:text-white;
+        @apply border-collection-pink-soft bg-collection-pink-muted text-collection-pink-strong hover:border-collection-pink-default/60 not-data-checked:hover:bg-collection-pink-soft/55 disabled:border-collection-pink-soft/70 disabled:bg-collection-pink-muted/60 disabled:text-collection-pink-strong/70 dark:border-collection-pink-soft dark:bg-collection-pink-muted dark:text-collection-pink-strong dark:disabled:border-collection-pink-soft/70 dark:disabled:bg-collection-pink-muted/60 dark:disabled:text-collection-pink-strong/70 data-checked:border-collection-pink-default data-checked:bg-collection-pink-default data-checked:text-white dark:data-checked:border-collection-pink-default dark:data-checked:bg-collection-pink-default dark:data-checked:text-white;
     }
 
     .cb-checkbox-brown {
-        @apply border-category-brown-soft bg-category-brown-muted text-category-brown-strong hover:border-category-brown-default/60 not-data-checked:hover:bg-category-brown-soft/55 disabled:border-category-brown-soft/70 disabled:bg-category-brown-muted/60 disabled:text-category-brown-strong/70 dark:border-category-brown-soft dark:bg-category-brown-muted dark:text-category-brown-strong dark:disabled:border-category-brown-soft/70 dark:disabled:bg-category-brown-muted/60 dark:disabled:text-category-brown-strong/70 data-checked:border-category-brown-default data-checked:bg-category-brown-default data-checked:text-white dark:data-checked:border-category-brown-default dark:data-checked:bg-category-brown-default dark:data-checked:text-white;
+        @apply border-collection-brown-soft bg-collection-brown-muted text-collection-brown-strong hover:border-collection-brown-default/60 not-data-checked:hover:bg-collection-brown-soft/55 disabled:border-collection-brown-soft/70 disabled:bg-collection-brown-muted/60 disabled:text-collection-brown-strong/70 dark:border-collection-brown-soft dark:bg-collection-brown-muted dark:text-collection-brown-strong dark:disabled:border-collection-brown-soft/70 dark:disabled:bg-collection-brown-muted/60 dark:disabled:text-collection-brown-strong/70 data-checked:border-collection-brown-default data-checked:bg-collection-brown-default data-checked:text-white dark:data-checked:border-collection-brown-default dark:data-checked:bg-collection-brown-default dark:data-checked:text-white;
     }
 
     .cb-event-blue {
-        @apply !border-category-blue-soft !bg-category-blue-muted !text-category-blue-strong hover:!bg-category-blue-soft;
+        @apply !border-collection-blue-soft !bg-collection-blue-muted !text-collection-blue-strong hover:!bg-collection-blue-soft;
     }
 
     .cb-event-hover-blue {
-        @apply !bg-category-blue-soft;
+        @apply !bg-collection-blue-soft;
     }
 
     .cb-event-green {
-        @apply !border-category-green-soft !bg-category-green-muted !text-category-green-strong hover:!bg-category-green-soft;
+        @apply !border-collection-green-soft !bg-collection-green-muted !text-collection-green-strong hover:!bg-collection-green-soft;
     }
 
     .cb-event-hover-green {
-        @apply !bg-category-green-soft;
+        @apply !bg-collection-green-soft;
     }
 
     .cb-event-sky {
-        @apply !border-category-sky-soft !bg-category-sky-muted !text-category-sky-strong hover:!bg-category-sky-soft;
+        @apply !border-collection-sky-soft !bg-collection-sky-muted !text-collection-sky-strong hover:!bg-collection-sky-soft;
     }
 
     .cb-event-hover-sky {
-        @apply !bg-category-sky-soft;
+        @apply !bg-collection-sky-soft;
     }
 
     .cb-event-purple {
-        @apply !border-category-purple-soft !bg-category-purple-muted !text-category-purple-strong hover:!bg-category-purple-soft;
+        @apply !border-collection-purple-soft !bg-collection-purple-muted !text-collection-purple-strong hover:!bg-collection-purple-soft;
     }
 
     .cb-event-hover-purple {
-        @apply !bg-category-purple-soft;
+        @apply !bg-collection-purple-soft;
     }
 
     .cb-event-red {
-        @apply !border-category-red-soft !bg-category-red-muted !text-category-red-strong hover:!bg-category-red-soft;
+        @apply !border-collection-red-soft !bg-collection-red-muted !text-collection-red-strong hover:!bg-collection-red-soft;
     }
 
     .cb-event-hover-red {
-        @apply !bg-category-red-soft;
+        @apply !bg-collection-red-soft;
     }
 
     .cb-event-orange {
-        @apply !border-category-orange-soft !bg-category-orange-muted !text-category-orange-strong hover:!bg-category-orange-soft;
+        @apply !border-collection-orange-soft !bg-collection-orange-muted !text-collection-orange-strong hover:!bg-collection-orange-soft;
     }
 
     .cb-event-hover-orange {
-        @apply !bg-category-orange-soft;
+        @apply !bg-collection-orange-soft;
     }
 
     .cb-event-yellow {
-        @apply !border-category-yellow-soft !bg-category-yellow-muted !text-category-yellow-strong hover:!bg-category-yellow-soft;
+        @apply !border-collection-yellow-soft !bg-collection-yellow-muted !text-collection-yellow-strong hover:!bg-collection-yellow-soft;
     }
 
     .cb-event-hover-yellow {
-        @apply !bg-category-yellow-soft;
+        @apply !bg-collection-yellow-soft;
     }
 
     .cb-event-gray {
-        @apply !border-category-gray-soft !bg-category-gray-muted !text-category-gray-strong hover:!bg-category-gray-soft;
+        @apply !border-collection-gray-soft !bg-collection-gray-muted !text-collection-gray-strong hover:!bg-collection-gray-soft;
     }
 
     .cb-event-hover-gray {
-        @apply !bg-category-gray-soft;
+        @apply !bg-collection-gray-soft;
     }
 
     .cb-event-olive {
-        @apply !border-category-olive-soft !bg-category-olive-muted !text-category-olive-strong hover:!bg-category-olive-soft;
+        @apply !border-collection-olive-soft !bg-collection-olive-muted !text-collection-olive-strong hover:!bg-collection-olive-soft;
     }
 
     .cb-event-hover-olive {
-        @apply !bg-category-olive-soft;
+        @apply !bg-collection-olive-soft;
     }
 
     .cb-event-pink {
-        @apply !border-category-pink-soft !bg-category-pink-muted !text-category-pink-strong hover:!bg-category-pink-soft;
+        @apply !border-collection-pink-soft !bg-collection-pink-muted !text-collection-pink-strong hover:!bg-collection-pink-soft;
     }
 
     .cb-event-hover-pink {
-        @apply !bg-category-pink-soft;
+        @apply !bg-collection-pink-soft;
     }
 
     .cb-event-brown {
-        @apply !border-category-brown-soft !bg-category-brown-muted !text-category-brown-strong hover:!bg-category-brown-soft;
+        @apply !border-collection-brown-soft !bg-collection-brown-muted !text-collection-brown-strong hover:!bg-collection-brown-soft;
     }
 
     .cb-event-hover-brown {
-        @apply !bg-category-brown-soft;
+        @apply !bg-collection-brown-soft;
     }
 
     .pointer-events-all {

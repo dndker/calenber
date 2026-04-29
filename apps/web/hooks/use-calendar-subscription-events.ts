@@ -1,6 +1,7 @@
 "use client"
 
 import { useCalendarSubscriptions } from "@/hooks/use-calendar-subscriptions"
+import { useSharedCollectionSubscriptionEvents } from "@/hooks/use-shared-collection-subscription-events"
 import {
     KOREA_HOLIDAY_SUBSCRIPTION_ID,
     KOREAN_HOLIDAY_PROVIDER_KEY,
@@ -25,7 +26,10 @@ export function useCalendarSubscriptionEvents(
 ) {
     const { visibleSubscriptions } = useCalendarSubscriptions()
 
-    return useMemo(() => {
+    // shared_collection 구독 이벤트는 DB에서 실시간으로 가져옴
+    const sharedCollectionEvents = useSharedCollectionSubscriptionEvents(options)
+
+    const systemEvents = useMemo(() => {
         const merged: CalendarEvent[] = []
 
         for (const subscription of visibleSubscriptions) {
@@ -37,6 +41,10 @@ export function useCalendarSubscriptionEvents(
             const isKoreanSolarTerms =
                 slug === KOREA_SOLAR_TERMS_SUBSCRIPTION_ID ||
                 provider === KOREAN_SOLAR_TERMS_PROVIDER_KEY
+
+            if (!isKoreanHoliday && !isKoreanSolarTerms) {
+                continue
+            }
 
             const attachMeta = (event: CalendarEvent): CalendarEvent => ({
                 ...event,
@@ -69,9 +77,9 @@ export function useCalendarSubscriptionEvents(
 
             if (isKoreanHoliday) {
                 merged.push(
-                    ...generateKoreanPublicHolidaySubscriptionEvents(context).map(
-                        attachMeta
-                    )
+                    ...generateKoreanPublicHolidaySubscriptionEvents(
+                        context
+                    ).map(attachMeta)
                 )
             } else if (isKoreanSolarTerms) {
                 merged.push(
@@ -89,4 +97,9 @@ export function useCalendarSubscriptionEvents(
         options.timezone,
         visibleSubscriptions,
     ])
+
+    return useMemo(
+        () => [...systemEvents, ...sharedCollectionEvents],
+        [systemEvents, sharedCollectionEvents]
+    )
 }

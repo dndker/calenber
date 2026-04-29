@@ -33,7 +33,6 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
     size?: "default" | "sm"
 }) {
     const isSystem = subscription.authority === "system"
-    // const isShared = subscription.authority === "user"
 
     return (
         <Alert
@@ -69,7 +68,7 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                                     size === "sm" && "size-5.5"
                                 )}
                             />
-                            <AvatarFallback className="text-base">
+                            <AvatarFallback className="rounded-lg bg-background text-base">
                                 {(
                                     subscription.calendar?.name ??
                                     subscription.name
@@ -113,7 +112,8 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                                 캘린버 <VerifiedIcon size="sm" />
                             </>
                         ) : (
-                            subscription.providerName
+                            (subscription.calendar?.name ??
+                            subscription.providerName)
                         )}
                     </AlertDescription>
                 </div>

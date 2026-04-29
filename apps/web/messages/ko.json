@@ -1,0 +1,154 @@
+{
+    "common": {
+        "actions": {
+            "save": "저장",
+            "cancel": "취소",
+            "delete": "삭제",
+            "edit": "수정",
+            "confirm": "확인",
+            "close": "닫기",
+            "add": "추가",
+            "search": "검색",
+            "back": "뒤로",
+            "next": "다음",
+            "prev": "이전"
+        },
+        "status": {
+            "loading": "불러오는 중...",
+            "empty": "내용이 없습니다",
+            "error": "오류가 발생했습니다"
+        },
+        "time": {
+            "today": "오늘",
+            "yesterday": "어제",
+            "tomorrow": "내일"
+        }
+    },
+
+    "auth": {
+        "signIn": {
+            "title": "로그인",
+            "emailPlaceholder": "이메일을 입력하세요",
+            "passwordPlaceholder": "비밀번호를 입력하세요",
+            "submit": "로그인",
+            "noAccount": "계정이 없으신가요?",
+            "signUpLink": "회원가입",
+            "forgotPassword": "비밀번호를 잊으셨나요?"
+        },
+        "signUp": {
+            "title": "회원가입",
+            "namePlaceholder": "이름을 입력하세요",
+            "emailPlaceholder": "이메일을 입력하세요",
+            "passwordPlaceholder": "비밀번호를 입력하세요",
+            "submit": "가입하기",
+            "hasAccount": "이미 계정이 있으신가요?",
+            "signInLink": "로그인"
+        }
+    },
+
+    "calendar": {
+        "meta": {
+            "title": "캘린더",
+            "description": "일정, 그 이상을 기억하다."
+        },
+        "views": {
+            "month": "월",
+            "week": "주",
+            "day": "일",
+            "list": "목록"
+        },
+        "navigation": {
+            "prev": "이전",
+            "next": "다음",
+            "backToToday": "오늘로"
+        },
+        "subscription": {
+            "add": "캘린더 추가",
+            "manage": "구독 관리",
+            "unsubscribe": "구독 취소",
+            "subscribed": "구독 중",
+            "discover": "캘린더 둘러보기"
+        },
+        "collection": {
+            "add": "컬렉션 추가",
+            "edit": "컬렉션 수정",
+            "delete": "컬렉션 삭제",
+            "noCollection": "컬렉션 없음"
+        },
+        "filter": {
+            "all": "전체",
+            "favorites": "즐겨찾기"
+        }
+    },
+
+    "event": {
+        "form": {
+            "title": "제목",
+            "titlePlaceholder": "제목 없음",
+            "startDate": "시작일",
+            "endDate": "종료일",
+            "allDay": "종일",
+            "location": "위치",
+            "locationPlaceholder": "위치 추가",
+            "description": "메모",
+            "descriptionPlaceholder": "메모 추가",
+            "collection": "컬렉션",
+            "status": "상태",
+            "color": "색상",
+            "save": "일정 저장",
+            "creating": "일정 추가 중...",
+            "updating": "일정 수정 중..."
+        },
+        "status": {
+            "scheduled": "예정",
+            "inProgress": "진행 중",
+            "done": "완료",
+            "cancelled": "취소됨"
+        },
+        "actions": {
+            "addFavorite": "즐겨찾기 추가",
+            "removeFavorite": "즐겨찾기 제거",
+            "duplicate": "복제",
+            "delete": "일정 삭제",
+            "deleteConfirm": "이 일정을 삭제할까요?",
+            "deleteRecurring": "반복 일정 삭제",
+            "deleteThis": "이 일정만 삭제",
+            "deleteFollowing": "이후 일정 모두 삭제",
+            "deleteAll": "모든 반복 일정 삭제"
+        },
+        "recurrence": {
+            "none": "반복 없음",
+            "daily": "매일",
+            "weekly": "매주",
+            "monthly": "매월",
+            "yearly": "매년",
+            "custom": "직접 설정"
+        },
+        "subscription": {
+            "readOnly": "구독 일정은 수정할 수 없습니다",
+            "source": "출처"
+        }
+    },
+
+    "settings": {
+        "title": "설정",
+        "sections": {
+            "account": "계정",
+            "calendar": "캘린더",
+            "notifications": "알림",
+            "language": "언어",
+            "appearance": "화면"
+        },
+        "language": {
+            "label": "언어",
+            "ko": "한국어",
+            "en": "English"
+        },
+        "appearance": {
+            "theme": "테마",
+            "light": "라이트",
+            "dark": "다크",
+            "system": "시스템"
+        }
+    }
+}

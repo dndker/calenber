@@ -1,9 +1,9 @@
 "use client"
 
 import {
-    CalendarCategoryTable,
-    type CalendarCategoryTableRow,
-} from "@/components/settings/panels/calendar-category-table"
+    CalendarCollectionTable,
+    type CalendarCollectionTableRow,
+} from "@/components/settings/panels/calendar-collection-table"
 import {
     EventStatusItem,
     eventFormStatusItems,
@@ -17,26 +17,26 @@ import { CalendarEventFieldSettingsCard } from "@/components/settings/panels/cal
 import { DataTable } from "@/components/settings/shared/data-table"
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import {
-    getCalendarCategoryLabelClassName,
-    type CalendarCategoryColor,
-} from "@/lib/calendar/category-color"
+    getCalendarCollectionLabelClassName,
+    type CalendarCollectionColor,
+} from "@/lib/calendar/collection-color"
 import {
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
 import {
-    createCalendarEventCategory,
+    createCalendarEventCollection,
     deleteCalendarEvent,
-    deleteCalendarEventCategory,
+    deleteCalendarEventCollection,
     updateCalendarEvent,
-    updateCalendarEventCategory,
+    updateCalendarEventCollection,
 } from "@/lib/calendar/mutations"
 import {
     canManageCalendar,
     canViewCalendarSettings,
 } from "@/lib/calendar/permissions"
 import type {
-    CalendarEventCategory,
+    CalendarEventCollection,
     CalendarEventStatus,
 } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -81,23 +81,23 @@ type CalendarEventRecord = CalendarDataRow
 type FilterBadge = {
     key: string
     label: string
-    tone?: "default" | "category"
-    color?: CalendarCategoryColor
+    tone?: "default" | "collection"
+    color?: CalendarCollectionColor
     onRemove: () => void
 }
-type SelectedCategoryLabel = {
+type SelectedCollectionLabel = {
     id: string
     label: string
-    color: CalendarCategoryColor | undefined
+    color: CalendarCollectionColor | undefined
 }
 const eventStatusLabelMap = Object.fromEntries(
     eventFormStatusItems.map((item) => [item.value, item.label])
 ) as Record<CalendarEventStatus, string>
 
-const UNCATEGORIZED_FILTER_KEY = "__uncategorized__"
+const WITHOUT_COLLECTION_FILTER_KEY = "__without_collection__"
 
-function sortCategoriesForSettings(categories: CalendarEventCategory[]) {
-    return [...categories].sort((a, b) => {
+function sortCollectionsForSettings(collections: CalendarEventCollection[]) {
+    return [...collections].sort((a, b) => {
         const visibilityCompare =
             Number(b.options.visibleByDefault) -
             Number(a.options.visibleByDefault)
@@ -125,17 +125,17 @@ function getAuthorFilterKey(event: Pick<CalendarEventRecord, "author">) {
     )
 }
 
-function getResolvedCategoriesForIds({
-    categoryIds,
-    eventCategoryMap,
+function getResolvedCollectionsForIds({
+    collectionIds,
+    eventCollectionMap,
 }: {
-    categoryIds: string[]
-    eventCategoryMap: Map<string, CalendarEventCategory>
+    collectionIds: string[]
+    eventCollectionMap: Map<string, CalendarEventCollection>
 }) {
-    return categoryIds
-        .map((categoryId) => eventCategoryMap.get(categoryId))
-        .filter((category): category is NonNullable<typeof category> =>
-            Boolean(category)
+    return collectionIds
+        .map((collectionId) => eventCollectionMap.get(collectionId))
+        .filter((collection): collection is NonNullable<typeof collection> =>
+            Boolean(collection)
         )
 }
 
@@ -218,44 +218,49 @@ export function CalendarDataSettingsPanel() {
         (s) => s.activeCalendarMembership
     )
     const calendarEvents = useCalendarStore((s) => s.events)
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
-    const upsertEventCategorySnapshot = useCalendarStore(
-        (s) => s.upsertEventCategorySnapshot
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
+    const upsertEventCollectionSnapshot = useCalendarStore(
+        (s) => s.upsertEventCollectionSnapshot
     )
-    const removeEventCategorySnapshot = useCalendarStore(
-        (s) => s.removeEventCategorySnapshot
+    const removeEventCollectionSnapshot = useCalendarStore(
+        (s) => s.removeEventCollectionSnapshot
     )
     const [events, setEvents] = useState<CalendarEventRecord[]>([])
     const eventsRef = useRef<CalendarEventRecord[]>([])
     const calendarEventsRef = useRef(calendarEvents)
     const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
-    const [selectedCategoryIdsRaw, setSelectedCategoryIdsRaw] = useState<
+    const [selectedCollectionIdsRaw, setSelectedCollectionIdsRaw] = useState<
         string[]
     >([])
     const [selectedStatuses, setSelectedStatuses] = useState<
         CalendarEventStatus[]
     >([])
     const [isLoading, setIsLoading] = useState(true)
-    const [newCategoryName, setNewCategoryName] = useState("")
-    const [isCreatingCategory, setIsCreatingCategory] = useState(false)
-    const [busyCategoryIds, setBusyCategoryIds] = useState<string[]>([])
+    const [newCollectionName, setNewCollectionName] = useState("")
+    const [isCreatingCollection, setIsCreatingCollection] = useState(false)
+    const [busyCollectionIds, setBusyCollectionIds] = useState<string[]>([])
 
     const canManageEvents = canManageCalendar(activeCalendarMembership)
     const canViewData = canViewCalendarSettings(activeCalendarMembership)
-    const eventCategoryMap = useMemo(
+    const eventCollectionMap = useMemo(
         () =>
-            new Map(eventCategories.map((category) => [category.id, category])),
-        [eventCategories]
+            new Map(
+                eventCollections.map((collection) => [
+                    collection.id,
+                    collection,
+                ])
+            ),
+        [eventCollections]
     )
 
-    const selectedCategoryIds = useMemo(
+    const selectedCollectionIds = useMemo(
         () =>
-            selectedCategoryIdsRaw.filter(
-                (categoryId) =>
-                    categoryId === UNCATEGORIZED_FILTER_KEY ||
-                    eventCategoryMap.has(categoryId)
+            selectedCollectionIdsRaw.filter(
+                (collectionId) =>
+                    collectionId === WITHOUT_COLLECTION_FILTER_KEY ||
+                    eventCollectionMap.has(collectionId)
             ),
-        [eventCategoryMap, selectedCategoryIdsRaw]
+        [eventCollectionMap, selectedCollectionIdsRaw]
     )
 
     useEffect(() => {
@@ -271,44 +276,45 @@ export function CalendarDataSettingsPanel() {
             let hasChanges = false
 
             const nextEvents = current.map((event) => {
-                const nextCategories = getResolvedCategoriesForIds({
-                    categoryIds: event.categoryIds,
-                    eventCategoryMap,
+                const nextCollections = getResolvedCollectionsForIds({
+                    collectionIds: event.collectionIds,
+                    eventCollectionMap,
                 })
-                const isSameCategories =
-                    event.categories.length === nextCategories.length &&
-                    event.categories.every(
-                        (category, index) => category === nextCategories[index]
+                const isSameCollections =
+                    event.collections.length === nextCollections.length &&
+                    event.collections.every(
+                        (collection, index) =>
+                            collection === nextCollections[index]
                     )
 
-                if (isSameCategories) {
+                if (isSameCollections) {
                     return event
                 }
 
                 hasChanges = true
                 return {
                     ...event,
-                    categories: nextCategories,
+                    collections: nextCollections,
                 }
             })
 
             return hasChanges ? nextEvents : current
         })
-    }, [eventCategoryMap])
+    }, [eventCollectionMap])
 
-    const withBusyCategory = useCallback(
-        async <T,>(categoryId: string, task: () => Promise<T>) => {
-            setBusyCategoryIds((current) =>
-                current.includes(categoryId)
+    const withBusyCollection = useCallback(
+        async <T,>(collectionId: string, task: () => Promise<T>) => {
+            setBusyCollectionIds((current) =>
+                current.includes(collectionId)
                     ? current
-                    : [...current, categoryId]
+                    : [...current, collectionId]
             )
 
             try {
                 return await task()
             } finally {
-                setBusyCategoryIds((current) =>
-                    current.filter((id) => id !== categoryId)
+                setBusyCollectionIds((current) =>
+                    current.filter((id) => id !== collectionId)
                 )
             }
         },
@@ -359,18 +365,20 @@ export function CalendarDataSettingsPanel() {
         [activeCalendarId]
     )
 
-    const updateEventsCategory = useCallback(
-        async (eventIds: string[], nextCategoryId: string | null) => {
+    const updateEventsCollections = useCallback(
+        async (eventIds: string[], nextCollectionId: string | null) => {
             if (!activeCalendarId || !eventIds.length) {
                 return
             }
 
             const previousEvents = eventsRef.current
-            const nextCategoryIds = nextCategoryId ? [nextCategoryId] : []
-            const nextCategories = nextCategoryIds
-                .map((categoryId) => eventCategoryMap.get(categoryId))
-                .filter((category): category is NonNullable<typeof category> =>
-                    Boolean(category)
+            const nextCollectionIds = nextCollectionId
+                ? [nextCollectionId]
+                : []
+            const nextResolvedCollections = nextCollectionIds
+                .map((id) => eventCollectionMap.get(id))
+                .filter((collection): collection is NonNullable<typeof collection> =>
+                    Boolean(collection)
                 )
 
             setEvents((current) =>
@@ -378,8 +386,8 @@ export function CalendarDataSettingsPanel() {
                     eventIds.includes(event.id)
                         ? {
                               ...event,
-                              categoryIds: nextCategoryIds,
-                              categories: nextCategories,
+                              collectionIds: nextCollectionIds,
+                              collections: nextResolvedCollections,
                           }
                         : event
                 )
@@ -391,30 +399,30 @@ export function CalendarDataSettingsPanel() {
                 const results = await Promise.all(
                     eventIds.map((eventId) =>
                         updateCalendarEvent(supabase, eventId, {
-                            categoryIds: nextCategoryIds,
+                            collectionIds: nextCollectionIds,
                         })
                     )
                 )
 
                 if (results.some((result) => !result.ok)) {
-                    throw new Error("Some event categories failed to update.")
+                    throw new Error("Some event collections failed to update.")
                 }
 
                 toast.success(
-                    nextCategoryId
+                    nextCollectionId
                         ? "일정 컬렉션이 업데이트되었습니다."
                         : "일정 컬렉션을 제거했습니다."
                 )
             } catch (error) {
                 console.error(
-                    "Failed to update calendar event categories:",
+                    "Failed to update calendar event collections:",
                     error
                 )
                 setEvents(previousEvents)
                 toast.error("일정 컬렉션을 변경하지 못했습니다.")
             }
         },
-        [activeCalendarId, eventCategoryMap]
+        [activeCalendarId, eventCollectionMap]
     )
 
     const removeEvents = useCallback(
@@ -452,31 +460,35 @@ export function CalendarDataSettingsPanel() {
         [activeCalendarId]
     )
 
-    const renameCategory = useCallback(
-        async (categoryId: string, nextName: string) => {
+    const renameCollection = useCallback(
+        async (collectionId: string, nextName: string) => {
             if (!activeCalendarId || !canManageEvents) {
                 return false
             }
 
-            return withBusyCategory(categoryId, async () => {
+            return withBusyCollection(collectionId, async () => {
                 try {
                     const supabase = createBrowserSupabase()
-                    const updatedCategory = await updateCalendarEventCategory(
-                        supabase,
-                        categoryId,
-                        {
-                            name: nextName,
-                        }
-                    )
+                    const updatedCollection =
+                        await updateCalendarEventCollection(
+                            supabase,
+                            collectionId,
+                            {
+                                name: nextName,
+                            }
+                        )
 
-                    if (!updatedCategory) {
-                        throw new Error("Category rename failed.")
+                    if (!updatedCollection) {
+                        throw new Error("Collection rename failed.")
                     }
 
-                    upsertEventCategorySnapshot(updatedCategory)
+                    upsertEventCollectionSnapshot(updatedCollection)
                     return true
                 } catch (error) {
-                    console.error("Failed to rename calendar category:", error)
+                    console.error(
+                        "Failed to rename calendar collection:",
+                        error
+                    )
                     toast.error("컬렉션 이름을 변경하지 못했습니다.")
                     return false
                 }
@@ -485,43 +497,47 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendarId,
             canManageEvents,
-            upsertEventCategorySnapshot,
-            withBusyCategory,
+            upsertEventCollectionSnapshot,
+            withBusyCollection,
         ]
     )
 
-    const changeCategoryDefaultVisibility = useCallback(
-        async (category: CalendarEventCategory, visibleByDefault: boolean) => {
+    const changeCollectionDefaultVisibility = useCallback(
+        async (
+            collection: CalendarEventCollection,
+            visibleByDefault: boolean
+        ) => {
             if (!activeCalendarId || !canManageEvents) {
                 return
             }
 
-            if (category.options.visibleByDefault === visibleByDefault) {
+            if (collection.options.visibleByDefault === visibleByDefault) {
                 return
             }
 
-            await withBusyCategory(category.id, async () => {
+            await withBusyCollection(collection.id, async () => {
                 try {
                     const supabase = createBrowserSupabase()
-                    const updatedCategory = await updateCalendarEventCategory(
-                        supabase,
-                        category.id,
-                        {
-                            options: {
-                                ...category.options,
-                                visibleByDefault,
-                            },
-                        }
-                    )
+                    const updatedCollection =
+                        await updateCalendarEventCollection(
+                            supabase,
+                            collection.id,
+                            {
+                                options: {
+                                    ...collection.options,
+                                    visibleByDefault,
+                                },
+                            }
+                        )
 
-                    if (!updatedCategory) {
-                        throw new Error("Category visibility update failed.")
+                    if (!updatedCollection) {
+                        throw new Error("Collection visibility update failed.")
                     }
 
-                    upsertEventCategorySnapshot(updatedCategory)
+                    upsertEventCollectionSnapshot(updatedCollection)
                 } catch (error) {
                     console.error(
-                        "Failed to update calendar category visibility:",
+                        "Failed to update calendar collection visibility:",
                         error
                     )
                     toast.error("기본 체크 상태를 변경하지 못했습니다.")
@@ -531,46 +547,47 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendarId,
             canManageEvents,
-            upsertEventCategorySnapshot,
-            withBusyCategory,
+            upsertEventCollectionSnapshot,
+            withBusyCollection,
         ]
     )
 
-    const changeCategoryColor = useCallback(
+    const changeCollectionColor = useCallback(
         async (
-            category: CalendarEventCategory,
-            color: CalendarCategoryColor
+            collection: CalendarEventCollection,
+            color: CalendarCollectionColor
         ) => {
             if (!activeCalendarId || !canManageEvents) {
                 return
             }
 
-            if (category.options.color === color) {
+            if (collection.options.color === color) {
                 return
             }
 
-            await withBusyCategory(category.id, async () => {
+            await withBusyCollection(collection.id, async () => {
                 try {
                     const supabase = createBrowserSupabase()
-                    const updatedCategory = await updateCalendarEventCategory(
-                        supabase,
-                        category.id,
-                        {
-                            options: {
-                                ...category.options,
-                                color,
-                            },
-                        }
-                    )
+                    const updatedCollection =
+                        await updateCalendarEventCollection(
+                            supabase,
+                            collection.id,
+                            {
+                                options: {
+                                    ...collection.options,
+                                    color,
+                                },
+                            }
+                        )
 
-                    if (!updatedCategory) {
-                        throw new Error("Category color update failed.")
+                    if (!updatedCollection) {
+                        throw new Error("Collection color update failed.")
                     }
 
-                    upsertEventCategorySnapshot(updatedCategory)
+                    upsertEventCollectionSnapshot(updatedCollection)
                 } catch (error) {
                     console.error(
-                        "Failed to update calendar category color:",
+                        "Failed to update calendar collection color:",
                         error
                     )
                     toast.error("컬렉션 색상을 변경하지 못했습니다.")
@@ -580,12 +597,12 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendarId,
             canManageEvents,
-            upsertEventCategorySnapshot,
-            withBusyCategory,
+            upsertEventCollectionSnapshot,
+            withBusyCollection,
         ]
     )
 
-    const createCategory = useCallback(async () => {
+    const createCollection = useCallback(async () => {
         if (
             !activeCalendarId ||
             activeCalendarId === "demo" ||
@@ -594,28 +611,29 @@ export function CalendarDataSettingsPanel() {
             return
         }
 
-        const trimmedName = newCategoryName.trim()
+        const trimmedName = newCollectionName.trim()
 
         if (!trimmedName) {
             return
         }
 
-        const existingCategory = eventCategories.find(
-            (category) =>
-                category.name.trim().toLowerCase() === trimmedName.toLowerCase()
+        const existingCollection = eventCollections.find(
+            (collection) =>
+                collection.name.trim().toLowerCase() ===
+                trimmedName.toLowerCase()
         )
 
-        if (existingCategory) {
-            setNewCategoryName("")
+        if (existingCollection) {
+            setNewCollectionName("")
             toast.message("이미 같은 이름의 컬렉션이 있습니다.")
             return
         }
 
-        setIsCreatingCategory(true)
+        setIsCreatingCollection(true)
 
         try {
             const supabase = createBrowserSupabase()
-            const createdCategory = await createCalendarEventCategory(
+            const createdCollection = await createCalendarEventCollection(
                 supabase,
                 activeCalendarId,
                 {
@@ -626,49 +644,52 @@ export function CalendarDataSettingsPanel() {
                 }
             )
 
-            if (!createdCategory) {
-                throw new Error("Category create failed.")
+            if (!createdCollection) {
+                throw new Error("Collection create failed.")
             }
 
-            upsertEventCategorySnapshot(createdCategory)
-            setNewCategoryName("")
+            upsertEventCollectionSnapshot(createdCollection)
+            setNewCollectionName("")
             toast.success("컬렉션을 추가했습니다.")
         } catch (error) {
-            console.error("Failed to create calendar category:", error)
+            console.error("Failed to create calendar collection:", error)
             toast.error("컬렉션을 추가하지 못했습니다.")
         } finally {
-            setIsCreatingCategory(false)
+            setIsCreatingCollection(false)
         }
     }, [
         activeCalendarId,
         canManageEvents,
-        eventCategories,
-        newCategoryName,
-        upsertEventCategorySnapshot,
+        eventCollections,
+        newCollectionName,
+        upsertEventCollectionSnapshot,
     ])
 
-    const removeCategory = useCallback(
-        async (category: CalendarEventCategory) => {
+    const removeCollection = useCallback(
+        async (collection: CalendarEventCollection) => {
             if (!activeCalendarId || !canManageEvents) {
                 return
             }
 
-            await withBusyCategory(category.id, async () => {
+            await withBusyCollection(collection.id, async () => {
                 try {
                     const supabase = createBrowserSupabase()
-                    const ok = await deleteCalendarEventCategory(
+                    const ok = await deleteCalendarEventCollection(
                         supabase,
-                        category.id
+                        collection.id
                     )
 
                     if (!ok) {
-                        throw new Error("Category delete failed.")
+                        throw new Error("Collection delete failed.")
                     }
 
-                    removeEventCategorySnapshot(category.id)
+                    removeEventCollectionSnapshot(collection.id)
                     toast.success("컬렉션을 삭제했습니다.")
                 } catch (error) {
-                    console.error("Failed to delete calendar category:", error)
+                    console.error(
+                        "Failed to delete calendar collection:",
+                        error
+                    )
                     toast.error("컬렉션을 삭제하지 못했습니다.")
                 }
             })
@@ -676,8 +697,8 @@ export function CalendarDataSettingsPanel() {
         [
             activeCalendarId,
             canManageEvents,
-            removeEventCategorySnapshot,
-            withBusyCategory,
+            removeEventCollectionSnapshot,
+            withBusyCollection,
         ]
     )
 
@@ -705,25 +726,28 @@ export function CalendarDataSettingsPanel() {
 
         return Array.from(authorMap.values())
     }, [events])
-    const categoryOptions = useMemo(
+    const collectionOptions = useMemo(
         () =>
-            sortCategoriesForSettings(eventCategories).map((category) => ({
-                id: category.id,
-                label: category.name,
-                color: category.options.color,
+            sortCollectionsForSettings(eventCollections).map((collection) => ({
+                id: collection.id,
+                label: collection.name,
+                color: collection.options.color,
             })),
-        [eventCategories]
+        [eventCollections]
     )
     const columns = useMemo(
         () =>
             getCalendarDataColumns({
                 canManageEvents,
-                categoryOptions,
+                collectionOptions,
                 onStatusChange: async (eventId, nextStatus) => {
                     await updateEventsStatus([eventId], nextStatus)
                 },
-                onCategoryChange: async (eventId, nextCategoryId) => {
-                    await updateEventsCategory([eventId], nextCategoryId)
+                onCollectionChange: async (eventId, nextCollectionId) => {
+                    await updateEventsCollections(
+                        [eventId],
+                        nextCollectionId
+                    )
                 },
                 onDeleteEvent: async (eventId) => {
                     await removeEvents([eventId])
@@ -731,9 +755,9 @@ export function CalendarDataSettingsPanel() {
             }),
         [
             canManageEvents,
-            categoryOptions,
+            collectionOptions,
             removeEvents,
-            updateEventsCategory,
+            updateEventsCollections,
             updateEventsStatus,
         ]
     )
@@ -742,9 +766,9 @@ export function CalendarDataSettingsPanel() {
         () => new Set(selectedAuthors),
         [selectedAuthors]
     )
-    const selectedCategorySet = useMemo(
-        () => new Set(selectedCategoryIds),
-        [selectedCategoryIds]
+    const selectedCollectionSet = useMemo(
+        () => new Set(selectedCollectionIds),
+        [selectedCollectionIds]
     )
     const selectedStatusSet = useMemo(
         () => new Set(selectedStatuses),
@@ -754,7 +778,7 @@ export function CalendarDataSettingsPanel() {
     const filteredEvents = useMemo(() => {
         if (
             !selectedAuthors.length &&
-            !selectedCategoryIds.length &&
+            !selectedCollectionIds.length &&
             !selectedStatuses.length
         ) {
             return events
@@ -769,13 +793,13 @@ export function CalendarDataSettingsPanel() {
             }
 
             if (
-                selectedCategorySet.size > 0 &&
-                !event.categoryIds.some((categoryId) =>
-                    selectedCategorySet.has(categoryId)
+                selectedCollectionSet.size > 0 &&
+                !event.collectionIds.some((collectionId) =>
+                    selectedCollectionSet.has(collectionId)
                 ) &&
                 !(
-                    selectedCategorySet.has(UNCATEGORIZED_FILTER_KEY) &&
-                    event.categoryIds.length === 0
+                    selectedCollectionSet.has(WITHOUT_COLLECTION_FILTER_KEY) &&
+                    event.collectionIds.length === 0
                 )
             ) {
                 return false
@@ -794,8 +818,8 @@ export function CalendarDataSettingsPanel() {
         events,
         selectedAuthors.length,
         selectedAuthorSet,
-        selectedCategoryIds.length,
-        selectedCategorySet,
+        selectedCollectionIds.length,
+        selectedCollectionSet,
         selectedStatuses.length,
         selectedStatusSet,
     ])
@@ -807,34 +831,34 @@ export function CalendarDataSettingsPanel() {
             ),
         [authorOptions, selectedAuthors]
     )
-    const selectedCategoryLabels = useMemo(
+    const selectedCollectionLabels = useMemo(
         () =>
-            selectedCategoryIds.flatMap(
-                (categoryId): SelectedCategoryLabel[] => {
-                    if (categoryId === UNCATEGORIZED_FILTER_KEY) {
+            selectedCollectionIds.flatMap(
+                (collectionId): SelectedCollectionLabel[] => {
+                    if (collectionId === WITHOUT_COLLECTION_FILTER_KEY) {
                         return [
                             {
-                                id: categoryId,
+                                id: collectionId,
                                 label: "컬렉션 없음",
                                 color: undefined,
                             },
                         ]
                     }
 
-                    const category = eventCategoryMap.get(categoryId)
+                    const collection = eventCollectionMap.get(collectionId)
 
-                    return category
+                    return collection
                         ? [
                               {
-                                  id: category.id,
-                                  label: category.name,
-                                  color: category.options.color,
+                                  id: collection.id,
+                                  label: collection.name,
+                                  color: collection.options.color,
                               },
                           ]
                         : []
                 }
             ),
-        [eventCategoryMap, selectedCategoryIds]
+        [eventCollectionMap, selectedCollectionIds]
     )
     const activeFilterBadges = useMemo<FilterBadge[]>(() => {
         const authorBadges = selectedAuthorLabels.map((author) => ({
@@ -846,14 +870,14 @@ export function CalendarDataSettingsPanel() {
                 )
             },
         }))
-        const categoryBadges = selectedCategoryLabels.map((category) => ({
-            key: `category:${category.id}`,
-            label: category.label,
-            tone: "category" as const,
-            color: category.color,
+        const collectionBadges = selectedCollectionLabels.map((label) => ({
+            key: `collection:${label.id}`,
+            label: label.label,
+            tone: "collection" as const,
+            color: label.color,
             onRemove: () => {
-                setSelectedCategoryIdsRaw((current) =>
-                    current.filter((item) => item !== category.id)
+                setSelectedCollectionIdsRaw((current) =>
+                    current.filter((item) => item !== label.id)
                 )
             },
         }))
@@ -867,23 +891,23 @@ export function CalendarDataSettingsPanel() {
             },
         }))
 
-        return [...authorBadges, ...categoryBadges, ...statusBadges]
-    }, [selectedAuthorLabels, selectedCategoryLabels, selectedStatuses])
+        return [...authorBadges, ...collectionBadges, ...statusBadges]
+    }, [selectedAuthorLabels, selectedCollectionLabels, selectedStatuses])
     const activeFilterCount = activeFilterBadges.length
     const clearAllFilters = useCallback(() => {
         setSelectedAuthors([])
-        setSelectedCategoryIdsRaw([])
+        setSelectedCollectionIdsRaw([])
         setSelectedStatuses([])
     }, [])
 
-    const categoryUsageCountMap = useMemo(() => {
+    const collectionUsageCountMap = useMemo(() => {
         const usageCountMap = new Map<string, number>()
 
         calendarEvents.forEach((event) => {
-            event.categoryIds.forEach((categoryId) => {
+            event.collectionIds.forEach((collectionId) => {
                 usageCountMap.set(
-                    categoryId,
-                    (usageCountMap.get(categoryId) ?? 0) + 1
+                    collectionId,
+                    (usageCountMap.get(collectionId) ?? 0) + 1
                 )
             })
         })
@@ -891,12 +915,13 @@ export function CalendarDataSettingsPanel() {
         return usageCountMap
     }, [calendarEvents])
 
-    const categoryRows = useMemo<CalendarCategoryTableRow[]>(() => {
-        return sortCategoriesForSettings(eventCategories).map((category) => ({
-            ...category,
-            usageCount: categoryUsageCountMap.get(category.id) ?? 0,
+    const collectionRows = useMemo<CalendarCollectionTableRow[]>(() => {
+        return sortCollectionsForSettings(eventCollections).map((collection) => ({
+            ...collection,
+            usageCount:
+                collectionUsageCountMap.get(collection.id) ?? 0,
         }))
-    }, [categoryUsageCountMap, eventCategories])
+    }, [collectionUsageCountMap, eventCollections])
 
     useEffect(() => {
         if (!canViewData) {
@@ -953,10 +978,10 @@ export function CalendarDataSettingsPanel() {
                 setEvents(
                     rows.map((event) => {
                         const storedEvent = eventLookup.get(event.id)
-                        const categoryIds = storedEvent?.categoryIds ?? []
-                        const categories = getResolvedCategoriesForIds({
-                            categoryIds,
-                            eventCategoryMap,
+                        const collectionIds = storedEvent?.collectionIds ?? []
+                        const collections = getResolvedCollectionsForIds({
+                            collectionIds,
+                            eventCollectionMap,
                         })
 
                         return {
@@ -983,8 +1008,8 @@ export function CalendarDataSettingsPanel() {
                                           avatarUrl: event.creator_avatar_url,
                                       }
                                     : null,
-                            categoryIds,
-                            categories,
+                            collectionIds,
+                            collections,
                             recurrence: storedEvent?.recurrence,
                             recurrenceInstance:
                                 storedEvent?.recurrenceInstance,
@@ -1009,7 +1034,7 @@ export function CalendarDataSettingsPanel() {
         return () => {
             isCancelled = true
         }
-    }, [activeCalendarId, canManageEvents, canViewData, eventCategoryMap])
+    }, [activeCalendarId, canManageEvents, canViewData, eventCollectionMap])
 
     if (!activeCalendarId) {
         return (
@@ -1152,41 +1177,41 @@ export function CalendarDataSettingsPanel() {
                                                 컬렉션
                                             </DropdownMenuLabel>
                                             <DropdownMenuCheckboxItem
-                                                checked={selectedCategoryIds.includes(
-                                                    UNCATEGORIZED_FILTER_KEY
+                                                checked={selectedCollectionIds.includes(
+                                                    WITHOUT_COLLECTION_FILTER_KEY
                                                 )}
                                                 onCheckedChange={(checked) => {
-                                                    setSelectedCategoryIdsRaw(
+                                                    setSelectedCollectionIdsRaw(
                                                         (current) =>
                                                             checked
                                                                 ? Array.from(
                                                                       new Set([
                                                                           ...current,
-                                                                          UNCATEGORIZED_FILTER_KEY,
+                                                                          WITHOUT_COLLECTION_FILTER_KEY,
                                                                       ])
                                                                   )
                                                                 : current.filter(
                                                                       (item) =>
                                                                           item !==
-                                                                          UNCATEGORIZED_FILTER_KEY
+                                                                          WITHOUT_COLLECTION_FILTER_KEY
                                                                   )
                                                     )
                                                 }}
                                             >
                                                 컬렉션 없음
                                             </DropdownMenuCheckboxItem>
-                                            {categoryOptions.length ? (
-                                                categoryOptions.map(
-                                                    (category) => (
+                                            {collectionOptions.length ? (
+                                                collectionOptions.map(
+                                                    (option) => (
                                                         <DropdownMenuCheckboxItem
-                                                            key={category.id}
-                                                            checked={selectedCategoryIds.includes(
-                                                                category.id
+                                                            key={option.id}
+                                                            checked={selectedCollectionIds.includes(
+                                                                option.id
                                                             )}
                                                             onCheckedChange={(
                                                                 checked
                                                             ) => {
-                                                                setSelectedCategoryIdsRaw(
+                                                                setSelectedCollectionIdsRaw(
                                                                     (
                                                                         current
                                                                     ) =>
@@ -1195,7 +1220,7 @@ export function CalendarDataSettingsPanel() {
                                                                                   new Set(
                                                                                       [
                                                                                           ...current,
-                                                                                          category.id,
+                                                                                          option.id,
                                                                                       ]
                                                                                   )
                                                                               )
@@ -1204,18 +1229,18 @@ export function CalendarDataSettingsPanel() {
                                                                                       item
                                                                                   ) =>
                                                                                       item !==
-                                                                                      category.id
+                                                                                      option.id
                                                                               )
                                                                 )
                                                             }}
                                                         >
                                                             <span
-                                                                className={getCalendarCategoryLabelClassName(
-                                                                    category.color,
+                                                                className={getCalendarCollectionLabelClassName(
+                                                                    option.color,
                                                                     "inline-flex h-6 items-center rounded-md px-1.5 leading-[normal]"
                                                                 )}
                                                             >
-                                                                {category.label}
+                                                                {option.label}
                                                             </span>
                                                         </DropdownMenuCheckboxItem>
                                                     )
@@ -1277,14 +1302,14 @@ export function CalendarDataSettingsPanel() {
                                                     key={badge.key}
                                                     variant={
                                                         badge.tone ===
-                                                        "category"
+                                                        "collection"
                                                             ? "outline"
                                                             : "secondary"
                                                     }
                                                     className={
                                                         badge.tone ===
-                                                        "category"
-                                                            ? getCalendarCategoryLabelClassName(
+                                                        "collection"
+                                                            ? getCalendarCollectionLabelClassName(
                                                                   badge.color,
                                                                   "h-6 gap-px border-transparent"
                                                               )
@@ -1393,7 +1418,7 @@ export function CalendarDataSettingsPanel() {
                                                     <DropdownMenuSubContent className="w-52">
                                                         <DropdownMenuItem
                                                             onSelect={() => {
-                                                                void updateEventsCategory(
+                                                                void updateEventsCollections(
                                                                     selectedEvents.map(
                                                                         (
                                                                             event
@@ -1407,38 +1432,36 @@ export function CalendarDataSettingsPanel() {
                                                         >
                                                             컬렉션 없음
                                                         </DropdownMenuItem>
-                                                        {categoryOptions.length ? (
+                                                        {collectionOptions.length ? (
                                                             <>
                                                                 <DropdownMenuSeparator />
-                                                                {categoryOptions.map(
-                                                                    (
-                                                                        category
-                                                                    ) => (
+                                                                {collectionOptions.map(
+                                                                    (option) => (
                                                                         <DropdownMenuItem
                                                                             key={
-                                                                                category.id
+                                                                                option.id
                                                                             }
                                                                             onSelect={() => {
-                                                                                void updateEventsCategory(
+                                                                                void updateEventsCollections(
                                                                                     selectedEvents.map(
                                                                                         (
                                                                                             event
                                                                                         ) =>
                                                                                             event.id
                                                                                     ),
-                                                                                    category.id
+                                                                                    option.id
                                                                                 )
                                                                                 table.resetRowSelection()
                                                                             }}
                                                                         >
                                                                             <span
-                                                                                className={getCalendarCategoryLabelClassName(
-                                                                                    category.color,
+                                                                                className={getCalendarCollectionLabelClassName(
+                                                                                    option.color,
                                                                                     "inline-flex h-6 items-center rounded-md px-1.5 leading-[normal]"
                                                                                 )}
                                                                             >
                                                                                 {
-                                                                                    category.label
+                                                                                    option.label
                                                                                 }
                                                                             </span>
                                                                         </DropdownMenuItem>
@@ -1478,36 +1501,36 @@ export function CalendarDataSettingsPanel() {
                             </FieldDescription>
                         </FieldContent>
 
-                        <CalendarCategoryTable
-                            rows={categoryRows}
-                            newCategoryName={newCategoryName}
+                        <CalendarCollectionTable
+                            rows={collectionRows}
+                            newCollectionName={newCollectionName}
                             canManageEvents={canManageEvents}
-                            isCreatingCategory={isCreatingCategory}
+                            isCreatingCollection={isCreatingCollection}
                             isDisabled={
                                 !activeCalendarId ||
                                 activeCalendarId === "demo" ||
                                 !canManageEvents
                             }
-                            busyCategoryIds={busyCategoryIds}
-                            onNewCategoryNameChange={setNewCategoryName}
-                            onCreateCategory={() => {
-                                void createCategory()
+                            busyCollectionIds={busyCollectionIds}
+                            onNewCollectionNameChange={setNewCollectionName}
+                            onCreateCollection={() => {
+                                void createCollection()
                             }}
-                            onRenameCategory={renameCategory}
-                            onChangeCategoryColor={(category, color) => {
-                                void changeCategoryColor(category, color)
+                            onRenameCollection={renameCollection}
+                            onChangeCollectionColor={(collection, color) => {
+                                void changeCollectionColor(collection, color)
                             }}
-                            onChangeCategoryDefaultVisibility={(
-                                category,
+                            onChangeCollectionDefaultVisibility={(
+                                collection,
                                 visibleByDefault
                             ) => {
-                                void changeCategoryDefaultVisibility(
-                                    category,
+                                void changeCollectionDefaultVisibility(
+                                    collection,
                                     visibleByDefault
                                 )
                             }}
-                            onRemoveCategory={(category) => {
-                                void removeCategory(category)
+                            onRemoveCollection={(collection) => {
+                                void removeCollection(collection)
                             }}
                         />
                     </Field>

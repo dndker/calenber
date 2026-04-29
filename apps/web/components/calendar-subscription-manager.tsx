@@ -2,7 +2,9 @@
 
 import { useCalendarSubscriptions } from "@/hooks/use-calendar-subscriptions"
 import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse-state"
-import { getCalendarCategoryCheckboxClassName } from "@/lib/calendar/category-color"
+import { getCalendarCollectionCheckboxClassName } from "@/lib/calendar/collection-color"
+import { canManageCalendar } from "@/lib/calendar/permissions"
+import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
@@ -19,18 +21,32 @@ import {
     CommandItem,
     CommandList,
 } from "@workspace/ui/components/command"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { Field, FieldLabel } from "@workspace/ui/components/field"
 import {
     SidebarGroup,
     SidebarGroupContent,
     SidebarGroupLabel,
     SidebarMenu,
+    SidebarMenuAction,
     SidebarMenuButton,
     SidebarMenuItem,
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { cn } from "@workspace/ui/lib/utils"
-import { ChevronRightIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import {
+    ChevronRightIcon,
+    LockIcon,
+    MoreHorizontalIcon,
+    PlusIcon,
+    Trash2Icon,
+    UsersIcon,
+} from "lucide-react"
 import { useMemo, useState } from "react"
 import { VerifiedIcon } from "./icon/verified-icon"
 
@@ -48,17 +64,33 @@ export function CalendarSubscriptionManager() {
         uninstallSubscription,
         toggleSubscriptionVisibility,
     } = useCalendarSubscriptions()
+    const activeCalendarId = useCalendarStore((s) => s.activeCalendar?.id)
+    const activeCalendarMembership = useCalendarStore(
+        (s) => s.activeCalendarMembership
+    )
+    const canManage = canManageCalendar(activeCalendarMembership)
     const [isOpen, setIsOpen] = useSidebarCollapse("subscription")
     const [query, setQuery] = useState("")
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const keyword = normalizeKeyword(query)
 
     const searchableSubscriptions = useMemo(() => {
+        // source_deleted/archived 항목 및 unlisted(비공개 링크) 항목은 검색 목록에서 제외
+        const available = subscriptions.filter(
+            (s) =>
+                s.status !== "source_deleted" &&
+                s.status !== "archived" &&
+                !(
+                    s.sourceType === "shared_collection" &&
+                    s.visibility === "unlisted"
+                )
+        )
+
         if (!keyword) {
-            return subscriptions
+            return available
         }
 
-        return subscriptions.filter((subscription) => {
+        return available.filter((subscription) => {
             return (
                 subscription.name.toLowerCase().includes(keyword) ||
                 subscription.description.toLowerCase().includes(keyword) ||
@@ -84,25 +116,20 @@ export function CalendarSubscriptionManager() {
                         )}
                     >
                         <CollapsibleTrigger>
-                            <div className="flex items-center gap-1">
-                                구독
-                                {/* {installedSubscriptions.length > 0 ? (
-                                    <Badge variant="outline">
-                                        {installedSubscriptions.length}개
-                                    </Badge>
-                                ) : null} */}
-                            </div>
+                            <div className="flex items-center gap-1">구독</div>
                             <div className="ml-auto flex items-center gap-1.5">
-                                <div
-                                    className="pointer-event-all ml-auto flex size-4 items-center justify-center rounded-lg hover:bg-muted"
-                                    onClick={(event) => {
-                                        event.preventDefault()
-                                        event.stopPropagation()
-                                        setIsSearchOpen(true)
-                                    }}
-                                >
-                                    <PlusIcon className="size-4" />
-                                </div>
+                                {canManage && (
+                                    <div
+                                        className="pointer-event-all flex size-4 items-center justify-center rounded-lg hover:bg-muted"
+                                        onClick={(event) => {
+                                            event.preventDefault()
+                                            event.stopPropagation()
+                                            setIsSearchOpen(true)
+                                        }}
+                                    >
+                                        <PlusIcon className="size-4" />
+                                    </div>
+                                )}
                                 <ChevronRightIcon className="size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                             </div>
                         </CollapsibleTrigger>
@@ -131,8 +158,8 @@ export function CalendarSubscriptionManager() {
                                                         <Checkbox
                                                             id={`calendar-subscription-${subscription.id}-${index}`}
                                                             name={`calendar-subscription-${subscription.id}-${index}`}
-                                                            className={getCalendarCategoryCheckboxClassName(
-                                                                subscription.categoryColor ??
+                                                            className={getCalendarCollectionCheckboxClassName(
+                                                                subscription.collectionColor ??
                                                                     "red"
                                                             )}
                                                             checked={isVisible}
@@ -163,18 +190,40 @@ export function CalendarSubscriptionManager() {
                                                                 )}
                                                             </div>
                                                         </FieldLabel>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            className="size-4 text-muted-foreground"
-                                                            onClick={() =>
-                                                                uninstallSubscription(
-                                                                    subscription.id
-                                                                )
-                                                            }
-                                                        >
-                                                            <Trash2Icon />
-                                                        </Button>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger
+                                                                asChild
+                                                            >
+                                                                <SidebarMenuAction
+                                                                    showOnHover
+                                                                    className="right-1.5"
+                                                                >
+                                                                    <MoreHorizontalIcon />
+                                                                    <span className="sr-only">
+                                                                        More
+                                                                    </span>
+                                                                </SidebarMenuAction>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent
+                                                                align="start"
+                                                                side="bottom"
+                                                                className="w-auto"
+                                                            >
+                                                                <DropdownMenuItem
+                                                                    onClick={() =>
+                                                                        uninstallSubscription(
+                                                                            subscription.id
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Trash2Icon />
+                                                                    <span>
+                                                                        구독
+                                                                        해제
+                                                                    </span>
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
                                                     </Field>
                                                 </SidebarMenuButton>
                                             </SidebarMenuItem>
@@ -222,6 +271,24 @@ export function CalendarSubscriptionManager() {
                                 const isInstalled = installedIdSet.has(
                                     subscription.id
                                 )
+                                // unlisted 구독은 직접 구독 불가 (링크 필요) — 방어 처리
+                                const isUnlisted =
+                                    subscription.sourceType ===
+                                        "shared_collection" &&
+                                    subscription.visibility === "unlisted"
+                                // 현재 활성 캘린더에서 배포한 컬렉션 — "공유중" 표시
+                                const isMyPublished =
+                                    !isInstalled &&
+                                    subscription.sourceType ===
+                                        "shared_collection" &&
+                                    Boolean(
+                                        subscription.calendar?.id &&
+                                        subscription.calendar.id ===
+                                            activeCalendarId
+                                    )
+
+                                const isBlocked =
+                                    isInstalled || isUnlisted || isMyPublished
 
                                 return (
                                     <CommandItem
@@ -229,7 +296,7 @@ export function CalendarSubscriptionManager() {
                                         key={subscription.id}
                                         value={`${subscription.name} ${subscription.description} ${subscription.tags.join(" ")}`}
                                         onSelect={() => {
-                                            if (isInstalled) {
+                                            if (isBlocked) {
                                                 return
                                             }
                                             installSubscription(subscription.id)
@@ -245,23 +312,35 @@ export function CalendarSubscriptionManager() {
                                                 {subscription.verified && (
                                                     <VerifiedIcon />
                                                 )}
+                                                {isUnlisted && (
+                                                    <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-normal text-muted-foreground">
+                                                        <LockIcon className="size-2.5" />
+                                                        링크 전용
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="line-clamp-2 text-xs break-keep text-muted-foreground">
                                                 {subscription.description}
                                             </p>
+                                            {subscription.sourceType ===
+                                                "shared_collection" &&
+                                                !isUnlisted && (
+                                                    <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                        <UsersIcon className="size-3 shrink-0" />
+                                                        <span>
+                                                            누구나 구독 가능
+                                                        </span>
+                                                    </div>
+                                                )}
                                         </div>
                                         <Button
                                             size="sm"
-                                            variant={
-                                                isInstalled
-                                                    ? "outline"
-                                                    : "default"
-                                            }
-                                            disabled={isInstalled}
+                                            variant="outline"
+                                            disabled={isBlocked}
                                             onClick={(event) => {
                                                 event.preventDefault()
                                                 event.stopPropagation()
-                                                if (isInstalled) {
+                                                if (isBlocked) {
                                                     return
                                                 }
                                                 installSubscription(
@@ -271,7 +350,13 @@ export function CalendarSubscriptionManager() {
                                                 setQuery("")
                                             }}
                                         >
-                                            {isInstalled ? "설치됨" : "구독"}
+                                            {isMyPublished
+                                                ? "공유중"
+                                                : isInstalled
+                                                  ? "구독중"
+                                                  : isUnlisted
+                                                    ? "링크 필요"
+                                                    : "구독"}
                                         </Button>
                                     </CommandItem>
                                 )

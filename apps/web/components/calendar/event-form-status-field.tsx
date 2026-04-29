@@ -1,9 +1,9 @@
 "use client"
 
 import {
-    getCalendarCategoryDotClassName,
-    getCalendarCategoryLabelClassName,
-} from "@/lib/calendar/category-color"
+    getCalendarCollectionDotClassName,
+    getCalendarCollectionLabelClassName,
+} from "@/lib/calendar/collection-color"
 import {
     eventStatus,
     eventStatusLabel,
@@ -28,15 +28,15 @@ export const eventFormStatusLabelClassNameMap: Record<
 > = {
     scheduled:
         "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
+    in_progress: getCalendarCollectionLabelClassName(
         "blue",
         "[&_button]:hidden border-0"
     ),
-    completed: getCalendarCategoryLabelClassName(
+    completed: getCalendarCollectionLabelClassName(
         "green",
         "[&_button]:hidden border-0"
     ),
-    cancelled: getCalendarCategoryLabelClassName(
+    cancelled: getCalendarCollectionLabelClassName(
         "red",
         "[&_button]:hidden border-0"
     ),
@@ -48,15 +48,15 @@ export const eventFormStatusItemClassNameMap: Record<
 > = {
     scheduled:
         "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
+    in_progress: getCalendarCollectionLabelClassName(
         "blue",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
-    completed: getCalendarCategoryLabelClassName(
+    completed: getCalendarCollectionLabelClassName(
         "green",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
-    cancelled: getCalendarCategoryLabelClassName(
+    cancelled: getCalendarCollectionLabelClassName(
         "red",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
@@ -67,9 +67,9 @@ export const eventFormStatusDotClassNameMap: Record<
     string
 > = {
     scheduled: "bg-muted-foreground/70",
-    in_progress: getCalendarCategoryDotClassName("blue"),
-    completed: getCalendarCategoryDotClassName("green"),
-    cancelled: getCalendarCategoryDotClassName("red"),
+    in_progress: getCalendarCollectionDotClassName("blue"),
+    completed: getCalendarCollectionDotClassName("green"),
+    cancelled: getCalendarCollectionDotClassName("red"),
 }
 
 type EventFormStatusChipsFieldProps = {

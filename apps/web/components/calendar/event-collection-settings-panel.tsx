@@ -1,19 +1,21 @@
 "use client"
 
 import {
-    calendarCategoryColorLabels,
-    calendarCategoryColors,
-    getCalendarCategoryLabelClassName,
-    getCalendarCategoryPaletteClassName,
-    type CalendarCategoryColor,
-} from "@/lib/calendar/category-color"
+    calendarCollectionColorLabels,
+    calendarCollectionColors,
+    getCalendarCollectionLabelClassName,
+    getCalendarCollectionPaletteClassName,
+    type CalendarCollectionColor,
+} from "@/lib/calendar/collection-color"
+import { normalizeCollectionName } from "@/lib/calendar/event-form-names"
 import {
-    createCalendarEventCategory,
-    deleteCalendarEventCategory,
-    updateCalendarEventCategory,
+    createCalendarEventCollection,
+    deleteCalendarEventCollection,
+    getCollectionPublishStatus,
+    updateCalendarEventCollection,
 } from "@/lib/calendar/mutations"
 import { createBrowserSupabase } from "@/lib/supabase/client"
-import type { CalendarEventCategory } from "@/store/calendar-store.types"
+import type { CalendarEventCollection } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -31,52 +33,49 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { Globe2Icon, PlusIcon, Settings2Icon, Trash2Icon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { CollectionShareDialog } from "./collection-share-dialog"
 
-function normalizeCategoryName(value: string) {
-    return value.trim().toLowerCase()
-}
-
-function CategoryRenameInput({
-    category,
+function CollectionRenameInput({
+    collection,
     disabled,
     isSaving,
     onRename,
 }: {
-    category: CalendarEventCategory
+    collection: CalendarEventCollection
     disabled: boolean
     isSaving: boolean
-    onRename: (categoryId: string, nextName: string) => Promise<boolean>
+    onRename: (collectionId: string, nextName: string) => Promise<boolean>
 }) {
-    const [draft, setDraft] = useState(category.name)
+    const [draft, setDraft] = useState(collection.name)
     const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
     const flushRename = useCallback(
         async (value: string) => {
             const trimmedValue = value.trim()
-            const trimmedName = category.name.trim()
+            const trimmedName = collection.name.trim()
 
             if (!trimmedValue) {
-                setDraft(category.name)
+                setDraft(collection.name)
                 return
             }
 
             if (trimmedValue === trimmedName) {
-                if (value !== category.name) {
-                    setDraft(category.name)
+                if (value !== collection.name) {
+                    setDraft(collection.name)
                 }
                 return
             }
 
-            const ok = await onRename(category.id, trimmedValue)
+            const ok = await onRename(collection.id, trimmedValue)
 
             if (!ok) {
-                setDraft(category.name)
+                setDraft(collection.name)
             }
         },
-        [category.id, category.name, onRename]
+        [collection.id, collection.name, onRename]
     )
     useEffect(() => {
         if (disabled || isSaving) {
@@ -84,7 +83,7 @@ function CategoryRenameInput({
         }
 
         const trimmedDraft = draft.trim()
-        const trimmedName = category.name.trim()
+        const trimmedName = collection.name.trim()
 
         if (!trimmedDraft || trimmedDraft === trimmedName) {
             return
@@ -100,7 +99,7 @@ function CategoryRenameInput({
                 debounceRef.current = null
             }
         }
-    }, [category.name, disabled, draft, flushRename, isSaving])
+    }, [collection.name, disabled, draft, flushRename, isSaving])
 
     return (
         <div className="flex items-center gap-2 p-1">
@@ -133,7 +132,7 @@ function CategoryRenameInput({
                             debounceRef.current = null
                         }
 
-                        setDraft(category.name)
+                        setDraft(collection.name)
                         event.currentTarget.blur()
                     }
                 }}
@@ -145,87 +144,119 @@ function CategoryRenameInput({
     )
 }
 
-export const EventCategorySettingsPanel = memo(
-    function EventCategorySettingsPanel({
+export const EventCollectionSettingsPanel = memo(
+    function EventCollectionSettingsPanel({
         disabled = false,
     }: {
         disabled?: boolean
     }) {
         const activeCalendar = useCalendarStore((state) => state.activeCalendar)
-        const eventCategories = useCalendarStore(
-            (state) => state.eventCategories
+        const eventCollections = useCalendarStore((state) => state.eventCollections)
+        const upsertEventCollectionSnapshot = useCalendarStore(
+            (state) => state.upsertEventCollectionSnapshot
         )
-        const upsertEventCategorySnapshot = useCalendarStore(
-            (state) => state.upsertEventCategorySnapshot
-        )
-        const removeEventCategorySnapshot = useCalendarStore(
-            (state) => state.removeEventCategorySnapshot
+        const removeEventCollectionSnapshot = useCalendarStore(
+            (state) => state.removeEventCollectionSnapshot
         )
         const [isCreateInputOpen, setIsCreateInputOpen] = useState(false)
-        const [newCategoryName, setNewCategoryName] = useState("")
-        const [isCreatingCategory, setIsCreatingCategory] = useState(false)
-        const [busyCategoryIds, setBusyCategoryIds] = useState<string[]>([])
-        const [openCategoryId, setOpenCategoryId] = useState<string | null>(
+        const [newCollectionName, setNewCollectionName] = useState("")
+        const [isCreatingCollection, setIsCreatingCollection] = useState(false)
+        const [busyCollectionIds, setBusyCollectionIds] = useState<string[]>([])
+        const [openCollectionId, setOpenCollectionId] = useState<string | null>(
             null
         )
+        // 공유 모달 상태
+        const [shareDialogCollectionId, setShareDialogCollectionId] = useState<string | null>(null)
+        // collectionId → publish status
+        const [publishStatusMap, setPublishStatusMap] = useState<
+            Map<string, { isPublished: boolean; visibility: "public" | "unlisted" | null; subscriberCount: number; catalogId: string | null; description: string }>
+        >(new Map())
 
-        const canManageCategories = Boolean(
+        const canManageCollections = Boolean(
             !disabled && activeCalendar?.id && activeCalendar.id !== "demo"
         )
-        const busyCategoryIdSet = useMemo(
-            () => new Set(busyCategoryIds),
-            [busyCategoryIds]
+        const busyCollectionIdSet = useMemo(
+            () => new Set(busyCollectionIds),
+            [busyCollectionIds]
         )
 
-        const withBusyCategory = useCallback(
-            async (categoryId: string, work: () => Promise<void>) => {
-                setBusyCategoryIds((current) =>
-                    current.includes(categoryId)
+        // manager/owner인 경우 카테고리별 공유 발행 상태 로드
+        useEffect(() => {
+            if (!canManageCollections || !activeCalendar?.id || eventCollections.length === 0) {
+                return
+            }
+
+            const supabase = createBrowserSupabase()
+            getCollectionPublishStatus(supabase, activeCalendar.id).then((statusList) => {
+                setPublishStatusMap(
+                    new Map(
+                        statusList.map((s) => [
+                            s.collectionId,
+                            {
+                                isPublished: s.isPublished,
+                                visibility:
+                                    s.visibility === "public" || s.visibility === "unlisted"
+                                        ? s.visibility
+                                        : null,
+                                subscriberCount: s.subscriberCount,
+                                catalogId: s.catalogId,
+                                description: s.description,
+                            },
+                        ])
+                    )
+                )
+            })
+        }, [canManageCollections, activeCalendar?.id, eventCollections.length])
+
+        const withBusyCollection = useCallback(
+            async (collectionId: string, work: () => Promise<void>) => {
+                setBusyCollectionIds((current) =>
+                    current.includes(collectionId)
                         ? current
-                        : [...current, categoryId]
+                        : [...current, collectionId]
                 )
 
                 try {
                     await work()
                 } finally {
-                    setBusyCategoryIds((current) =>
-                        current.filter((item) => item !== categoryId)
+                    setBusyCollectionIds((current) =>
+                        current.filter((item) => item !== collectionId)
                     )
                 }
             },
             []
         )
 
-        const createCategory = useCallback(async () => {
-            if (!canManageCategories || !activeCalendar?.id) {
+        const createCollection = useCallback(async () => {
+            if (!canManageCollections || !activeCalendar?.id) {
                 return
             }
 
-            const trimmedName = newCategoryName.trim()
+            const trimmedName = newCollectionName.trim()
 
             if (!trimmedName) {
                 return
             }
 
-            const existingCategory = eventCategories.find(
-                (category) =>
-                    normalizeCategoryName(category.name) ===
-                    normalizeCategoryName(trimmedName)
+            const existingCollection = eventCollections.find(
+                (collection) =>
+                    normalizeCollectionName(collection.name) ===
+                    normalizeCollectionName(trimmedName)
             )
 
-            if (existingCategory) {
+            if (existingCollection) {
                 toast.message("이미 같은 이름의 컬렉션이 있습니다.")
-                setOpenCategoryId(existingCategory.id)
+                setOpenCollectionId(existingCollection.id)
                 setIsCreateInputOpen(false)
-                setNewCategoryName("")
+                setNewCollectionName("")
                 return
             }
 
-            setIsCreatingCategory(true)
+            setIsCreatingCollection(true)
 
             try {
                 const supabase = createBrowserSupabase()
-                const createdCategory = await createCalendarEventCategory(
+                const createdCollection = await createCalendarEventCollection(
                     supabase,
                     activeCalendar.id,
                     {
@@ -236,31 +267,31 @@ export const EventCategorySettingsPanel = memo(
                     }
                 )
 
-                if (!createdCategory) {
-                    throw new Error("Category create failed.")
+                if (!createdCollection) {
+                    throw new Error("Collection create failed.")
                 }
 
-                upsertEventCategorySnapshot(createdCategory)
-                setOpenCategoryId(createdCategory.id)
-                setNewCategoryName("")
+                upsertEventCollectionSnapshot(createdCollection)
+                setOpenCollectionId(createdCollection.id)
+                setNewCollectionName("")
                 setIsCreateInputOpen(false)
             } catch (error) {
-                console.error("Failed to create calendar category:", error)
+                console.error("Failed to create calendar collection:", error)
                 toast.error("컬렉션을 추가하지 못했습니다.")
             } finally {
-                setIsCreatingCategory(false)
+                setIsCreatingCollection(false)
             }
         }, [
             activeCalendar?.id,
-            canManageCategories,
-            eventCategories,
-            newCategoryName,
-            upsertEventCategorySnapshot,
+            canManageCollections,
+            eventCollections,
+            newCollectionName,
+            upsertEventCollectionSnapshot,
         ])
 
-        const renameCategory = useCallback(
-            async (categoryId: string, nextName: string) => {
-                if (!canManageCategories) {
+        const renameCollection = useCallback(
+            async (collectionId: string, nextName: string) => {
+                if (!canManageCollections) {
                     return false
                 }
 
@@ -270,41 +301,41 @@ export const EventCategorySettingsPanel = memo(
                     return false
                 }
 
-                const existingCategory = eventCategories.find(
-                    (category) =>
-                        category.id !== categoryId &&
-                        normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(trimmedName)
+                const existingCollection = eventCollections.find(
+                    (collection) =>
+                        collection.id !== collectionId &&
+                        normalizeCollectionName(collection.name) ===
+                            normalizeCollectionName(trimmedName)
                 )
 
-                if (existingCategory) {
+                if (existingCollection) {
                     toast.message("이미 같은 이름의 컬렉션이 있습니다.")
                     return false
                 }
 
                 let isSuccess = false
 
-                await withBusyCategory(categoryId, async () => {
+                await withBusyCollection(collectionId, async () => {
                     try {
                         const supabase = createBrowserSupabase()
-                        const updatedCategory =
-                            await updateCalendarEventCategory(
+                        const updatedCollection =
+                            await updateCalendarEventCollection(
                                 supabase,
-                                categoryId,
+                                collectionId,
                                 {
                                     name: trimmedName,
                                 }
                             )
 
-                        if (!updatedCategory) {
-                            throw new Error("Category rename failed.")
+                        if (!updatedCollection) {
+                            throw new Error("Collection rename failed.")
                         }
 
-                        upsertEventCategorySnapshot(updatedCategory)
+                        upsertEventCollectionSnapshot(updatedCollection)
                         isSuccess = true
                     } catch (error) {
                         console.error(
-                            "Failed to rename calendar category:",
+                            "Failed to rename calendar collection:",
                             error
                         )
                         toast.error("컬렉션 이름을 변경하지 못했습니다.")
@@ -314,86 +345,89 @@ export const EventCategorySettingsPanel = memo(
                 return isSuccess
             },
             [
-                canManageCategories,
-                eventCategories,
-                upsertEventCategorySnapshot,
-                withBusyCategory,
+                canManageCollections,
+                eventCollections,
+                upsertEventCollectionSnapshot,
+                withBusyCollection,
             ]
         )
 
-        const changeCategoryColor = useCallback(
+        const changeCollectionColor = useCallback(
             async (
-                category: CalendarEventCategory,
-                color: CalendarCategoryColor
+                collection: CalendarEventCollection,
+                color: CalendarCollectionColor
             ) => {
-                if (!canManageCategories || category.options.color === color) {
+                if (
+                    !canManageCollections ||
+                    collection.options.color === color
+                ) {
                     return
                 }
 
-                await withBusyCategory(category.id, async () => {
+                await withBusyCollection(collection.id, async () => {
                     try {
                         const supabase = createBrowserSupabase()
-                        const updatedCategory =
-                            await updateCalendarEventCategory(
+                        const updatedCollection =
+                            await updateCalendarEventCollection(
                                 supabase,
-                                category.id,
+                                collection.id,
                                 {
                                     options: {
-                                        ...category.options,
+                                        ...collection.options,
                                         color,
                                     },
                                 }
                             )
 
-                        if (!updatedCategory) {
-                            throw new Error("Category color update failed.")
+                        if (!updatedCollection) {
+                            throw new Error("Collection color update failed.")
                         }
 
-                        upsertEventCategorySnapshot(updatedCategory)
+                        upsertEventCollectionSnapshot(updatedCollection)
                     } catch (error) {
                         console.error(
-                            "Failed to update calendar category color:",
+                            "Failed to update calendar collection color:",
                             error
                         )
                         toast.error("컬렉션 색상을 변경하지 못했습니다.")
                     }
                 })
             },
-            [canManageCategories, upsertEventCategorySnapshot, withBusyCategory]
+            [canManageCollections, upsertEventCollectionSnapshot, withBusyCollection]
         )
 
-        const removeCategory = useCallback(
-            async (category: CalendarEventCategory) => {
-                if (!canManageCategories) {
+        const removeCollection = useCallback(
+            async (collection: CalendarEventCollection) => {
+                if (!canManageCollections) {
                     return
                 }
 
-                await withBusyCategory(category.id, async () => {
+                await withBusyCollection(collection.id, async () => {
                     try {
                         const supabase = createBrowserSupabase()
-                        const ok = await deleteCalendarEventCategory(
+                        const ok = await deleteCalendarEventCollection(
                             supabase,
-                            category.id
+                            collection.id
                         )
 
                         if (!ok) {
-                            throw new Error("Category delete failed.")
+                            throw new Error("Collection delete failed.")
                         }
 
-                        removeEventCategorySnapshot(category.id)
-                        setOpenCategoryId((current) =>
-                            current === category.id ? null : current
+                        removeEventCollectionSnapshot(collection.id)
+                        setOpenCollectionId((current) =>
+                            current === collection.id ? null : current
                         )
                     } catch (error) {
                         console.error(
-                            "Failed to delete calendar category:",
+                            "Failed to delete calendar collection:",
                             error
                         )
                         toast.error("컬렉션을 삭제하지 못했습니다.")
                     }
                 })
             },
-            [canManageCategories, removeEventCategorySnapshot, withBusyCategory]
+            [canManageCollections, removeEventCollectionSnapshot, withBusyCollection]
         )
 
         return (
@@ -408,27 +442,27 @@ export const EventCategorySettingsPanel = memo(
                             variant="ghost"
                             size="icon-sm"
                             disabled={
-                                !canManageCategories || isCreatingCategory
+                                !canManageCollections || isCreatingCollection
                             }
                             className="-mr-0.75 size-6"
                             onClick={() => {
                                 setIsCreateInputOpen((current) => !current)
                             }}
                         >
-                            {isCreatingCategory ? (
+                            {isCreatingCollection ? (
                                 <Spinner className="size-4" />
                             ) : (
                                 <PlusIcon className="size-4" />
                             )}
                         </Button>
                     )}
-                    {isCreatingCategory && (
+                    {isCreatingCollection && (
                         <Button
                             type="button"
                             variant="ghost"
                             size="icon-sm"
                             disabled={
-                                !canManageCategories || isCreatingCategory
+                                !canManageCollections || isCreatingCollection
                             }
                             className="-mr-0.75 size-6"
                             onClick={() => {
@@ -446,27 +480,27 @@ export const EventCategorySettingsPanel = memo(
                             autoFocus
                             onBlur={() => {
                                 setIsCreateInputOpen(false)
-                                setNewCategoryName("")
+                                setNewCollectionName("")
                             }}
-                            value={newCategoryName}
+                            value={newCollectionName}
                             disabled={
-                                !canManageCategories || isCreatingCategory
+                                !canManageCollections || isCreatingCollection
                             }
                             onChange={(event) => {
-                                setNewCategoryName(event.target.value)
+                                setNewCollectionName(event.target.value)
                             }}
                             onKeyDown={(event) => {
                                 event.stopPropagation()
 
                                 if (event.key === "Enter") {
                                     event.preventDefault()
-                                    void createCategory()
+                                    void createCollection()
                                     return
                                 }
 
                                 if (event.key === "Escape") {
                                     setIsCreateInputOpen(false)
-                                    setNewCategoryName("")
+                                    setNewCollectionName("")
                                 }
                             }}
                             placeholder="새 컬렉션 추가"
@@ -476,17 +510,19 @@ export const EventCategorySettingsPanel = memo(
                 ) : null}
 
                 <div className="max-h-72 overflow-y-auto">
-                    {eventCategories.length > 0 ? (
-                        eventCategories.map((category) => {
-                            const isBusy = busyCategoryIdSet.has(category.id)
+                    {eventCollections.length > 0 ? (
+                        eventCollections.map((collection) => {
+                            const isBusy = busyCollectionIdSet.has(
+                                collection.id
+                            )
 
                             return (
                                 <DropdownMenuSub
-                                    key={category.id}
-                                    open={openCategoryId === category.id}
+                                    key={collection.id}
+                                    open={openCollectionId === collection.id}
                                     onOpenChange={(open) => {
-                                        setOpenCategoryId(
-                                            open ? category.id : null
+                                        setOpenCollectionId(
+                                            open ? collection.id : null
                                         )
                                     }}
                                 >
@@ -503,10 +539,10 @@ export const EventCategorySettingsPanel = memo(
                                         }}
                                         onClick={(event) => {
                                             event.preventDefault()
-                                            setOpenCategoryId((current) =>
-                                                current === category.id
+                                            setOpenCollectionId((current) =>
+                                                current === collection.id
                                                     ? null
-                                                    : category.id
+                                                    : collection.id
                                             )
                                         }}
                                         disabled={isBusy}
@@ -514,13 +550,13 @@ export const EventCategorySettingsPanel = memo(
                                         <span
                                             className={cn(
                                                 "inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 text-sm leading-[normal]",
-                                                getCalendarCategoryLabelClassName(
-                                                    category.options.color
+                                                getCalendarCollectionLabelClassName(
+                                                    collection.options.color
                                                 )
                                             )}
                                         >
                                             <span className="truncate">
-                                                {category.name}
+                                                {collection.name}
                                             </span>
                                         </span>
                                         {isBusy ? (
@@ -532,27 +568,56 @@ export const EventCategorySettingsPanel = memo(
                                     <DropdownMenuPortal>
                                         <DropdownMenuSubContent className="w-64 min-w-64">
                                             <DropdownMenuGroup className="flex flex-col gap-0.5 pb-0.5">
-                                                <CategoryRenameInput
-                                                    key={`${category.id}-${category.updatedAt}`}
-                                                    category={category}
+                                                <CollectionRenameInput
+                                                    key={`${collection.id}-${collection.updatedAt}`}
+                                                    collection={collection}
                                                     disabled={
-                                                        !canManageCategories ||
+                                                        !canManageCollections ||
                                                         isBusy
                                                     }
                                                     isSaving={isBusy}
-                                                    onRename={renameCategory}
+                                                    onRename={renameCollection}
                                                 />
+                                                {/* 공유 설정 진입점 */}
                                                 <DropdownMenuItem
-                                                    className="px-2"
-                                                    variant="destructive"
+                                                    className="gap-2 px-2"
                                                     disabled={
-                                                        !canManageCategories ||
+                                                        !canManageCollections ||
                                                         isBusy
                                                     }
                                                     onSelect={(event) => {
                                                         event.preventDefault()
-                                                        void removeCategory(
-                                                            category
+                                                        setOpenCollectionId(null)
+                                                        setShareDialogCollectionId(
+                                                            collection.id
+                                                        )
+                                                    }}
+                                                >
+                                                    {publishStatusMap.get(
+                                                        collection.id
+                                                    )?.isPublished ? (
+                                                        <>
+                                                            <Settings2Icon className="size-4" />
+                                                            공유 설정
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Globe2Icon className="size-4" />
+                                                            공유하기
+                                                        </>
+                                                    )}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    className="px-2"
+                                                    variant="destructive"
+                                                    disabled={
+                                                        !canManageCollections ||
+                                                        isBusy
+                                                    }
+                                                    onSelect={(event) => {
+                                                        event.preventDefault()
+                                                        void removeCollection(
+                                                            collection
                                                         )
                                                     }}
                                                 >
@@ -562,24 +627,24 @@ export const EventCategorySettingsPanel = memo(
                                             </DropdownMenuGroup>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuRadioGroup
-                                                value={category.options.color}
+                                                value={collection.options.color}
                                                 onValueChange={(value) => {
-                                                    void changeCategoryColor(
-                                                        category,
-                                                        value as CalendarCategoryColor
+                                                    void changeCollectionColor(
+                                                        collection,
+                                                        value as CalendarCollectionColor
                                                     )
                                                 }}
                                             >
                                                 <DropdownMenuLabel className="flex h-8 items-center">
                                                     색상
                                                 </DropdownMenuLabel>
-                                                {calendarCategoryColors.map(
+                                                {calendarCollectionColors.map(
                                                     (color) => (
                                                         <DropdownMenuRadioItem
                                                             key={color}
                                                             value={color}
                                                             disabled={
-                                                                !canManageCategories ||
+                                                                !canManageCollections ||
                                                                 isBusy
                                                             }
                                                             onSelect={(
@@ -592,14 +657,14 @@ export const EventCategorySettingsPanel = memo(
                                                             <span
                                                                 className={cn(
                                                                     "inline-flex size-4.5 items-center gap-1.5 rounded-sm",
-                                                                    getCalendarCategoryPaletteClassName(
+                                                                    getCalendarCollectionPaletteClassName(
                                                                         color
                                                                     )
                                                                 )}
                                                             ></span>
                                                             <span>
                                                                 {
-                                                                    calendarCategoryColorLabels[
+                                                                    calendarCollectionColorLabels[
                                                                         color
                                                                     ]
                                                                 }
@@ -619,6 +684,59 @@ export const EventCategorySettingsPanel = memo(
                         </div>
                     )}
                 </div>
+
+                {/* 공유 설정 모달 — DropdownMenu가 닫힌 뒤 마운트됨 */}
+                {shareDialogCollectionId && (() => {
+                    const target = eventCollections.find((c) => c.id === shareDialogCollectionId)
+                    if (!target) return null
+                    const status = publishStatusMap.get(shareDialogCollectionId)
+                    return (
+                        <CollectionShareDialog
+                            key={shareDialogCollectionId}
+                            open
+                            onOpenChange={(open) => {
+                                if (!open) setShareDialogCollectionId(null)
+                            }}
+                            collection={{
+                                id: shareDialogCollectionId,
+                                name: target.name,
+                                description: status?.description,
+                            }}
+                            isPublished={status?.isPublished ?? false}
+                            currentVisibility={status?.visibility}
+                            subscriberCount={status?.subscriberCount}
+                            onPublished={(info) => {
+                                setPublishStatusMap((prev) => {
+                                    const next = new Map(prev)
+                                    next.set(shareDialogCollectionId, {
+                                        isPublished: true,
+                                        visibility: info.visibility,
+                                        subscriberCount: prev.get(shareDialogCollectionId)?.subscriberCount ?? 0,
+                                        catalogId: info.catalogId,
+                                        description: prev.get(shareDialogCollectionId)?.description ?? "",
+                                    })
+                                    return next
+                                })
+                            }}
+                            onUnpublished={() => {
+                                setPublishStatusMap((prev) => {
+                                    const next = new Map(prev)
+                                    next.set(shareDialogCollectionId, {
+                                        isPublished: false,
+                                        visibility: null,
+                                        subscriberCount: 0,
+                                        catalogId: null,
+                                        description: "",
+                                    })
+                                    return next
+                                })
+                            }}
+                            onCollectionRenamed={() => {
+                                // store snapshot이 source of truth — 별도 처리 불필요
+                            }}
+                        />
+                    )
+                })()}
             </div>
         )
     }

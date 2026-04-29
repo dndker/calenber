@@ -3,6 +3,7 @@
 import {
     isCalendarEventUuid,
     isGeneratedSubscriptionEventId,
+    parseSubscriptionCompositeEventId,
 } from "@/lib/calendar/event-id"
 import { getEventById } from "@/lib/calendar/queries"
 import { expandCalendarEventsForRange } from "@/lib/calendar/recurrence"
@@ -57,6 +58,7 @@ export function useCalendarEventDetail({
     occurrenceStart,
     initialEvent = null,
 }: UseCalendarEventDetailOptions) {
+    const activeCalendarId = useCalendarStore((s) => s.activeCalendar?.id)
     const { visibleSubscriptions } = useCalendarSubscriptions()
     const storeEvent = useCalendarStore((state) =>
         eventId ? state.events.find((event) => event.id === eventId) : undefined
@@ -143,9 +145,15 @@ export function useCalendarEventDetail({
 
         return null
     }, [eventId, visibleSubscriptions])
+    const isSubscriptionComposite = Boolean(
+        eventId && parseSubscriptionCompositeEventId(eventId)
+    )
+
     const shouldFetch = Boolean(
         eventId &&
-        isCalendarEventUuid(eventId) &&
+        (isCalendarEventUuid(eventId) ||
+            (isSubscriptionComposite &&
+                Boolean(activeCalendarId && activeCalendarId !== "demo"))) &&
         !storeEvent &&
         !resolvedViewEvent &&
         !resolvedInitialEvent
@@ -251,6 +259,7 @@ export function useCalendarEventDetail({
 
         void getEventById(supabase, eventId, {
             silentMissing: true,
+            viewerCalendarId: activeCalendarId,
         }).then((nextEvent) => {
             if (cancelled) {
                 return
@@ -285,7 +294,7 @@ export function useCalendarEventDetail({
             cancelled = true
             clearTimeout(alignId)
         }
-    }, [eventId, shouldFetch])
+    }, [eventId, shouldFetch, activeCalendarId])
 
     const isLoading =
         shouldFetch &&

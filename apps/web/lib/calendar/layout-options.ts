@@ -39,6 +39,21 @@ export const DEFAULT_CALENDAR_LAYOUT_OPTIONS: CalendarLayoutOptions = {
     hideWeekendColumns: false,
 }
 
+/** `hideWeekendColumns`가 켜진 월 그리드에서 주 배열에서 토·일 칸을 제거한다. */
+export function filterCalendarWeekVisibleDays(
+    week: Date[],
+    hideWeekendColumns: boolean
+): Date[] {
+    if (!hideWeekendColumns) {
+        return week
+    }
+
+    return week.filter((day) => {
+        const weekday = day.getDay()
+        return weekday !== 0 && weekday !== 6
+    })
+}
+
 export function normalizeCalendarLayoutOptions(
     value: unknown
 ): CalendarLayoutOptions {

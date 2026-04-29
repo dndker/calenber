@@ -38,7 +38,7 @@ export const eventFormSchema = z
         allDay: z.boolean().optional(),
 
         timezone: z.string().min(1),
-        categoryNames: z.array(z.string().trim().min(1)).default([]),
+        collectionNames: z.array(z.string().trim().min(1)).default([]),
         participantIds: z.array(z.string()).default([]),
 
         recurrence: recurrenceSchema.optional(),

@@ -61,5 +61,17 @@ alwaysApply: true
    - 전체 프로젝트와 틀어지지 않게 작업
    - 항상 렌더링과 속도 인사이트 로딩 속도 신경써서 작업
 
+10. **i18n 키 네이밍 규칙**
+    - 번역 키는 `domain.section.meaning` 3단계 **camelCase** 구조로 작성한다.
+    - `domain`: 기능 영역 — `common`, `auth`, `calendar`, `event`, `settings`
+    - `section`: 도메인 내 구분 — `actions`, `form`, `views`, `navigation`
+    - `meaning`: 텍스트 의미 — `title`, `placeholder`, `label`, `description`
+    - 4단계 이상 중첩 금지: `event.form.title.placeholder` (X) → `event.form.titlePlaceholder` (O)
+    - snake_case 금지: `event.form.title_placeholder` (X)
+    - 번역 파일: `apps/web/messages/ko.json`, `apps/web/messages/en.json` — 두 파일의 키 구조는 항상 동일하게 유지
+    - ko.json에 키를 추가하면 en.json에도 동시에 추가한다
+    - 클라이언트: `const t = useTranslations("event.form")` → `t("titlePlaceholder")`
+    - 서버: `const t = await getTranslations("event.form")` → `t("titlePlaceholder")`
+
 
 

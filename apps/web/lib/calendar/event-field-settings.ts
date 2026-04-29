@@ -26,7 +26,7 @@ export const calendarEventFieldDefinitions: {
         description: "시작일과 종료일",
     },
     {
-        id: "categories",
+        id: "collections",
         label: "컬렉션",
         description: "분류와 필터 기준",
     },
@@ -69,7 +69,7 @@ export const calendarEventFieldDefinitions: {
 
 const defaultVisibleFieldIds = new Set<CalendarEventFieldId>([
     "schedule",
-    "categories",
+    "collections",
 ])
 
 const defaultItems = calendarEventFieldDefinitions.map((field) => ({

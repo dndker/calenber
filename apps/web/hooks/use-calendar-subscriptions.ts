@@ -72,8 +72,11 @@ export function useCalendarSubscriptions() {
             return false
         }
 
-        installSubscriptionSnapshot(catalogUuid)
         try {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser()
+
             const { error } = await supabase
                 .from("calendar_subscription_installs")
                 .upsert(
@@ -81,23 +84,17 @@ export function useCalendarSubscriptions() {
                         calendar_id: activeCalendarId,
                         subscription_catalog_id: catalogUuid,
                         is_visible: true,
+                        ...(user?.id ? { created_by: user.id } : {}),
                     },
                     { onConflict: "calendar_id,subscription_catalog_id" }
                 )
             if (error) {
                 throw error
             }
+            /** DB 설치 행이 커밋된 뒤에만 스토어 반영 → RPC가 설치 여부와 일치 */
+            installSubscriptionSnapshot(catalogUuid)
             return true
         } catch {
-            setSubscriptionState({
-                installedSubscriptionIds:
-                    subscriptionState.installedSubscriptionIds.filter(
-                        (id) => id !== catalogUuid
-                    ),
-                hiddenSubscriptionIds: subscriptionState.hiddenSubscriptionIds.filter(
-                    (id) => id !== catalogUuid
-                ),
-            })
             return false
         }
     }

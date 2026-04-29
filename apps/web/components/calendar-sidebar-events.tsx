@@ -2,13 +2,13 @@ import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
 import { useDeleteEvent } from "@/hooks/use-delete-event"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
+import { getCalendarCollectionLabelClassName } from "@/lib/calendar/collection-color"
 import {
     formatCalendarEventRecurrenceOrDateLabel,
     formatCalendarEventScheduleLabelFromEvent,
 } from "@/lib/calendar/event-date-format"
 import { orderCalendarEventFieldIds } from "@/lib/calendar/event-field-settings"
-import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
+import { isSubscriptionStyleEventId } from "@/lib/calendar/event-id"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import { getKoreanPublicHolidaySubscriptionEventById } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
@@ -111,7 +111,7 @@ function getEventContentPreview(event: CalendarEvent) {
 type HoverCardPropertyItem = {
     id: Extract<
         CalendarEventFieldId,
-        "schedule" | "recurrence" | "status" | "categories"
+        "schedule" | "recurrence" | "status" | "collections"
     >
     content: React.ReactNode
 }
@@ -120,11 +120,11 @@ const hoverCardFieldIds: HoverCardPropertyItem["id"][] = [
     "schedule",
     "recurrence",
     "status",
-    "categories",
+    "collections",
 ]
 const subscriptionEventVisibleHoverCardFieldIds = new Set<
     HoverCardPropertyItem["id"]
->(["schedule", "categories"])
+>(["schedule", "collections"])
 
 export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
     const [isOpen, setIsOpen] = useSidebarCollapse("favorites")
@@ -278,9 +278,9 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
             event.start,
         ]
     )
-    const categoryName = event.category?.name?.trim() || null
-    const categoryColor = event.category?.options.color || null
-    const isSubscriptionEvent = isGeneratedSubscriptionEventId(event.id)
+    const collectionName = event.primaryCollection?.name?.trim() || null
+    const collectionColor = event.primaryCollection?.options.color || null
+    const isSubscriptionEvent = isSubscriptionStyleEventId(event.id)
     const handleMoveToEventDate = useCallback(() => {
         setSelectedDate(navigationDate)
         setViewportDate(navigationDate)
@@ -351,10 +351,10 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                 },
             ],
             [
-                "categories",
+                "collections",
                 {
-                    id: "categories",
-                    content: categoryName ? (
+                    id: "collections",
+                    content: collectionName ? (
                         <div className="flex gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <TagsIcon className="size-3.5" />
@@ -362,12 +362,12 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                             </span>
                             <span className="flex-1 text-foreground">
                                 <span
-                                    className={getCalendarCategoryLabelClassName(
-                                        categoryColor,
+                                    className={getCalendarCollectionLabelClassName(
+                                        collectionColor,
                                         "inline-flex h-5 items-center gap-1.5 rounded-md px-1.5 text-xs"
                                     )}
                                 >
-                                    {categoryName}
+                                    {collectionName}
                                 </span>
                             </span>
                         </div>
@@ -388,8 +388,8 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                 Boolean(property?.content)
             )
     }, [
-        categoryColor,
-        categoryName,
+        collectionColor,
+        collectionName,
         event,
         eventFieldSettings,
         isSubscriptionEvent,

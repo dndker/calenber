@@ -1,16 +1,16 @@
-import { EventFormCategoryChipsField } from "@/components/calendar/event-form-category-field"
+import { EventFormCollectionChipsField } from "@/components/calendar/event-form-collection-field"
 import { EventFormStatusCheckListField } from "@/components/calendar/event-form-status-field"
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useEventQuickPropertySave } from "@/hooks/use-event-quick-property-save"
 import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import {
-    getCalendarCategoryDotClassName,
-    getCalendarCategoryEventClassName,
-    getCalendarCategoryEventHoverClassName,
-} from "@/lib/calendar/category-color"
+    getCalendarCollectionDotClassName,
+    getCalendarCollectionEventClassName,
+    getCalendarCollectionEventHoverClassName,
+} from "@/lib/calendar/collection-color"
 import { normalizeNames } from "@/lib/calendar/event-form-names"
-import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
+import { isSubscriptionStyleEventId } from "@/lib/calendar/event-id"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/lib/calendar/recurrence"
 import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
+import { shallow } from "@/store/createSSRStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
@@ -176,29 +177,40 @@ export const EventItem = memo(
         const sourceEventId = getCalendarEventSourceId(event)
 
         const user = useAuthStore((s) => s.user)
-        const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-        const activeCalendarMembership = useCalendarStore(
-            (s) => s.activeCalendarMembership
+        const {
+            activeCalendar,
+            activeCalendarMembership,
+            favoriteMeta,
+            eventLayout,
+            calendarTz,
+            setActiveEventId,
+            setViewEvent,
+            toggleEventFavorite,
+            isSeriesHover,
+            setHoveredSeriesEventId,
+            startDrag,
+            moveDrag,
+            endDrag,
+        } = useCalendarStore(
+            (s) => ({
+                activeCalendar: s.activeCalendar,
+                activeCalendarMembership: s.activeCalendarMembership,
+                favoriteMeta: sourceEventId
+                    ? (s.favoriteEventMap[sourceEventId] ?? null)
+                    : null,
+                eventLayout: s.eventLayout,
+                calendarTz: s.calendarTimezone,
+                setActiveEventId: s.setActiveEventId,
+                setViewEvent: s.setViewEvent,
+                toggleEventFavorite: s.toggleEventFavorite,
+                isSeriesHover: s.hoveredSeriesEventId === sourceEventId,
+                setHoveredSeriesEventId: s.setHoveredSeriesEventId,
+                startDrag: s.startDrag,
+                moveDrag: s.moveDrag,
+                endDrag: s.endDrag,
+            }),
+            shallow
         )
-        const favoriteMeta = useCalendarStore((s) =>
-            sourceEventId ? (s.favoriteEventMap[sourceEventId] ?? null) : null
-        )
-        const eventLayout = useCalendarStore((s) => s.eventLayout)
-        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-        const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
-        const setViewEvent = useCalendarStore((s) => s.setViewEvent)
-        const toggleEventFavorite = useCalendarStore(
-            (s) => s.toggleEventFavorite
-        )
-        const isSeriesHover = useCalendarStore(
-            (s) => s.hoveredSeriesEventId === sourceEventId
-        )
-        const setHoveredSeriesEventId = useCalendarStore(
-            (s) => s.setHoveredSeriesEventId
-        )
-        const startDrag = useCalendarStore((s) => s.startDrag)
-        const moveDrag = useCalendarStore((s) => s.moveDrag)
-        const endDrag = useCalendarStore((s) => s.endDrag)
         const dragIndexRef = useRef(0)
         const resizeFrameRef = useRef<number | null>(null)
         const lastResizeDateRef = useRef<string | null>(null)
@@ -211,26 +223,24 @@ export const EventItem = memo(
 
         const thisRenderId = getCalendarEventRenderId(event)
         const isGeneratedSubscriptionEvent =
-            isGeneratedSubscriptionEventId(sourceEventId)
-        const isResizeTarget = useCalendarStore((s) => {
-            const mode = s.drag.mode
-            if (mode !== "resize-start" && mode !== "resize-end") {
-                return false
-            }
-            return s.drag.renderId === thisRenderId
-        }, Object.is)
+            isSubscriptionStyleEventId(sourceEventId)
+        const { isResizeTarget, activeResizeEdge } = useCalendarStore(
+            (s) => {
+                const mode = s.drag.mode
+                if (mode !== "resize-start" && mode !== "resize-end") {
+                    return { isResizeTarget: false, activeResizeEdge: null }
+                }
+                if (s.drag.renderId !== thisRenderId) {
+                    return { isResizeTarget: false, activeResizeEdge: null }
+                }
+                return {
+                    isResizeTarget: true,
+                    activeResizeEdge: s.drag.resizeActiveEdge,
+                }
+            },
+            shallow
+        )
         const isResizingThis = !inline && !overlay && isResizeTarget
-
-        const activeResizeEdge = useCalendarStore((s) => {
-            const mode = s.drag.mode
-            if (mode !== "resize-start" && mode !== "resize-end") {
-                return null
-            }
-            if (s.drag.renderId !== thisRenderId) {
-                return null
-            }
-            return s.drag.resizeActiveEdge
-        }, Object.is)
 
         const pos = getEventPosition(
             startIndex,
@@ -271,9 +281,9 @@ export const EventItem = memo(
         /**
          * 루트 컨텍스트 메뉴 전체 표시 모드.
          * `main`: 즐겨찾기·속성 편집(2depth 서브에 상태/카테고리)·삭제
-         * `status` | `category`: 1depth 전체가 해당 설정 폼만 (노션식 전환)
+         * `status` | `collection`: 1depth 전체가 해당 설정 폼만 (노션식 전환)
          */
-        type EventCtxRootView = "main" | "status" | "category"
+        type EventCtxRootView = "main" | "status" | "collection"
         const [ctxRootView, setCtxRootView] = useState<EventCtxRootView>("main")
         const [isCtxOpen, setIsCtxOpen] = useState(false)
         const [isFavoritePending, setIsFavoritePending] = useState(false)
@@ -294,24 +304,24 @@ export const EventItem = memo(
 
         const {
             saveStatus,
-            saveCategoryNames,
-            getDraftCategoryColor,
-            eventCategories,
+            saveCollectionNames,
+            getDraftCollectionColor,
+            eventCollections,
         } = useEventQuickPropertySave({
             sourceEventId,
             disabled: !canEdit,
         })
-        const propertyCategoryNames = useMemo(
+        const propertyCollectionNames = useMemo(
             () =>
                 normalizeNames(
-                    resolvedSourceEvent.categories.map(
-                        (category) => category.name
+                    resolvedSourceEvent.collections.map(
+                        (collection) => collection.name
                     )
                 ),
-            [resolvedSourceEvent.categories]
+            [resolvedSourceEvent.collections]
         )
-        const [categoryDraft, setCategoryDraft] = useState<string[]>(
-            propertyCategoryNames
+        const [collectionDraft, setCollectionDraft] = useState<string[]>(
+            propertyCollectionNames
         )
 
         /**
@@ -320,15 +330,15 @@ export const EventItem = memo(
          * 편집 중에는 로컬 draft를 유지하고, 카테고리 뷰 진입 시점/대상 이벤트 변경 시에만 초기화한다.
          */
         useEffect(() => {
-            if (ctxRootView === "category") {
-                setCategoryDraft(propertyCategoryNames)
+            if (ctxRootView === "collection") {
+                setCollectionDraft(propertyCollectionNames)
             }
-            // intentionally exclude propertyCategoryNames to keep inline editor stable while toggling
+            // intentionally exclude propertyCollectionNames to keep inline editor stable while toggling
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [ctxRootView])
 
         useEffect(() => {
-            setCategoryDraft(propertyCategoryNames)
+            setCollectionDraft(propertyCollectionNames)
             // source event changed (different item/occurrence) when id changes.
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [sourceEventId])
@@ -562,45 +572,46 @@ export const EventItem = memo(
         const eventMembers = useEventMembers(sourceEventId, user?.id)
         const isCompleted = event.status === "completed"
         const isCancelled = event.status === "cancelled"
-        const primaryCategoryColor =
-            event.categories[0]?.options.color ?? event.category?.options.color
-        const displayPrimaryCategoryColor = useMemo(() => {
-            // 컨텍스트 메뉴 카테고리 편집 중에는 로컬 draft 기준 색을 우선 사용해
+        const primaryCollectionColor =
+            event.collections[0]?.options.color ??
+            event.primaryCollection?.options.color
+        const displayPrimaryCollectionColor = useMemo(() => {
+            // 컨텍스트 메뉴 컬렉션 편집 중에는 로컬 draft 기준 색을 우선 사용해
             // 실시간/낙관적 동기화 중간 프레임의 배경색 깜빡임을 줄인다.
-            if (ctxRootView !== "category" || !isCtxOpen) {
-                return primaryCategoryColor
+            if (ctxRootView !== "collection" || !isCtxOpen) {
+                return primaryCollectionColor
             }
 
-            const firstCategoryName = normalizeNames(categoryDraft)[0]
+            const firstCollectionName = normalizeNames(collectionDraft)[0]
 
-            if (!firstCategoryName) {
+            if (!firstCollectionName) {
                 return undefined
             }
 
-            const matchedCategory =
-                eventCategories.find(
-                    (category) =>
-                        normalizeNames([category.name])[0] ===
-                        normalizeNames([firstCategoryName])[0]
+            const matchedCollection =
+                eventCollections.find(
+                    (collection) =>
+                        normalizeNames([collection.name])[0] ===
+                        normalizeNames([firstCollectionName])[0]
                 ) ?? null
 
             return (
-                matchedCategory?.options.color ??
-                getDraftCategoryColor(firstCategoryName)
+                matchedCollection?.options.color ??
+                getDraftCollectionColor(firstCollectionName)
             )
         }, [
-            categoryDraft,
+            collectionDraft,
             ctxRootView,
-            eventCategories,
-            getDraftCategoryColor,
+            eventCollections,
+            getDraftCollectionColor,
             isCtxOpen,
-            primaryCategoryColor,
+            primaryCollectionColor,
         ])
         const resolvedSeriesHoverClassName =
             isSeriesHover && !isDragging && event.allDay
-                ? displayPrimaryCategoryColor
-                    ? getCalendarCategoryEventHoverClassName(
-                          displayPrimaryCategoryColor
+                ? displayPrimaryCollectionColor
+                    ? getCalendarCollectionEventHoverClassName(
+                          displayPrimaryCollectionColor
                       )
                     : "bg-muted text-foreground dark:bg-input/50"
                 : undefined
@@ -678,19 +689,19 @@ export const EventItem = memo(
                                     "text-muted-foreground line-through",
                                 eventMembers.length > 0 && "shadow-lg/7",
                                 eventRadiusClass,
-                                // primaryCategoryColor && "pl-2.25",
-                                displayPrimaryCategoryColor &&
+                                // primaryCollectionColor && "pl-2.25",
+                                displayPrimaryCollectionColor &&
                                     event.allDay &&
-                                    getCalendarCategoryEventClassName(
-                                        displayPrimaryCategoryColor
+                                    getCalendarCollectionEventClassName(
+                                        displayPrimaryCollectionColor
                                     ),
                                 resolvedSeriesHoverClassName,
                                 (isResizingThis || isCtxOpen) && "bg-muted",
                                 (isResizingThis || isCtxOpen) &&
                                     event.allDay &&
-                                    displayPrimaryCategoryColor &&
-                                    getCalendarCategoryEventHoverClassName(
-                                        displayPrimaryCategoryColor
+                                    displayPrimaryCollectionColor &&
+                                    getCalendarCollectionEventHoverClassName(
+                                        displayPrimaryCollectionColor
                                     )
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
@@ -743,14 +754,14 @@ export const EventItem = memo(
                                 <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
 
-                            {displayPrimaryCategoryColor &&
+                            {displayPrimaryCollectionColor &&
                                 !event.allDay &&
                                 !continuesFromPrevWeek && (
                                     <span
                                         className={cn(
                                             "absolute top-1/2 -left-1.25 inline-block h-[calc(100%-2.5px)] w-0.5 -translate-y-1/2 rounded-lg",
-                                            getCalendarCategoryDotClassName(
-                                                displayPrimaryCategoryColor
+                                            getCalendarCollectionDotClassName(
+                                                displayPrimaryCollectionColor
                                             )
                                         )}
                                     ></span>
@@ -825,7 +836,7 @@ export const EventItem = memo(
                                                 disabled={!canEdit}
                                                 onSelect={(event) => {
                                                     event.preventDefault()
-                                                    setCtxRootView("category")
+                                                    setCtxRootView("collection")
                                                 }}
                                             >
                                                 <TagsIcon />
@@ -865,16 +876,16 @@ export const EventItem = memo(
                         </div>
                     ) : null}
 
-                    {ctxRootView === "category" ? (
+                    {ctxRootView === "collection" ? (
                         <ContextMenuGroup className="p-1">
-                            <EventFormCategoryChipsField
-                                value={categoryDraft}
+                            <EventFormCollectionChipsField
+                                value={collectionDraft}
                                 onChange={(next) => {
-                                    setCategoryDraft(next)
-                                    void saveCategoryNames(next)
+                                    setCollectionDraft(next)
+                                    void saveCollectionNames(next)
                                 }}
-                                eventCategories={eventCategories}
-                                getDraftCategoryColor={getDraftCategoryColor}
+                                eventCollections={eventCollections}
+                                getDraftCollectionColor={getDraftCollectionColor}
                                 listVariant="inline"
                                 disabled={!canEdit}
                             />
@@ -937,20 +948,17 @@ export const EventItem = memo(
             prev.event.start === next.event.start &&
             prev.event.end === next.event.end &&
             prev.event.title === next.event.title &&
-            prev.event.categories[0]?.options.color ===
-                next.event.categories[0]?.options.color &&
-            prev.event.category?.options.color ===
-                next.event.category?.options.color &&
+            prev.event.collections[0]?.options.color ===
+                next.event.collections[0]?.options.color &&
+            prev.event.primaryCollection?.options.color ===
+                next.event.primaryCollection?.options.color &&
             prev.event.recurrenceInstance?.key ===
                 next.event.recurrenceInstance?.key &&
             prev.event.recurrenceInstance?.sourceStart ===
                 next.event.recurrenceInstance?.sourceStart &&
             prev.event.recurrenceInstance?.sourceEnd ===
                 next.event.recurrenceInstance?.sourceEnd &&
-            areStringArraysEqual(
-                prev.event.categoryIds,
-                next.event.categoryIds
-            ) &&
+            areStringArraysEqual(prev.event.collectionIds, next.event.collectionIds) &&
             prev.event.status === next.event.status &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&

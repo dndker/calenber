@@ -1,4 +1,4 @@
-import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
+import type { CalendarCollectionColor } from "@/lib/calendar/collection-color"
 import type {
     CalendarMembership,
     CalendarSummary,
@@ -55,13 +55,13 @@ export type CalendarEventRecurrenceInstance = {
     occurrenceEnd: number
 }
 
-export type CalendarEventCategory = {
+export type CalendarEventCollection = {
     id: string
     calendarId: string
     name: string
     options: {
         visibleByDefault: boolean
-        color?: CalendarCategoryColor
+        color?: CalendarCollectionColor
     }
     createdById: string | null
     createdAt: number
@@ -71,7 +71,7 @@ export type CalendarEventCategory = {
 export const calendarEventFieldIds = [
     "schedule",
     "participants",
-    "categories",
+    "collections",
     "status",
     "recurrence",
     "exceptions",
@@ -108,14 +108,14 @@ export type CalendarEventStatus = (typeof eventStatus)[number]
 
 export type CalendarEventFilterState = {
     excludedStatuses: CalendarEventStatus[]
-    excludedCategoryIds: string[]
-    excludedUncategorized: boolean
+    excludedCollectionIds: string[]
+    excludedWithoutCollection: boolean
 }
 
 export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
 export type CalendarSubscriptionSourceType =
     | "system_holiday"
-    | "shared_category"
+    | "shared_collection"
     | "custom"
 
 export type CalendarSubscriptionCalendarInfo = {
@@ -133,7 +133,7 @@ export type CalendarSubscriptionDefinition = {
     ownerName: string
     verified: boolean
     tags: string[]
-    categoryColor?: CalendarCategoryColor
+    collectionColor?: CalendarCollectionColor
     sourceType?: CalendarSubscriptionSourceType
     status?: "active" | "source_deleted" | "archived"
     sourceDeletedAt?: string | null
@@ -141,6 +141,8 @@ export type CalendarSubscriptionDefinition = {
     providerName?: string | null
     calendar?: CalendarSubscriptionCalendarInfo | null
     config?: Record<string, unknown>
+    /** 구독 공개 범위. shared_collection 타입에서만 의미 있음. */
+    visibility?: "public" | "unlisted" | null
 }
 
 export type CalendarSubscriptionState = {
@@ -168,10 +170,10 @@ export type CalendarEvent = {
     end: number
     allDay?: boolean
     timezone: string
-    categoryIds: string[]
-    categories: CalendarEventCategory[]
-    categoryId: string | null
-    category: CalendarEventCategory | null
+    collectionIds: string[]
+    collections: CalendarEventCollection[]
+    primaryCollectionId: string | null
+    primaryCollection: CalendarEventCollection | null
     recurrence?: CalendarEventRecurrence
     recurrenceInstance?: CalendarEventRecurrenceInstance
     exceptions?: string[]
@@ -276,7 +278,7 @@ export type CalendarStoreState = {
     isWorkspacePresenceLoading: boolean
     workspaceCursor: CalendarWorkspaceCursor | null
     workspacePresence: CalendarWorkspacePresenceMember[]
-    eventCategories: CalendarEventCategory[]
+    eventCollections: CalendarEventCollection[]
     eventFilters: CalendarEventFilterState
     subscriptionCatalogs: CalendarSubscriptionCatalogItem[]
     subscriptionState: CalendarSubscriptionState
@@ -294,10 +296,10 @@ export type CalendarStoreState = {
     setIsWorkspacePresenceLoading: (isLoading: boolean) => void
     setWorkspaceCursor: (cursor: CalendarWorkspaceCursor | null) => void
     setWorkspacePresence: (members: CalendarWorkspacePresenceMember[]) => void
-    setEventCategories: (categories: CalendarEventCategory[]) => void
+    setEventCollections: (collections: CalendarEventCollection[]) => void
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
-    toggleEventCategoryFilter: (categoryId: string) => void
-    setExcludedUncategorizedFilter: (excluded: boolean) => void
+    toggleEventCollectionFilter: (collectionId: string) => void
+    setExcludedWithoutCollectionFilter: (excluded: boolean) => void
     setSubscriptionState: (state: CalendarSubscriptionState) => void
     setSubscriptionCatalogs: (
         catalogs: CalendarSubscriptionCatalogItem[]
@@ -307,10 +309,10 @@ export type CalendarStoreState = {
     toggleSubscriptionVisibility: (subscriptionId: string) => void
     resetEventFilters: () => void
     setHoveredSeriesEventId: (eventId: string | null) => void
-    upsertEventCategorySnapshot: (category: CalendarEventCategory) => void
-    removeEventCategorySnapshot: (categoryId: string) => void
-    setEventCategoryDefaultVisibility: (
-        categoryId: string,
+    upsertEventCollectionSnapshot: (collection: CalendarEventCollection) => void
+    removeEventCollectionSnapshot: (collectionId: string) => void
+    setEventCollectionDefaultVisibility: (
+        collectionId: string,
         visibleByDefault: boolean
     ) => void
     setIsCalendarLoading: (value: boolean) => void

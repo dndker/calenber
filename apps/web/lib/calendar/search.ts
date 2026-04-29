@@ -9,7 +9,8 @@ export type CalendarSearchFilters = {
     authorIds?: string[]
     participantIds?: string[]
     statuses?: CalendarEventStatus[]
-    categories?: string[]
+    /** 표시 컬렉션 이름으로 필터 */
+    collectionNames?: string[]
 } & Record<string, string[] | undefined>
 
 export type CalendarSearchAvailableFilters = {
@@ -23,7 +24,7 @@ export type CalendarSearchAvailableFilters = {
         label: string
         count: number
     }[]
-    categories: {
+    collections: {
         value: string
         label: string
         count: number
@@ -223,14 +224,14 @@ function matchesFilters(event: CalendarEvent, filters: CalendarSearchFilters) {
         return false
     }
 
-    if (filters.categories?.length) {
-        const categoryNames = new Set(
-            event.categories.map((category) => category.name)
+    if (filters.collectionNames?.length) {
+        const collectionNameSet = new Set(
+            event.collections.map((collection) => collection.name)
         )
 
         if (
-            !filters.categories.some((categoryName) =>
-                categoryNames.has(categoryName)
+            !filters.collectionNames.some((name) =>
+                collectionNameSet.has(name)
             )
         ) {
             return false
@@ -691,7 +692,7 @@ export function getCalendarSearchAvailableFilters(
             count: number
         }
     >()
-    const categoryMap = new Map<
+    const collectionFacetMap = new Map<
         string,
         {
             value: string
@@ -727,13 +728,13 @@ export function getCalendarSearchAvailableFilters(
             count: (currentStatus?.count ?? 0) + 1,
         })
 
-        for (const category of event.categories) {
-            const currentCategory = categoryMap.get(category.name)
+        for (const collection of event.collections) {
+            const current = collectionFacetMap.get(collection.name)
 
-            categoryMap.set(category.name, {
-                value: category.name,
-                label: category.name,
-                count: (currentCategory?.count ?? 0) + 1,
+            collectionFacetMap.set(collection.name, {
+                value: collection.name,
+                label: collection.name,
+                count: (current?.count ?? 0) + 1,
             })
         }
 
@@ -755,7 +756,7 @@ export function getCalendarSearchAvailableFilters(
         statuses: Array.from(statusMap.values()).sort((a, b) =>
             a.label.localeCompare(b.label)
         ),
-        categories: Array.from(categoryMap.values()).sort((a, b) =>
+        collections: Array.from(collectionFacetMap.values()).sort((a, b) =>
             a.label.localeCompare(b.label)
         ),
         participants: Array.from(participantMap.values()).sort((a, b) =>

@@ -8,7 +8,6 @@ import { NavUser } from "@/components/nav-user"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { eventStatus, eventStatusLabel } from "@/store/calendar-store.types"
 import { shallow } from "@/store/createSSRStore"
-import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Sidebar,
@@ -25,40 +24,30 @@ import { Settings } from "lucide-react"
 import { CalendarSubscriptionManager } from "./calendar-subscription-manager"
 import { CalendarSidebarEvents } from "./calendar-sidebar-events"
 
-const fallbackUser = {
-    user: {
-        id: "1",
-        name: "woong",
-        email: "example@gmail.com",
-        avatarUrl: "/icons/square/ios/144.png",
-    },
-}
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-    const user = useAuthStore((s) => s.user)
     const { openSettings } = useSettingsModal()
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
     const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
     const toggleEventStatusFilter = useCalendarStore(
         (s) => s.toggleEventStatusFilter
     )
-    const toggleEventCategoryFilter = useCalendarStore(
-        (s) => s.toggleEventCategoryFilter
+    const toggleEventCollectionFilter = useCalendarStore(
+        (s) => s.toggleEventCollectionFilter
     )
-    const setExcludedUncategorizedFilter = useCalendarStore(
-        (s) => s.setExcludedUncategorizedFilter
+    const setExcludedWithoutCollectionFilter = useCalendarStore(
+        (s) => s.setExcludedWithoutCollectionFilter
     )
 
     const excludedStatusSet = React.useMemo(
         () => new Set(eventFilters.excludedStatuses),
         [eventFilters.excludedStatuses]
     )
-    const excludedCategoryIdSet = React.useMemo(
-        () => new Set(eventFilters.excludedCategoryIds),
-        [eventFilters.excludedCategoryIds]
+    const excludedCollectionIdSet = React.useMemo(
+        () => new Set(eventFilters.excludedCollectionIds),
+        [eventFilters.excludedCollectionIds]
     )
 
     const filterGroups = React.useMemo(
@@ -73,27 +62,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 })),
             },
             {
-                id: "category",
+                id: "collection",
                 name: "컬렉션",
                 items: [
                     {
-                        id: "__uncategorized__",
+                        id: "__without_collection__",
                         label: "컬렉션 없음",
-                        checked: !eventFilters.excludedUncategorized,
+                        checked: !eventFilters.excludedWithoutCollection,
                     },
-                    ...eventCategories.map((category) => ({
-                        id: category.id,
-                        label: category.name,
-                        color: category.options.color,
-                        checked: !excludedCategoryIdSet.has(category.id),
+                    ...eventCollections.map((collection) => ({
+                        id: collection.id,
+                        label: collection.name,
+                        color: collection.options.color,
+                        checked: !excludedCollectionIdSet.has(collection.id),
                     })),
                 ],
             },
         ],
         [
-            eventCategories,
-            eventFilters.excludedUncategorized,
-            excludedCategoryIdSet,
+            eventCollections,
+            eventFilters.excludedWithoutCollection,
+            excludedCollectionIdSet,
             excludedStatusSet,
         ]
     )
@@ -105,17 +94,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 return
             }
 
-            if (groupId === "category") {
-                if (itemId === "__uncategorized__") {
-                    setExcludedUncategorizedFilter(!checked)
+            if (groupId === "collection") {
+                if (itemId === "__without_collection__") {
+                    setExcludedWithoutCollectionFilter(!checked)
                     return
                 }
-                toggleEventCategoryFilter(itemId)
+                toggleEventCollectionFilter(itemId)
             }
         },
         [
-            setExcludedUncategorizedFilter,
-            toggleEventCategoryFilter,
+            setExcludedWithoutCollectionFilter,
+            toggleEventCollectionFilter,
             toggleEventStatusFilter,
         ]
     )
@@ -123,13 +112,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser
-                    user={
-                        user
-                            ? { ...fallbackUser.user, ...user }
-                            : fallbackUser.user
-                    }
-                />
+                <NavUser />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />

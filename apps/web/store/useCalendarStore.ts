@@ -31,7 +31,7 @@ import { toast } from "sonner"
 import type {
     CalendarDragState,
     CalendarEvent,
-    CalendarEventCategory,
+    CalendarEventCollection,
     CalendarEventFilterState,
     CalendarEventPatch,
     CalendarStoreState,
@@ -188,10 +188,18 @@ function sortCalendarEvents(events: CalendarEvent[]) {
     })
 }
 
-function sortEventCategories(
-    categories: CalendarStoreState["eventCategories"]
+function sortEventCollections(
+    collections: CalendarStoreState["eventCollections"]
 ) {
-    return [...categories].sort((a, b) => {
+    return [...collections].sort((a, b) => {
+        const nameCompare = a.name
+            .toLowerCase()
+            .localeCompare(b.name.toLowerCase())
+
+        if (nameCompare !== 0) {
+            return nameCompare
+        }
+
         if (a.createdAt !== b.createdAt) {
             return a.createdAt - b.createdAt
         }
@@ -200,42 +208,45 @@ function sortEventCategories(
     })
 }
 
-function replaceCategoryInEvent(
+function replaceCollectionInEvent(
     event: CalendarEvent,
-    nextCategory: CalendarEventCategory
+    nextCollection: CalendarEventCollection
 ) {
-    if (!event.categoryIds.includes(nextCategory.id)) {
+    if (!event.collectionIds.includes(nextCollection.id)) {
         return event
     }
 
-    const nextCategories = event.categories.map((category) =>
-        category.id === nextCategory.id ? nextCategory : category
+    const nextCollections = event.collections.map((collection) =>
+        collection.id === nextCollection.id ? nextCollection : collection
     )
 
     return {
         ...event,
-        categories: nextCategories,
-        category: nextCategories[0] ?? null,
-        categoryId: nextCategories[0]?.id ?? null,
-        categoryIds: nextCategories.map((category) => category.id),
+        collections: nextCollections,
+        primaryCollection: nextCollections[0] ?? null,
+        primaryCollectionId: nextCollections[0]?.id ?? null,
+        collectionIds: nextCollections.map((collection) => collection.id),
     }
 }
 
-function removeCategoryFromEvent(event: CalendarEvent, categoryId: string) {
-    if (!event.categoryIds.includes(categoryId)) {
+function removeCollectionFromEvent(
+    event: CalendarEvent,
+    collectionId: string
+) {
+    if (!event.collectionIds.includes(collectionId)) {
         return event
     }
 
-    const nextCategories = event.categories.filter(
-        (category) => category.id !== categoryId
+    const nextCollections = event.collections.filter(
+        (collection) => collection.id !== collectionId
     )
 
     return {
         ...event,
-        categories: nextCategories,
-        category: nextCategories[0] ?? null,
-        categoryId: nextCategories[0]?.id ?? null,
-        categoryIds: nextCategories.map((category) => category.id),
+        collections: nextCollections,
+        primaryCollection: nextCollections[0] ?? null,
+        primaryCollectionId: nextCollections[0]?.id ?? null,
+        collectionIds: nextCollections.map((collection) => collection.id),
     }
 }
 
@@ -254,72 +265,81 @@ function areRecurrenceValuesEqual(
 
 function pruneEventFilters(
     filters: CalendarEventFilterState,
-    categories: CalendarStoreState["eventCategories"]
+    collections: CalendarStoreState["eventCollections"]
 ) {
-    if (filters.excludedCategoryIds.length === 0) {
+    if (filters.excludedCollectionIds.length === 0) {
         return filters
     }
 
-    const availableCategoryIds = new Set(
-        categories.map((category) => category.id)
+    const availableCollectionIds = new Set(
+        collections.map((collection) => collection.id)
     )
-    const excludedCategoryIds = filters.excludedCategoryIds.filter(
-        (categoryId) => availableCategoryIds.has(categoryId)
-    )
+    const excludedCollectionIdsStillValid =
+        filters.excludedCollectionIds.filter((id) =>
+            availableCollectionIds.has(id)
+        )
 
-    if (excludedCategoryIds.length === filters.excludedCategoryIds.length) {
-        return filters
-    }
-
-    return {
-        ...filters,
-        excludedCategoryIds,
-    }
-}
-
-function syncEventFiltersWithCategoryDefaults(
-    filters: CalendarEventFilterState,
-    nextCategory: CalendarEventCategory,
-    previousCategory?: CalendarEventCategory
-) {
     if (
-        previousCategory &&
-        previousCategory.options.visibleByDefault ===
-            nextCategory.options.visibleByDefault
+        excludedCollectionIdsStillValid.length ===
+        filters.excludedCollectionIds.length
     ) {
         return filters
     }
 
     return {
         ...filters,
-        excludedCategoryIds: nextCategory.options.visibleByDefault
-            ? filters.excludedCategoryIds.filter((id) => id !== nextCategory.id)
+        excludedCollectionIds: excludedCollectionIdsStillValid,
+    }
+}
+
+function syncEventFiltersWithCollectionDefaults(
+    filters: CalendarEventFilterState,
+    nextCollection: CalendarEventCollection,
+    previousCollection?: CalendarEventCollection
+) {
+    if (
+        previousCollection &&
+        previousCollection.options.visibleByDefault ===
+            nextCollection.options.visibleByDefault
+    ) {
+        return filters
+    }
+
+    return {
+        ...filters,
+        excludedCollectionIds: nextCollection.options.visibleByDefault
+            ? filters.excludedCollectionIds.filter(
+                  (id) => id !== nextCollection.id
+              )
             : Array.from(
-                  new Set([...filters.excludedCategoryIds, nextCategory.id])
+                  new Set([
+                      ...filters.excludedCollectionIds,
+                      nextCollection.id,
+                  ])
               ),
     }
 }
 
-function deriveEventCategories(
-    categories: CalendarEvent["categories"] | undefined,
-    fallbackCategories: CalendarStoreState["eventCategories"] = []
+function deriveEventCollections(
+    collections: CalendarEvent["collections"] | undefined,
+    fallbackCollections: CalendarStoreState["eventCollections"] = []
 ) {
-    const nextCategories = categories ?? []
-    const categoryIds = nextCategories.map((category) => category.id)
-    const primaryCategoryId = categoryIds[0] ?? null
-    const primaryCategory =
-        nextCategories[0] ??
-        (primaryCategoryId
-            ? (fallbackCategories.find(
-                  (category) => category.id === primaryCategoryId
+    const resolvedCollections = collections ?? []
+    const collectionIds = resolvedCollections.map((collection) => collection.id)
+    const primaryCollectionId = collectionIds[0] ?? null
+    const primaryCollection =
+        resolvedCollections[0] ??
+        (primaryCollectionId
+            ? (fallbackCollections.find(
+                  (collection) => collection.id === primaryCollectionId
               ) ?? null)
             : null)
 
     return {
-        categoryIds,
-        categories: nextCategories,
-        categoryId: primaryCategoryId,
-        category: primaryCategory,
+        collectionIds,
+        collections: resolvedCollections,
+        primaryCollectionId,
+        primaryCollection,
     }
 }
 
@@ -397,11 +417,11 @@ export const useCalendarStore = createSSRStore<
     isWorkspacePresenceLoading: false,
     workspaceCursor: null,
     workspacePresence: [],
-    eventCategories: [],
+    eventCollections: [],
     eventFilters: {
         excludedStatuses: defaultExcludedStatuses,
-        excludedCategoryIds: [],
-        excludedUncategorized: false,
+        excludedCollectionIds: [],
+        excludedWithoutCollection: false,
     },
     subscriptionCatalogs: [],
     subscriptionState: defaultSubscriptionState,
@@ -485,12 +505,12 @@ export const useCalendarStore = createSSRStore<
             isWorkspacePresenceLoading: false,
             workspaceCursor: null,
             workspacePresence: [],
-            eventCategories: [],
+            eventCollections: [],
             favoriteEventMap: {},
             eventFilters: {
                 excludedStatuses: defaultExcludedStatuses,
-                excludedCategoryIds: [],
-                excludedUncategorized: false,
+                excludedCollectionIds: [],
+                excludedWithoutCollection: false,
             },
             subscriptionCatalogs: [],
             subscriptionState: defaultSubscriptionState,
@@ -517,47 +537,23 @@ export const useCalendarStore = createSSRStore<
                           }
                         : {}),
                 }
-            const myCalendarIndex = s.myCalendars.findIndex(
-                (calendar) => calendar.id === calendarId
+            // 이전 구현은 Object.is로 패치 키만 비교해, activeCalendar와
+            // myCalendars의 동일 캘린더 행이 어긋난 경우 한쪽만 갱신되어
+            // 설정 저장 후 UI/사이드바가 갱신되지 않는 문제가 있었다.
+            // calendarId에 해당하는 항목은 항상 같은 패치로 병합한다.
+            const nextMyCalendars = s.myCalendars.map((calendar) =>
+                calendar.id === calendarId
+                    ? { ...calendar, ...normalizedPatch }
+                    : calendar
             )
-            const targetMyCalendar =
-                myCalendarIndex >= 0 ? s.myCalendars[myCalendarIndex] : null
-            const targetActiveCalendar =
-                s.activeCalendar?.id === calendarId ? s.activeCalendar : null
-
-            const isPatchSameOn = (
-                target: Partial<MyCalendarItem> | null | undefined
-            ) => {
-                if (!target) {
-                    return false
-                }
-
-                return Object.entries(normalizedPatch).every(([key, value]) =>
-                    Object.is(target[key as keyof typeof target], value)
-                )
-            }
-
-            const shouldUpdateMyCalendar =
-                targetMyCalendar !== null && !isPatchSameOn(targetMyCalendar)
-            const shouldUpdateActiveCalendar =
-                targetActiveCalendar !== null &&
-                !isPatchSameOn(targetActiveCalendar)
-
-            if (!shouldUpdateMyCalendar && !shouldUpdateActiveCalendar) {
-                return s
-            }
+            const nextActiveCalendar =
+                s.activeCalendar?.id === calendarId
+                    ? { ...s.activeCalendar, ...normalizedPatch }
+                    : s.activeCalendar
 
             return {
-                myCalendars: shouldUpdateMyCalendar
-                    ? s.myCalendars.map((calendar) =>
-                          calendar.id === calendarId
-                              ? { ...calendar, ...normalizedPatch }
-                              : calendar
-                      )
-                    : s.myCalendars,
-                activeCalendar: shouldUpdateActiveCalendar
-                    ? { ...s.activeCalendar!, ...normalizedPatch }
-                    : s.activeCalendar,
+                myCalendars: nextMyCalendars,
+                activeCalendar: nextActiveCalendar,
             }
         }),
 
@@ -576,15 +572,15 @@ export const useCalendarStore = createSSRStore<
                 ? state
                 : { workspacePresence }
         ),
-    setEventCategories: (eventCategories) =>
+    setEventCollections: (eventCollections) =>
         set((state) => {
-            const sortedCategories = sortEventCategories(eventCategories)
+            const sortedCollections = sortEventCollections(eventCollections)
 
             return {
-                eventCategories: sortedCategories,
+                eventCollections: sortedCollections,
                 eventFilters: pruneEventFilters(
                     state.eventFilters,
-                    sortedCategories
+                    sortedCollections
                 ),
             }
         }),
@@ -598,21 +594,21 @@ export const useCalendarStore = createSSRStore<
                 ) as CalendarEventFilterState["excludedStatuses"],
             },
         })),
-    toggleEventCategoryFilter: (categoryId) =>
+    toggleEventCollectionFilter: (collectionId) =>
         set((state) => ({
             eventFilters: {
                 ...state.eventFilters,
-                excludedCategoryIds: toggleStringFilterItem(
-                    state.eventFilters.excludedCategoryIds,
-                    categoryId
+                excludedCollectionIds: toggleStringFilterItem(
+                    state.eventFilters.excludedCollectionIds,
+                    collectionId
                 ),
             },
         })),
-    setExcludedUncategorizedFilter: (excluded) =>
+    setExcludedWithoutCollectionFilter: (excluded) =>
         set((state) => ({
             eventFilters: {
                 ...state.eventFilters,
-                excludedUncategorized: excluded,
+                excludedWithoutCollection: excluded,
             },
         })),
     setSubscriptionCatalogs: (subscriptionCatalogs) =>
@@ -703,8 +699,8 @@ export const useCalendarStore = createSSRStore<
                 state.eventFilters.excludedStatuses.every(
                     (status, index) => status === defaultExcludedStatuses[index]
                 ) &&
-                state.eventFilters.excludedCategoryIds.length === 0 &&
-                !state.eventFilters.excludedUncategorized
+                state.eventFilters.excludedCollectionIds.length === 0 &&
+                !state.eventFilters.excludedWithoutCollection
             ) {
                 return state
             }
@@ -712,8 +708,8 @@ export const useCalendarStore = createSSRStore<
             return {
                 eventFilters: {
                     excludedStatuses: defaultExcludedStatuses,
-                    excludedCategoryIds: [],
-                    excludedUncategorized: false,
+                    excludedCollectionIds: [],
+                    excludedWithoutCollection: false,
                 },
             }
         }),
@@ -727,92 +723,92 @@ export const useCalendarStore = createSSRStore<
                 hoveredSeriesEventId: eventId,
             }
         }),
-    upsertEventCategorySnapshot: (category) =>
+    upsertEventCollectionSnapshot: (collection) =>
         set((state) => {
-            const previousCategory =
-                state.eventCategories.find((item) => item.id === category.id) ??
+            const previousCollection =
+                state.eventCollections.find((item) => item.id === collection.id) ??
                 undefined
-            const nextCategories = previousCategory
-                ? state.eventCategories.map((item) =>
-                      item.id === category.id ? { ...item, ...category } : item
+            const nextCollections = previousCollection
+                ? state.eventCollections.map((item) =>
+                      item.id === collection.id ? { ...item, ...collection } : item
                   )
-                : [...state.eventCategories, category]
+                : [...state.eventCollections, collection]
 
             return {
-                eventCategories: sortEventCategories(nextCategories),
+                eventCollections: sortEventCollections(nextCollections),
                 eventFilters: pruneEventFilters(
-                    syncEventFiltersWithCategoryDefaults(
+                    syncEventFiltersWithCollectionDefaults(
                         state.eventFilters,
-                        category,
-                        previousCategory
+                        collection,
+                        previousCollection
                     ),
-                    nextCategories
+                    nextCollections
                 ),
                 events: sortCalendarEvents(
                     state.events.map((event) =>
-                        replaceCategoryInEvent(event, category)
+                        replaceCollectionInEvent(event, collection)
                     )
                 ),
                 viewEvent: state.viewEvent
-                    ? replaceCategoryInEvent(state.viewEvent, category)
+                    ? replaceCollectionInEvent(state.viewEvent, collection)
                     : null,
             }
         }),
-    removeEventCategorySnapshot: (categoryId) =>
+    removeEventCollectionSnapshot: (collectionId) =>
         set((state) => {
-            const nextCategories = state.eventCategories.filter(
-                (category) => category.id !== categoryId
+            const nextCollections = state.eventCollections.filter(
+                (collection) => collection.id !== collectionId
             )
 
             return {
-                eventCategories: nextCategories,
+                eventCollections: nextCollections,
                 eventFilters: {
                     ...state.eventFilters,
-                    excludedCategoryIds:
-                        state.eventFilters.excludedCategoryIds.filter(
-                            (id) => id !== categoryId
+                    excludedCollectionIds:
+                        state.eventFilters.excludedCollectionIds.filter(
+                            (id) => id !== collectionId
                         ),
                 },
                 events: sortCalendarEvents(
                     state.events.map((event) =>
-                        removeCategoryFromEvent(event, categoryId)
+                        removeCollectionFromEvent(event, collectionId)
                     )
                 ),
                 viewEvent: state.viewEvent
-                    ? removeCategoryFromEvent(state.viewEvent, categoryId)
+                    ? removeCollectionFromEvent(state.viewEvent, collectionId)
                     : null,
             }
         }),
-    setEventCategoryDefaultVisibility: (categoryId, visibleByDefault) =>
+    setEventCollectionDefaultVisibility: (collectionId, visibleByDefault) =>
         set((state) => {
-            const nextCategories = state.eventCategories.map((category) =>
-                category.id === categoryId
+            const nextCollections = state.eventCollections.map((collection) =>
+                collection.id === collectionId
                     ? {
-                          ...category,
+                          ...collection,
                           options: {
-                              ...category.options,
+                              ...collection.options,
                               visibleByDefault,
                           },
                       }
-                    : category
+                    : collection
             )
 
-            const nextExcludedCategoryIds = visibleByDefault
-                ? state.eventFilters.excludedCategoryIds.filter(
-                      (id) => id !== categoryId
+            const nextExcludedCollectionIds = visibleByDefault
+                ? state.eventFilters.excludedCollectionIds.filter(
+                      (id) => id !== collectionId
                   )
                 : Array.from(
                       new Set([
-                          ...state.eventFilters.excludedCategoryIds,
-                          categoryId,
+                          ...state.eventFilters.excludedCollectionIds,
+                          collectionId,
                       ])
                   )
 
             return {
-                eventCategories: sortEventCategories(nextCategories),
+                eventCollections: sortEventCollections(nextCollections),
                 eventFilters: {
                     ...state.eventFilters,
-                    excludedCategoryIds: nextExcludedCategoryIds,
+                    excludedCollectionIds: nextExcludedCollectionIds,
                 },
             }
         }),
@@ -898,21 +894,21 @@ export const useCalendarStore = createSSRStore<
         }),
     upsertEventSnapshot: (event) =>
         set((state) => {
-            const nextCategories = event.categories.reduce(
-                (categories, category) => {
-                    const existingCategory = categories.find(
-                        (item) => item.id === category.id
+            const nextCollections = event.collections.reduce(
+                (collections, incomingCollection) => {
+                    const existing = collections.find(
+                        (item) => item.id === incomingCollection.id
                     )
 
-                    return existingCategory
-                        ? categories.map((item) =>
-                              item.id === category.id
-                                  ? { ...item, ...category }
+                    return existing
+                        ? collections.map((item) =>
+                              item.id === incomingCollection.id
+                                  ? { ...item, ...incomingCollection }
                                   : item
                           )
-                        : [...categories, category]
+                        : [...collections, incomingCollection]
                 },
-                state.eventCategories
+                state.eventCollections
             )
             const nextEvents = state.events.some((item) => item.id === event.id)
                 ? state.events.map((item) =>
@@ -921,7 +917,7 @@ export const useCalendarStore = createSSRStore<
                 : [...state.events, event]
 
             return {
-                eventCategories: sortEventCategories(nextCategories),
+                eventCollections: sortEventCollections(nextCollections),
                 favoriteEventMap: event.isFavorite
                     ? {
                           ...state.favoriteEventMap,
@@ -936,18 +932,18 @@ export const useCalendarStore = createSSRStore<
                           return nextFavoriteEventMap
                       })(),
                 eventFilters: pruneEventFilters(
-                    nextCategories.reduce(
-                        (filters, category) =>
-                            syncEventFiltersWithCategoryDefaults(
+                    nextCollections.reduce(
+                        (filters, collection) =>
+                            syncEventFiltersWithCollectionDefaults(
                                 filters,
-                                category,
-                                state.eventCategories.find(
-                                    (item) => item.id === category.id
+                                collection,
+                                state.eventCollections.find(
+                                    (item) => item.id === collection.id
                                 )
                             ),
                         state.eventFilters
                     ),
-                    nextCategories
+                    nextCollections
                 ),
                 events: sortCalendarEvents(nextEvents),
                 viewEvent:
@@ -956,13 +952,10 @@ export const useCalendarStore = createSSRStore<
         }),
     toggleEventFavorite: async (id, nextValue) => {
         const state = get()
-        const event =
-            state.events.find((item) => item.id === id) ??
-            (state.viewEvent?.id === id ? state.viewEvent : null)
         const currentUser = useAuthStore.getState().user
         const currentUserId = currentUser?.id ?? null
 
-        if (!event || !currentUserId) {
+        if (!currentUserId) {
             return false
         }
 
@@ -1076,19 +1069,8 @@ export const useCalendarStore = createSSRStore<
             id: eventId,
             ...data,
             allDay: data.allDay ?? false,
-            ...deriveEventCategories(data.categories, get().eventCategories),
-            categoryIds:
-                data.categoryIds ??
-                data.categories?.map((category) => category.id) ??
-                [],
-            categories: data.categories ?? [],
-            categoryId:
-                data.categoryId ??
-                data.category?.id ??
-                data.categoryIds?.[0] ??
-                data.categories?.[0]?.id ??
-                null,
-            category: data.category ?? data.categories?.[0] ?? null,
+            ...deriveEventCollections(data.collections, get().eventCollections),
+            collections: data.collections ?? [],
             participants: data.participants ?? [],
             isFavorite: data.isFavorite ?? false,
             favoritedAt: data.favoritedAt ?? null,
@@ -1162,52 +1144,52 @@ export const useCalendarStore = createSSRStore<
                         ? {
                               ...e,
                               ...patch,
-                              categoryIds:
-                                  patch.categoryIds !== undefined
-                                      ? patch.categoryIds
-                                      : patch.categories !== undefined
-                                        ? patch.categories
-                                              .map((category) => category.id)
+                              collectionIds:
+                                  patch.collectionIds !== undefined
+                                      ? patch.collectionIds
+                                      : patch.collections !== undefined
+                                        ? patch.collections
+                                              .map((collection) => collection.id)
                                               .filter(Boolean)
-                                        : e.categoryIds,
-                              categories:
-                                  patch.categories !== undefined
-                                      ? patch.categories
-                                      : patch.categoryIds !== undefined
-                                        ? s.eventCategories.filter((category) =>
-                                              patch.categoryIds?.includes(
-                                                  category.id
+                                        : e.collectionIds,
+                              collections:
+                                  patch.collections !== undefined
+                                      ? patch.collections
+                                      : patch.collectionIds !== undefined
+                                        ? s.eventCollections.filter((collection) =>
+                                              patch.collectionIds?.includes(
+                                                  collection.id
                                               )
                                           )
-                                        : e.categories,
-                              categoryId:
-                                  patch.categoryId !== undefined
-                                      ? patch.categoryId
-                                      : patch.category !== undefined
-                                        ? patch.category?.id || null
-                                        : patch.categoryIds !== undefined
-                                          ? (patch.categoryIds[0] ?? null)
-                                          : patch.categories !== undefined
-                                            ? patch.categories[0]?.id || null
-                                            : e.categoryId,
-                              category:
-                                  patch.category !== undefined
-                                      ? patch.category
-                                      : patch.categories !== undefined
-                                        ? (patch.categories[0] ?? null)
-                                        : patch.categoryIds !== undefined
-                                          ? (s.eventCategories.find(
-                                                (category) =>
-                                                    category.id ===
-                                                    patch.categoryIds?.[0]
+                                        : e.collections,
+                              primaryCollectionId:
+                                  patch.primaryCollectionId !== undefined
+                                      ? patch.primaryCollectionId
+                                      : patch.primaryCollection !== undefined
+                                        ? patch.primaryCollection?.id || null
+                                        : patch.collectionIds !== undefined
+                                          ? (patch.collectionIds[0] ?? null)
+                                          : patch.collections !== undefined
+                                            ? patch.collections[0]?.id || null
+                                            : e.primaryCollectionId,
+                              primaryCollection:
+                                  patch.primaryCollection !== undefined
+                                      ? patch.primaryCollection
+                                      : patch.collections !== undefined
+                                        ? (patch.collections[0] ?? null)
+                                        : patch.collectionIds !== undefined
+                                          ? (s.eventCollections.find(
+                                                (collection) =>
+                                                    collection.id ===
+                                                    patch.collectionIds?.[0]
                                             ) ?? null)
-                                          : patch.categoryId !== undefined
-                                            ? (s.eventCategories.find(
-                                                  (category) =>
-                                                      category.id ===
-                                                      patch.categoryId
+                                          : patch.primaryCollectionId !== undefined
+                                            ? (s.eventCollections.find(
+                                                  (collection) =>
+                                                      collection.id ===
+                                                      patch.primaryCollectionId
                                               ) ?? null)
-                                            : e.category,
+                                            : e.primaryCollection,
                               recurrence:
                                   patch.recurrence !== undefined
                                       ? (patch.recurrence ?? undefined)

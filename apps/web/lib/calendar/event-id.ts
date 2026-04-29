@@ -17,3 +17,35 @@ export function isCalendarEventUuid(eventId: string) {
 export function isGeneratedSubscriptionEventId(eventId: string) {
     return eventId.startsWith(SUBSCRIPTION_EVENT_PREFIX)
 }
+
+/** 공유 카테고리 구독 일정 `sub:<catalogUuid>:<sourceEventUuid>` */
+const SUBSCRIPTION_COMPOSITE_PATTERN =
+    /^sub:([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+
+export function parseSubscriptionCompositeEventId(eventId: string): {
+    catalogId: string
+    sourceEventId: string
+} | null {
+    const match = eventId.match(SUBSCRIPTION_COMPOSITE_PATTERN)
+    if (!match) {
+        return null
+    }
+
+    return {
+        catalogId: match[1]!,
+        sourceEventId: match[2]!,
+    }
+}
+
+/** 공유 카테고리 구독 일정 ID (`sub:…`) */
+export function isSubscriptionCompositeEventId(eventId: string): boolean {
+    return parseSubscriptionCompositeEventId(eventId) !== null
+}
+
+/** 공휴일/절기 생성 ID 또는 공유 구독 복합 ID */
+export function isSubscriptionStyleEventId(eventId: string): boolean {
+    return (
+        isGeneratedSubscriptionEventId(eventId) ||
+        isSubscriptionCompositeEventId(eventId)
+    )
+}

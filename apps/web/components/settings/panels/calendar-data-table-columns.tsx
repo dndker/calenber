@@ -5,11 +5,11 @@ import {
     eventFormStatusItems,
 } from "@/components/calendar/event-form-status-field"
 import type { DataTableColumnMeta } from "@/components/settings/shared/data-table"
-import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
+import { getCalendarCollectionLabelClassName } from "@/lib/calendar/collection-color"
 import { formatCalendarEventRecurrenceOrDateLabel } from "@/lib/calendar/event-date-format"
 import type {
     CalendarEvent,
-    CalendarEventCategory,
+    CalendarEventCollection,
     CalendarEventStatus,
 } from "@/store/calendar-store.types"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -48,8 +48,8 @@ export type CalendarDataRow = Pick<
     | "timezone"
     | "status"
     | "author"
-    | "categoryIds"
-    | "categories"
+    | "collectionIds"
+    | "collections"
     | "recurrence"
     | "recurrenceInstance"
 > & {
@@ -60,8 +60,8 @@ export const editableStatuses: CalendarEventStatus[] = eventFormStatusItems.map(
     (item) => item.value
 )
 
-function renderCategoryBadges(categories: CalendarEventCategory[]) {
-    if (categories.length === 0) {
+function renderCollectionBadges(collections: CalendarEventCollection[]) {
+    if (collections.length === 0) {
         return (
             <Badge variant="outline" className="text-muted-foreground">
                 컬렉션 없음
@@ -69,21 +69,21 @@ function renderCategoryBadges(categories: CalendarEventCategory[]) {
         )
     }
 
-    const visibleCategories = categories.slice(0, 2)
-    const hiddenCount = categories.length - visibleCategories.length
+    const visibleCollections = collections.slice(0, 2)
+    const hiddenCount = collections.length - visibleCollections.length
 
     return (
         <div className="flex flex-wrap items-center gap-1">
-            {visibleCategories.map((category) => (
+            {visibleCollections.map((collection) => (
                 <Badge
-                    key={category.id}
+                    key={collection.id}
                     variant="outline"
-                    className={getCalendarCategoryLabelClassName(
-                        category.options.color,
+                    className={getCalendarCollectionLabelClassName(
+                        collection.options.color,
                         "border-transparent"
                     )}
                 >
-                    {category.name}
+                    {collection.name}
                 </Badge>
             ))}
             {hiddenCount > 0 ? (
@@ -97,24 +97,24 @@ function renderCategoryBadges(categories: CalendarEventCategory[]) {
 
 export function getCalendarDataColumns({
     canManageEvents,
-    categoryOptions,
+    collectionOptions,
     onStatusChange,
-    onCategoryChange,
+    onCollectionChange,
     onDeleteEvent,
 }: {
     canManageEvents: boolean
-    categoryOptions: {
+    collectionOptions: {
         id: string
         label: string
-        color: CalendarEventCategory["options"]["color"]
+        color: CalendarEventCollection["options"]["color"]
     }[]
     onStatusChange: (
         eventId: string,
         nextStatus: CalendarEventStatus
     ) => void | Promise<void>
-    onCategoryChange: (
+    onCollectionChange: (
         eventId: string,
-        nextCategoryId: string | null
+        nextCollectionId: string | null
     ) => void | Promise<void>
     onDeleteEvent: (eventId: string) => void | Promise<void>
 }): ColumnDef<CalendarDataRow>[] {
@@ -272,38 +272,42 @@ export function getCalendarDataColumns({
             },
         },
         {
-            accessorKey: "categories",
+            accessorKey: "collections",
             meta: {
                 headClassName: "min-w-40",
                 cellClassName: "min-w-40",
             } satisfies DataTableColumnMeta,
             accessorFn: (row) =>
-                row.categories.map((category) => category.name).join(" "),
+                row.collections.map((collection) => collection.name).join(" "),
             header: "컬렉션",
             cell: ({ row }) => {
                 const event = row.original
-                const selectedCategoryId = event.categoryIds[0] ?? "__none__"
+                const selectedCollectionId =
+                    event.collectionIds[0] ?? "__none__"
 
-                if (!categoryOptions.length || !canManageEvents) {
-                    return renderCategoryBadges(event.categories)
+                if (!collectionOptions.length || !canManageEvents) {
+                    return renderCollectionBadges(event.collections)
                 }
 
                 return (
                     <div className="w-full max-w-48">
                         <Select
-                            value={selectedCategoryId}
+                            value={selectedCollectionId}
                             onValueChange={(value) => {
-                                const nextCategoryId =
+                                const nextCollectionId =
                                     value === "__none__" ? null : value
 
                                 if (
-                                    nextCategoryId ===
-                                    (event.categoryIds[0] ?? null)
+                                    nextCollectionId ===
+                                    (event.collectionIds[0] ?? null)
                                 ) {
                                     return
                                 }
 
-                                void onCategoryChange(event.id, nextCategoryId)
+                                void onCollectionChange(
+                                    event.id,
+                                    nextCollectionId
+                                )
                             }}
                             disabled={!event.canManage}
                         >
@@ -316,18 +320,18 @@ export function getCalendarDataColumns({
                                     <SelectItem value="__none__">
                                         컬렉션 없음
                                     </SelectItem>
-                                    {categoryOptions.map((category) => (
+                                    {collectionOptions.map((option) => (
                                         <SelectItem
-                                            key={category.id}
-                                            value={category.id}
+                                            key={option.id}
+                                            value={option.id}
                                         >
                                             <span
-                                                className={getCalendarCategoryLabelClassName(
-                                                    category.color,
+                                                className={getCalendarCollectionLabelClassName(
+                                                    option.color,
                                                     "inline-flex h-6 items-center rounded-md px-1.5 leading-[normal]"
                                                 )}
                                             >
-                                                {category.label}
+                                                {option.label}
                                             </span>
                                         </SelectItem>
                                     ))}
