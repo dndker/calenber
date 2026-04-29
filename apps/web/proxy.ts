@@ -7,6 +7,12 @@ import {
     locales,
     type Locale,
 } from "@/lib/i18n/config"
+import {
+    getRecentCalendarIdFromPathname,
+    getRecentCalendarPathFromCookieValue,
+    RECENT_CALENDAR_COOKIE_MAX_AGE,
+    RECENT_CALENDAR_COOKIE_NAME,
+} from "@/lib/calendar/recent-calendar-cookie"
 
 /**
  * Accept-Language 헤더에서 지원 locale 추출.
@@ -21,12 +27,87 @@ function detectLocaleFromAcceptLanguage(
     return "en"
 }
 
+function applyLocaleHeadersAndCookie(
+    response: NextResponse,
+    locale: Locale,
+    hasValidLocaleCookie: boolean
+) {
+    response.headers.set(LOCALE_HEADER, locale)
+
+    if (!hasValidLocaleCookie) {
+        response.cookies.set(LOCALE_COOKIE, locale, {
+            path: "/",
+            maxAge: 60 * 60 * 24 * 365,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+        })
+    }
+
+    return response
+}
+
+function hasSupabaseAuthCookie(request: NextRequest) {
+    return request.cookies
+        .getAll()
+        .some(
+            (cookie) =>
+                cookie.name.startsWith("sb-") &&
+                cookie.name.includes("auth-token")
+        )
+}
+
 export async function proxy(request: NextRequest) {
+    const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value as
+        | Locale
+        | undefined
+    const validCookieLocale =
+        cookieLocale && locales.includes(cookieLocale) ? cookieLocale : null
+    const locale: Locale =
+        validCookieLocale ??
+        detectLocaleFromAcceptLanguage(
+            request.headers.get("Accept-Language")
+        )
+    const recentCalendarPath = getRecentCalendarPathFromCookieValue(
+        request.cookies.get(RECENT_CALENDAR_COOKIE_NAME)?.value
+    )
+
+    if (
+        recentCalendarPath &&
+        (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/calendar")
+    ) {
+        return applyLocaleHeadersAndCookie(
+            NextResponse.redirect(new URL(recentCalendarPath, request.url)),
+            locale,
+            Boolean(validCookieLocale)
+        )
+    }
+
+    if (request.nextUrl.pathname === "/") {
+        return applyLocaleHeadersAndCookie(
+            NextResponse.redirect(new URL("/calendar", request.url)),
+            locale,
+            Boolean(validCookieLocale)
+        )
+    }
+
     const response = NextResponse.next({
         request: {
             headers: request.headers,
         },
     })
+
+    const recentCalendarId = getRecentCalendarIdFromPathname(
+        request.nextUrl.pathname
+    )
+
+    if (recentCalendarId) {
+        response.cookies.set(RECENT_CALENDAR_COOKIE_NAME, recentCalendarId, {
+            path: "/",
+            maxAge: RECENT_CALENDAR_COOKIE_MAX_AGE,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+        })
+    }
 
     // ── Supabase auth ────────────────────────────────────────────
     const supabase = createServerClient(
@@ -47,36 +128,15 @@ export async function proxy(request: NextRequest) {
         }
     )
 
-    await supabase.auth.getUser()
-
-    // ── Locale 감지 ──────────────────────────────────────────────
-    const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value as
-        | Locale
-        | undefined
-    const validCookieLocale =
-        cookieLocale && locales.includes(cookieLocale) ? cookieLocale : null
-
-    // 쿠키 있으면 그대로, 없으면 Accept-Language → 기본값 순으로 결정
-    const locale: Locale =
-        validCookieLocale ??
-        detectLocaleFromAcceptLanguage(
-            request.headers.get("Accept-Language")
-        )
-
-    // getRequestConfig(request.ts)가 읽을 요청 헤더에 locale 주입
-    response.headers.set(LOCALE_HEADER, locale)
-
-    // 쿠키가 없었으면 새로 심기 (이후 요청부터 쿠키 기준으로 동작)
-    if (!validCookieLocale) {
-        response.cookies.set(LOCALE_COOKIE, locale, {
-            path: "/",
-            maxAge: 60 * 60 * 24 * 365, // 1년
-            sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
-        })
+    if (hasSupabaseAuthCookie(request)) {
+        await supabase.auth.getUser()
     }
 
-    return response
+    return applyLocaleHeadersAndCookie(
+        response,
+        locale,
+        Boolean(validCookieLocale)
+    )
 }
 
 export const config = {

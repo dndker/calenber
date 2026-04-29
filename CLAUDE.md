@@ -49,6 +49,12 @@ calenber/                  ← 모노레포 루트 (Turborepo)
 
 작업 시 대상 앱의 역할과 기술 스택에 맞는 방식으로만 구현한다.
 
+### Next.js 프록시 규칙
+
+- 이 프로젝트는 Next.js 최신 방식에 맞춰 **미들웨어 파일 대신 `apps/web/proxy.ts`** 를 사용한다.
+- 요청 가로채기, 루트 리다이렉트, 쿠키 기반 진입 최적화, locale/auth 전처리는 `middleware.ts`가 아니라 `apps/web/proxy.ts`에서 작업한다.
+- 신규 AI 작업자는 `middleware.ts`를 추가하지 말고, 같은 성격의 변경이 필요하면 먼저 `apps/web/proxy.ts`를 수정한다.
+
 ### 캘린더 도메인 타입 — 단일 소스와 계층 (정리 기준)
 
 앱·구독·일정의 **표준 도메인 모델**은 한 파일에 모은다. 변경 시 여기부터 수정하고, 매핑 레이어(queries / event-record / hooks)와 UI를 따라간다.

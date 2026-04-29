@@ -198,8 +198,13 @@ export function SignUpForm() {
             <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
-                onComplete={(result) => {
+                onComplete={(result, nextPath) => {
                     if (result !== "success") return
+
+                    if (nextPath) {
+                        router.replace(nextPath)
+                        return
+                    }
 
                     void routeToPostAuthCalendar()
                 }}

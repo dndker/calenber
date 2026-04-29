@@ -1,3 +1,4 @@
+import { resolveServerCalendarPath } from "@/lib/calendar/resolve-server-calendar-path"
 import { createServerClient } from "@supabase/ssr"
 import { getTranslations } from "next-intl/server"
 import { cookies } from "next/headers"
@@ -114,5 +115,25 @@ export async function GET(req: Request) {
         })
     }
 
-    return response
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+    const resolvedNext = await resolveServerCalendarPath({
+        supabase,
+        userId: user?.id,
+        cookieStore,
+        fallbackPath: next,
+    })
+
+    const finalResponse = buildPopupResponse({
+        origin: requestUrl.origin,
+        next: resolvedNext,
+        ok: true,
+    })
+
+    response.cookies.getAll().forEach((cookie) => {
+        finalResponse.cookies.set(cookie)
+    })
+
+    return finalResponse
 }

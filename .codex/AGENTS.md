@@ -19,6 +19,7 @@
 
 - 이 저장소는 모노레포다.
 - `apps/web`는 캘린더 서비스이며 `Next.js + TypeScript + shadcn/ui`를 사용한다.
+- `apps/web`의 요청 전처리/리다이렉트 계층은 `middleware.ts`가 아니라 **`apps/web/proxy.ts`** 가 단일 진입점이다. 루트 리다이렉트, locale/auth 쿠키 처리, 요청 기반 최적화는 `proxy.ts`에서 작업하고 새 `middleware.ts`는 추가하지 않는다.
 - `apps/docs`는 문서 사이트이며 `Fumadocs`를 사용한다.
 - 작업 시 대상 앱의 역할과 기술 스택에 맞는 방식으로 구현한다.
 - 캘린더 일정 그룹은 도메인 용어 **컬렉션(collection)** 으로 통일한다. DB·타입·UI는 `collection` / `collections` / `primaryCollection` 등을 사용하고, 레거시 `category` 네이밍은 새로 도입하지 않는다(와이어·저장 마이그레이션에만 예외). 자세한 규칙은 루트 `CLAUDE.md` §6을 본다.
