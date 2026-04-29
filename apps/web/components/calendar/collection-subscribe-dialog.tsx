@@ -284,7 +284,7 @@ function CollectionSubscribeForm({
 
     if (managedCalendars.length === 0) {
         return (
-            <div className="flex flex-col gap-5">
+            <div className="flex w-full flex-col gap-4 overflow-hidden">
                 <p className="text-sm text-muted-foreground">
                     {t("emptyCalendars")}
                 </p>
@@ -306,7 +306,7 @@ function CollectionSubscribeForm({
         installedCalendarIdSet.has(selectedCalendarId)
 
     return (
-        <div className="flex flex-col gap-5">
+        <div className="flex w-full flex-col gap-5 overflow-hidden">
             <Field>
                 <FieldLabel>{t("selectCalendarLabel")}</FieldLabel>
                 <Select
@@ -322,7 +322,7 @@ function CollectionSubscribeForm({
                     }}
                     disabled={isBusy || isSelectedDisabled}
                 >
-                    <SelectTrigger className="h-auto! w-full">
+                    <SelectTrigger className="h-auto! w-full [&>span]:inline-flex [&>span]:truncate!">
                         <SelectValue
                             placeholder={
                                 isSelectedDisabled

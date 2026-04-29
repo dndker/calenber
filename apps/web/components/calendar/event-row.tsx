@@ -18,6 +18,7 @@ import { CALENDAR_EVENT_ITEM_STRIDE_PX } from "./event-item-layout.constants"
 import { EventItem, getEventPosition } from "./event-item"
 
 type PositionedSegment = {
+    renderId: string
     event: PositionedCalendarEvent
     lane: number
     laneCount: number
@@ -106,6 +107,7 @@ export const EventRow = memo(function EventRow({
                 ) - 1
 
                 return {
+                    renderId: getCalendarEventRenderId(event),
                     event,
                     startIndex,
                     endIndex,
@@ -128,9 +130,7 @@ export const EventRow = memo(function EventRow({
                     return b.span - a.span
                 }
 
-                return getCalendarEventRenderId(a.event).localeCompare(
-                    getCalendarEventRenderId(b.event)
-                )
+                return a.renderId.localeCompare(b.renderId)
             })
 
         const result: PositionedSegment[] = []
@@ -167,8 +167,8 @@ export const EventRow = memo(function EventRow({
 
             const pinnedInGroup = isResizePinForThisWeek
                 ? group.find(
-                      (segment) =>
-                          getCalendarEventRenderId(segment.event) === dragRenderId
+                  (segment) =>
+                          segment.renderId === dragRenderId
                   )
                 : null
 
@@ -198,6 +198,7 @@ export const EventRow = memo(function EventRow({
 
                 groupRows.push({
                     event: segment.event,
+                    renderId: segment.renderId,
                     lane,
                     laneCount: 1,
                     startIndex: segment.startIndex,
@@ -211,6 +212,7 @@ export const EventRow = memo(function EventRow({
             if (pinnedInGroup && resizePinnedLane !== null) {
                 groupRows.push({
                     event: pinnedInGroup.event,
+                    renderId: pinnedInGroup.renderId,
                     lane: resizePinnedLane,
                     laneCount: 1,
                     startIndex: pinnedInGroup.startIndex,
@@ -321,6 +323,7 @@ export const EventRow = memo(function EventRow({
             {visibleSegments.map(
                 (
                     {
+                        renderId,
                         event,
                         lane,
                         laneCount,
@@ -329,11 +332,10 @@ export const EventRow = memo(function EventRow({
                         continuesFromPrevWeek,
                         continuesToNextWeek,
                         dragOffsetStart,
-                    },
-                    segmentIndex
+                    }
                 ) => (
                     <EventItem
-                        key={`w${weekStart}-s${segmentIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}-L${lane}`}
+                        key={`w${weekStart}-${renderId}-o${dragOffsetStart}-L${lane}`}
                         event={event}
                         top={lane}
                         startIndex={startIndex}
@@ -445,17 +447,17 @@ const OverflowButton = memo(function OverflowButton({
                             {hiddenSegments.map(
                                 (
                                     {
+                                        renderId,
                                         event,
                                         startIndex,
                                         endIndex,
                                         continuesFromPrevWeek,
                                         continuesToNextWeek,
                                         dragOffsetStart,
-                                    },
-                                    hiddenIndex
+                                    }
                                 ) => (
                                     <div
-                                        key={`w${weekStart}-h${hiddenIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
+                                        key={`w${weekStart}-${renderId}-o${dragOffsetStart}-hidden`}
                                         className="relative"
                                     >
                                         <EventItem
