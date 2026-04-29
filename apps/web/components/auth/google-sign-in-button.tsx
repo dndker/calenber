@@ -9,7 +9,8 @@ import { toast } from "sonner"
 
 type GoogleButtonProps = {
     onComplete?: (
-        result: "success" | "cancel" | "error"
+        result: "success" | "cancel" | "error",
+        nextPath?: string
     ) => void | Promise<void>
 }
 
@@ -79,7 +80,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             }
 
             toast.success(t("googleCompleted"))
-            onComplete?.("success")
+            onComplete?.("success", event.data.next)
         }
 
         window.addEventListener("message", handleMessage)

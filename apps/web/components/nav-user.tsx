@@ -45,7 +45,7 @@ import {
 import Link from "next/link"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { usePathname, useRouter } from "next/navigation"
-import { memo, useEffect, useMemo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 
 export const NavUser = memo(function NavUser() {
     const t = useDebugTranslations("navigation.user")
@@ -63,12 +63,6 @@ export const NavUser = memo(function NavUser() {
     )
     const router = useRouter()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
-
-    useEffect(() => {
-        for (const calendar of myCalendars) {
-            router.prefetch(getCalendarPath(calendar.id))
-        }
-    }, [myCalendars, router])
 
     const displayCalendar = useMemo(
         () =>

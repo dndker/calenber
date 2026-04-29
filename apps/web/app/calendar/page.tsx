@@ -1,24 +1,33 @@
 import { getServerUser } from "@/lib/auth/get-server-user"
 import { createCalendar } from "@/lib/calendar/mutations"
-import { getLatestCalendarIdForUser } from "@/lib/calendar/queries"
+import { resolveServerCalendarPath } from "@/lib/calendar/resolve-server-calendar-path"
 import { getCalendarPath } from "@/lib/calendar/routes"
 import { createServerSupabase } from "@/lib/supabase/server"
 import { getTranslations } from "next-intl/server"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 export default async function Page() {
-    const t = await getTranslations("navigation.defaults")
-    const user = await getServerUser()
+    const [t, cookieStore, user, supabase] = await Promise.all([
+        getTranslations("navigation.defaults"),
+        cookies(),
+        getServerUser(),
+        createServerSupabase(),
+    ])
 
     if (!user) {
         redirect("/calendar/demo")
     }
 
-    const supabase = await createServerSupabase()
-    const calendarId = await getLatestCalendarIdForUser(supabase, user.id)
+    const existingCalendarPath = await resolveServerCalendarPath({
+        supabase,
+        userId: user.id,
+        cookieStore,
+        fallbackPath: "/calendar",
+    })
 
-    if (calendarId) {
-        redirect(getCalendarPath(calendarId))
+    if (existingCalendarPath !== "/calendar") {
+        redirect(existingCalendarPath)
     }
 
     const createdCalendar = await createCalendar(supabase, {

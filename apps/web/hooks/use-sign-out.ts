@@ -1,6 +1,7 @@
 "use client"
 
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
+import { buildRecentCalendarCookieClearValue } from "@/lib/calendar/recent-calendar-cookie"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useState } from "react"
@@ -37,6 +38,7 @@ export function useSignOut() {
                 return nextResult
             }
 
+            document.cookie = buildRecentCalendarCookieClearValue()
             toast.success(t("signedOut"))
             const nextResult = { ok: true, error: null }
             setResult(nextResult)
