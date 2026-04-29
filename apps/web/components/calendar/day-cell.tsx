@@ -10,7 +10,6 @@ import dayjs from "@/lib/dayjs"
 import { shallow } from "@/store/createSSRStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { useDroppable } from "@dnd-kit/core"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
@@ -78,10 +77,6 @@ export const DayCell = memo(
             return dayjs.tz(day, calendarTz).format("YYYY-MM-DD")
         }, [calendarTz, day])
 
-        const { setNodeRef } = useDroppable({
-            id: cellDate,
-        })
-
         const dayValue = useMemo(() => {
             return toCalendarDay(day, calendarTz)
         }, [day, calendarTz])
@@ -115,9 +110,8 @@ export const DayCell = memo(
             const isHoverState =
                 Boolean(s.drag.eventId) &&
                 s.drag.mode === "move" &&
-                (s.drag.hoveredDateKeys.length > 0
-                    ? s.drag.hoveredDateKeys.includes(cellDate)
-                    : dayValue >= s.drag.start && dayValue <= s.drag.end)
+                dayValue >= s.drag.start &&
+                dayValue <= s.drag.end
             const isSelectingRangeState =
                 s.selection.isSelecting &&
                 Boolean(s.selection.start) &&
@@ -265,7 +259,6 @@ export const DayCell = memo(
         return (
             <div
                 data-date={cellDate}
-                ref={setNodeRef}
                 onPointerDown={handlePointerDown}
                 onPointerEnter={handlePointerEnter}
                 onPointerUp={handlePointerUp}

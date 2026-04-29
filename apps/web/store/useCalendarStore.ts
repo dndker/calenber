@@ -17,11 +17,8 @@ import {
 } from "@/lib/calendar/permissions"
 import type { MyCalendarItem } from "@/lib/calendar/queries"
 import {
-    collectCalendarEventDateKeysInRange,
     getCalendarEventRenderId,
     getCalendarEventSourceId,
-    getCalendarVisibleEventRange,
-    shiftCalendarDateKeys,
     shiftCalendarEventForDrag,
     toCalendarEventSource,
 } from "@/lib/calendar/recurrence"
@@ -1248,23 +1245,10 @@ export const useCalendarStore = createSSRStore<
     },
 
     startDrag(event, mode, offset, options) {
-        const { calendarTimezone, viewport } = get()
+        const { calendarTimezone } = get()
         const sourceEventId = getCalendarEventSourceId(event)
         const sourceStart = event.recurrenceInstance?.sourceStart ?? event.start
         const sourceEnd = event.recurrenceInstance?.sourceEnd ?? event.end
-        const sourceEvent = toCalendarEventSource(event)
-        const visibleRange = getCalendarVisibleEventRange(
-            viewport || Date.now(),
-            calendarTimezone
-        )
-        const baseHoveredDateKeys = collectCalendarEventDateKeysInRange(
-            sourceEvent,
-            {
-                rangeStart: visibleRange.start,
-                rangeEnd: visibleRange.end,
-                calendarTz: calendarTimezone,
-            }
-        )
 
         const isResize = mode === "resize-start" || mode === "resize-end"
 
@@ -1293,8 +1277,8 @@ export const useCalendarStore = createSSRStore<
                         : "end"
                     : null,
                 previewEvent: event,
-                baseHoveredDateKeys,
-                hoveredDateKeys: mode === "move" ? baseHoveredDateKeys : [],
+                baseHoveredDateKeys: [],
+                hoveredDateKeys: [],
             },
         })
     },
@@ -1333,11 +1317,6 @@ export const useCalendarStore = createSSRStore<
                     ...drag,
                     start: nextStart,
                     end: nextEnd,
-                    hoveredDateKeys: shiftCalendarDateKeys(
-                        drag.baseHoveredDateKeys,
-                        dayDelta,
-                        calendarTimezone
-                    ),
                 },
             })
         }

@@ -4,7 +4,7 @@ import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
 import type { EditorContent } from "@/store/calendar-store.types"
 import { BlockNoteSchema, defaultInlineContentSpecs } from "@blocknote/core"
-import { ko } from "@blocknote/core/locales"
+import { en, ko } from "@blocknote/core/locales"
 import {
     AddBlockButton,
     DefaultReactSuggestionItem,
@@ -29,6 +29,7 @@ import * as Popover from "@workspace/ui/components/popover"
 import * as Select from "@workspace/ui/components/select"
 import * as Tooltip from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
+import { useLocale } from "next-intl"
 import { useTheme } from "next-themes"
 import { useEffect, useRef } from "react"
 import { useServerTheme } from "../provider/theme-context"
@@ -151,6 +152,7 @@ export default function ContentEditor({
     currentUserId,
     members,
 }: Props) {
+    const locale = useLocale()
     // const [isMounted, setIsMounted] = useState(false)
 
     // useEffect(() => {
@@ -163,6 +165,7 @@ export default function ContentEditor({
 
     return (
         <ContentEditorClient
+            key={`content-editor-${locale}`}
             value={value}
             onChange={onChange}
             editable={editable}
@@ -183,6 +186,7 @@ function ContentEditorClient({
     currentUserId,
     members,
 }: Props) {
+    const locale = useLocale()
     const isLocalChangeRef = useRef(false)
     const lastAppliedContentRef = useRef<string | null>(null)
     const lastAppliedUpdatedAtRef = useRef<number | null>(null)
@@ -200,7 +204,7 @@ function ContentEditorClient({
     const editor = useCreateBlockNote({
         schema,
         initialContent: value || undefined,
-        dictionary: ko,
+        dictionary: locale === "en" ? en : ko,
     })
 
     const debounceRef = useRef<NodeJS.Timeout | null>(null)

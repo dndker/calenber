@@ -25,7 +25,6 @@ import {
     DndContext,
     DragOverlay,
     PointerSensor,
-    pointerWithin,
     useSensor,
     useSensors,
 } from "@dnd-kit/core"
@@ -442,32 +441,36 @@ export function MonthList({
         return buckets
     }, [calendarTz, hideWeekendColumns, items, positionedEvents, weekStartsOn])
 
-    const handleDragOver = useCallback(
-        ({ over }: { over: { id: string | number } | null }) => {
+    const handleDragPointerMove = useCallback(
+        (event: PointerEvent) => {
             if (useCalendarStore.getState().drag.mode !== "move") {
                 return
             }
-            if (!over) return
 
-            const overId = String(over.id)
-
-            if (lastOverIdRef.current === overId) {
+            if (dragFrameRef.current !== null) {
                 return
             }
 
-            lastOverIdRef.current = overId
-
-            if (dragFrameRef.current) {
-                cancelAnimationFrame(dragFrameRef.current)
-            }
-
             dragFrameRef.current = requestAnimationFrame(() => {
-                const date = dayjs
-                    .tz(overId, calendarTz)
-                    .startOf("day")
-                    .valueOf()
+                dragFrameRef.current = null
 
-                useCalendarStore.getState().moveDrag(date)
+                const cell = document
+                    .elementsFromPoint(event.clientX, event.clientY)
+                    .find((node) =>
+                        (node as HTMLElement).closest?.("[data-date]")
+                    )
+                    ?.closest("[data-date]") as HTMLElement | undefined
+                const overId = cell?.dataset.date
+
+                if (!overId || lastOverIdRef.current === overId) {
+                    return
+                }
+
+                lastOverIdRef.current = overId
+
+                useCalendarStore.getState().moveDrag(
+                    dayjs.tz(overId, calendarTz).startOf("day").valueOf()
+                )
             })
         },
         [calendarTz]
@@ -479,7 +482,8 @@ export function MonthList({
             "month-list-move",
             "grabbing"
         )
-    }, [])
+        window.addEventListener("pointermove", handleDragPointerMove)
+    }, [handleDragPointerMove])
 
     const finishDragSession = useCallback(() => {
         lastOverIdRef.current = null
@@ -490,9 +494,10 @@ export function MonthList({
         }
         dragCursorReleaseRef.current?.()
         dragCursorReleaseRef.current = null
+        window.removeEventListener("pointermove", handleDragPointerMove)
 
         useCalendarStore.getState().endDrag()
-    }, [])
+    }, [handleDragPointerMove])
 
     useEffect(() => {
         return () => {
@@ -505,12 +510,12 @@ export function MonthList({
             }
             dragCursorReleaseRef.current?.()
             dragCursorReleaseRef.current = null
+            window.removeEventListener("pointermove", handleDragPointerMove)
         }
-    }, [])
+    }, [handleDragPointerMove])
 
     return (
         <DndContext
-            collisionDetection={pointerWithin}
             sensors={sensors}
             autoScroll={{
                 threshold: {
@@ -519,7 +524,6 @@ export function MonthList({
                 },
             }}
             onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
             onDragEnd={finishDragSession}
             onDragCancel={finishDragSession}
         >
