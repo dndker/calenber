@@ -147,7 +147,7 @@ export function getAvatarGroupFallbackLabel(
     isAnonymous = false
 ) {
     if (isAnonymous) {
-        return "익"
+        return "?"
     }
 
     return displayName.trim().charAt(0).toUpperCase() || "?"

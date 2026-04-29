@@ -12,6 +12,7 @@ import {
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
@@ -122,6 +123,7 @@ function CalendarFilterGroup({
         checked: boolean
     ) => void
 }) {
+    const tCalendar = useDebugTranslations("calendar")
     const { openSettings } = useSettingsModal()
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
@@ -354,7 +356,7 @@ function CalendarFilterGroup({
                                                     <TooltipContent side="bottom">
                                                         <p>
                                                             {item.description ??
-                                                                "사용이 중지되었습니다."}
+                                                                tCalendar("filterSidebarDisabled")}
                                                         </p>
                                                     </TooltipContent>
                                                 )}
@@ -366,7 +368,7 @@ function CalendarFilterGroup({
                                 {group.items.length === 0 && (
                                     <div className="mt-1 flex flex-col gap-1.5 px-2 pb-1">
                                         <div className="text-muted-foreground">
-                                            등록된 컬렉션이 없습니다.
+                                            {tCalendar("filterSidebarEmptyCollection")}
                                         </div>
                                         {canManageSettings && (
                                             <Button
@@ -377,7 +379,7 @@ function CalendarFilterGroup({
                                                     )
                                                 }
                                             >
-                                                컬렉션 설정
+                                                {tCalendar("filterSidebarCollectionSettings")}
                                             </Button>
                                         )}
                                     </div>
@@ -456,6 +458,7 @@ function CollectionMenuButton({
     onOpenShareDialog: (item: FilterItem) => void
     onOpenSubscribeDialog: (item: FilterItem) => void
 }) {
+    const t = useDebugTranslations("calendar.filterMenu")
     // 멤버 전용: 공유된 컬렉션이 없으면 메뉴 자체를 숨김
     if (!canManage && !isPublished) {
         return null
@@ -498,7 +501,7 @@ function CollectionMenuButton({
                         }}
                     >
                         <PlusCircleIcon className="size-4 text-muted-foreground" />
-                        <span>내 캘린더에 추가</span>
+                        <span>{t("addToMyCalendar")}</span>
                     </DropdownMenuItem>
                 )}
 
@@ -515,12 +518,12 @@ function CollectionMenuButton({
                             {isPublished ? (
                                 <>
                                     <Settings2Icon className="size-4 text-muted-foreground" />
-                                    <span>공유 설정</span>
+                                    <span>{t("shareSettings")}</span>
                                 </>
                             ) : (
                                 <>
                                     <Globe2Icon className="size-4 text-muted-foreground" />
-                                    <span>공유하기</span>
+                                    <span>{t("share")}</span>
                                 </>
                             )}
                         </DropdownMenuItem>

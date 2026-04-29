@@ -1,5 +1,7 @@
 import { AuthSync } from "@/components/provider/auth-sync"
 import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
+import { I18nDebugProvider } from "@/components/provider/i18n-debug-provider"
+import { LocaleProvider } from "@/components/provider/locale-provider"
 import type { Theme } from "@/components/provider/theme-context"
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
@@ -12,7 +14,7 @@ import {
     APP_URL,
 } from "@/lib/app-config"
 import { getServerUser } from "@/lib/auth/get-server-user"
-import { ogLocaleMap } from "@/lib/i18n/config"
+import { ogLocaleMap, type Locale } from "@/lib/i18n/config"
 import { AuthStoreProvider } from "@/store/useAuthStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -22,7 +24,7 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import "@workspace/ui/globals.css"
 import { cn } from "@workspace/ui/lib/utils"
 import type { Metadata, Viewport } from "next"
-import { getLocale } from "next-intl/server"
+import { getLocale, getMessages } from "next-intl/server"
 import { Geist_Mono, Inter } from "next/font/google"
 import { cookies } from "next/headers"
 import "./editor.css"
@@ -467,12 +469,16 @@ export default async function RootLayout({
 }>) {
     const cookieStore = await cookies()
     const theme = normalizeTheme(cookieStore.get("theme")?.value)
+    const timeZone =
+        cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
+    const locale = (await getLocale()) as Locale
+    const messages = await getMessages()
 
     const appUser = mapUser(await getServerUser())
 
     return (
         <html
-            lang="ko"
+            lang={locale}
             suppressHydrationWarning
             className={cn(
                 "antialiased",
@@ -483,22 +489,32 @@ export default async function RootLayout({
             )}
         >
             <body>
-                <ThemeContextProvider theme={theme}>
-                    <ThemeProvider
-                        attribute="class"
-                        defaultTheme={theme}
-                        disableTransitionOnChange
-                        enableSystem
-                    >
-                        <TooltipProvider>
-                            <AuthStoreProvider initialState={{ user: appUser }}>
-                                <DevServiceWorkerCleanup />
-                                <AuthSync />
-                                {children}
-                            </AuthStoreProvider>
-                        </TooltipProvider>
-                    </ThemeProvider>
-                </ThemeContextProvider>
+                <LocaleProvider
+                    locale={locale}
+                    messages={messages}
+                    timeZone={timeZone}
+                >
+                    <I18nDebugProvider>
+                        <ThemeContextProvider theme={theme}>
+                            <ThemeProvider
+                                attribute="class"
+                                defaultTheme={theme}
+                                disableTransitionOnChange
+                                enableSystem
+                            >
+                                <TooltipProvider>
+                                    <AuthStoreProvider
+                                        initialState={{ user: appUser }}
+                                    >
+                                        <DevServiceWorkerCleanup />
+                                        <AuthSync />
+                                        {children}
+                                    </AuthStoreProvider>
+                                </TooltipProvider>
+                            </ThemeProvider>
+                        </ThemeContextProvider>
+                    </I18nDebugProvider>
+                </LocaleProvider>
                 <Toaster position="bottom-center" />
                 <Analytics />
                 <SpeedInsights />

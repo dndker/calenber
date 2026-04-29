@@ -6,7 +6,7 @@ import {
 } from "@/components/settings/panels/calendar-collection-table"
 import {
     EventStatusItem,
-    eventFormStatusItems,
+    useEventFormStatusItems,
 } from "@/components/calendar/event-form-status-field"
 import {
     editableStatuses,
@@ -14,6 +14,7 @@ import {
     type CalendarDataRow,
 } from "@/components/settings/panels/calendar-data-table-columns"
 import { CalendarEventFieldSettingsCard } from "@/components/settings/panels/calendar-event-field-settings-card"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { DataTable } from "@/components/settings/shared/data-table"
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import {
@@ -74,6 +75,7 @@ import {
     TagsIcon,
     XIcon,
 } from "lucide-react"
+import { useLocale } from "next-intl"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -90,10 +92,6 @@ type SelectedCollectionLabel = {
     label: string
     color: CalendarCollectionColor | undefined
 }
-const eventStatusLabelMap = Object.fromEntries(
-    eventFormStatusItems.map((item) => [item.value, item.label])
-) as Record<CalendarEventStatus, string>
-
 const WITHOUT_COLLECTION_FILTER_KEY = "__without_collection__"
 
 function sortCollectionsForSettings(collections: CalendarEventCollection[]) {
@@ -145,6 +143,7 @@ const CalendarEventFieldSettingsSection = memo(
     }: {
         disabled: boolean
     }) {
+        const t = useDebugTranslations("settings.calendarData")
         const { eventFieldSettings, saveEventFieldSettings } =
             useCalendarEventFieldSettings()
 
@@ -187,11 +186,9 @@ const CalendarEventFieldSettingsSection = memo(
         return (
             <Field className="gap-4">
                 <FieldContent>
-                    <FieldLabel>일정 속성 표시</FieldLabel>
+                    <FieldLabel>{t("fieldSettingsTitle")}</FieldLabel>
                     <FieldDescription>
-                        속성 숨김 여부는 캘린더 단위로 일괄 적용됩니다. 순서는
-                        일정 폼에서 드래그하면 바로 저장되고, 여기서는 표시
-                        여부를 관리합니다.
+                        {t("fieldVisibilityIntroDescription")}
                     </FieldDescription>
                 </FieldContent>
 
@@ -211,6 +208,16 @@ const CalendarEventFieldSettingsSection = memo(
 )
 
 export function CalendarDataSettingsPanel() {
+    const t = useDebugTranslations("settings.calendarData")
+    const tMembersTable = useDebugTranslations("settings.membersTable")
+    const tCommonLabels = useDebugTranslations("common.labels")
+    const tEventForm = useDebugTranslations("event.form")
+    const tSidebarEvents = useDebugTranslations("calendar.sidebarEvents")
+    const locale = useLocale() as "ko" | "en"
+    const eventFormStatusItems = useEventFormStatusItems()
+    const eventStatusLabelMap = Object.fromEntries(
+        eventFormStatusItems.map((item) => [item.value, item.label] as const)
+    ) as Record<CalendarEventStatus, string>
     const activeCalendarId = useCalendarStore(
         (s) => s.activeCalendar?.id ?? null
     )
@@ -352,14 +359,14 @@ export function CalendarDataSettingsPanel() {
                     throw new Error("Some event statuses failed to update.")
                 }
 
-                toast.success("일정 상태가 업데이트되었습니다.")
+                toast.success(t("eventStatusUpdated"))
             } catch (error) {
                 console.error(
                     "Failed to update calendar event statuses:",
                     error
                 )
                 setEvents(previousEvents)
-                toast.error("일정 상태를 변경하지 못했습니다.")
+                toast.error(t("eventStatusUpdateFailed"))
             }
         },
         [activeCalendarId]
@@ -410,8 +417,8 @@ export function CalendarDataSettingsPanel() {
 
                 toast.success(
                     nextCollectionId
-                        ? "일정 컬렉션이 업데이트되었습니다."
-                        : "일정 컬렉션을 제거했습니다."
+                        ? t("eventCollectionUpdated")
+                        : t("eventCollectionRemoved")
                 )
             } catch (error) {
                 console.error(
@@ -419,7 +426,7 @@ export function CalendarDataSettingsPanel() {
                     error
                 )
                 setEvents(previousEvents)
-                toast.error("일정 컬렉션을 변경하지 못했습니다.")
+                toast.error(t("eventCollectionUpdateFailed"))
             }
         },
         [activeCalendarId, eventCollectionMap]
@@ -450,11 +457,11 @@ export function CalendarDataSettingsPanel() {
                     throw new Error("Some events failed to delete.")
                 }
 
-                toast.success("일정을 삭제했습니다.")
+                toast.success(t("eventDeleted"))
             } catch (error) {
                 console.error("Failed to delete calendar events:", error)
                 setEvents(previousEvents)
-                toast.error("일정을 삭제하지 못했습니다.")
+                toast.error(t("eventDeleteFailed"))
             }
         },
         [activeCalendarId]
@@ -540,7 +547,7 @@ export function CalendarDataSettingsPanel() {
                         "Failed to update calendar collection visibility:",
                         error
                     )
-                    toast.error("기본 체크 상태를 변경하지 못했습니다.")
+                    toast.error(t("collectionVisibilityUpdateFailed"))
                 }
             })
         },
@@ -590,7 +597,7 @@ export function CalendarDataSettingsPanel() {
                         "Failed to update calendar collection color:",
                         error
                     )
-                    toast.error("컬렉션 색상을 변경하지 못했습니다.")
+                    toast.error(t("collectionColorUpdateFailed"))
                 }
             })
         },
@@ -625,7 +632,7 @@ export function CalendarDataSettingsPanel() {
 
         if (existingCollection) {
             setNewCollectionName("")
-            toast.message("이미 같은 이름의 컬렉션이 있습니다.")
+            toast.message(t("collectionDuplicateName"))
             return
         }
 
@@ -650,10 +657,10 @@ export function CalendarDataSettingsPanel() {
 
             upsertEventCollectionSnapshot(createdCollection)
             setNewCollectionName("")
-            toast.success("컬렉션을 추가했습니다.")
+            toast.success(t("collectionCreated"))
         } catch (error) {
             console.error("Failed to create calendar collection:", error)
-            toast.error("컬렉션을 추가하지 못했습니다.")
+            toast.error(t("collectionCreateFailed"))
         } finally {
             setIsCreatingCollection(false)
         }
@@ -684,13 +691,13 @@ export function CalendarDataSettingsPanel() {
                     }
 
                     removeEventCollectionSnapshot(collection.id)
-                    toast.success("컬렉션을 삭제했습니다.")
+                    toast.success(t("collectionDeleted"))
                 } catch (error) {
                     console.error(
                         "Failed to delete calendar collection:",
                         error
                     )
-                    toast.error("컬렉션을 삭제하지 못했습니다.")
+                    toast.error(t("collectionDeleteFailed"))
                 }
             })
         },
@@ -718,7 +725,7 @@ export function CalendarDataSettingsPanel() {
             if (!authorMap.has(key)) {
                 authorMap.set(key, {
                     key,
-                    label: event.author?.name ?? "알 수 없는 사용자",
+                    label: event.author?.name ?? t("unknownAuthor"),
                     email: event.author?.email ?? null,
                 })
             }
@@ -740,6 +747,25 @@ export function CalendarDataSettingsPanel() {
             getCalendarDataColumns({
                 canManageEvents,
                 collectionOptions,
+                eventFormStatusItems,
+                locale,
+                labels: {
+                    selectAllAria: tMembersTable("selectAllAria"),
+                    selectRowAria: tMembersTable("selectRowAria"),
+                    eventHeader: t("tableEventHeader"),
+                    newEvent: tCommonLabels("newEvent"),
+                    authorHeader: t("tableAuthorHeader"),
+                    unknownUser: tCommonLabels("unknownUser"),
+                    dateHeader: tSidebarEvents("date"),
+                    statusHeader: tSidebarEvents("status"),
+                    statusPlaceholder: t("statusSelectPlaceholder"),
+                    statusLabel: tSidebarEvents("status"),
+                    collectionHeader: tSidebarEvents("collection"),
+                    collectionPlaceholder: t("collectionSelectPlaceholder"),
+                    collectionLabel: tSidebarEvents("collection"),
+                    noCollection: t("noCollection"),
+                    deleteEvent: tSidebarEvents("deleteEvent"),
+                },
                 onStatusChange: async (eventId, nextStatus) => {
                     await updateEventsStatus([eventId], nextStatus)
                 },
@@ -756,7 +782,14 @@ export function CalendarDataSettingsPanel() {
         [
             canManageEvents,
             collectionOptions,
+            eventFormStatusItems,
+            locale,
             removeEvents,
+            t,
+            tCommonLabels,
+            tEventForm,
+            tMembersTable,
+            tSidebarEvents,
             updateEventsCollections,
             updateEventsStatus,
         ]
@@ -831,6 +864,7 @@ export function CalendarDataSettingsPanel() {
             ),
         [authorOptions, selectedAuthors]
     )
+    const noCollectionLabel = t("filterNoCollection")
     const selectedCollectionLabels = useMemo(
         () =>
             selectedCollectionIds.flatMap(
@@ -839,7 +873,7 @@ export function CalendarDataSettingsPanel() {
                         return [
                             {
                                 id: collectionId,
-                                label: "컬렉션 없음",
+                                label: noCollectionLabel,
                                 color: undefined,
                             },
                         ]
@@ -858,7 +892,7 @@ export function CalendarDataSettingsPanel() {
                         : []
                 }
             ),
-        [eventCollectionMap, selectedCollectionIds]
+        [eventCollectionMap, noCollectionLabel, selectedCollectionIds]
     )
     const activeFilterBadges = useMemo<FilterBadge[]>(() => {
         const authorBadges = selectedAuthorLabels.map((author) => ({
@@ -1039,7 +1073,7 @@ export function CalendarDataSettingsPanel() {
     if (!activeCalendarId) {
         return (
             <div className="text-sm text-muted-foreground">
-                캘린더를 선택하면 데이터 설정을 확인할 수 있습니다.
+                {t("selectCalendarHint")}
             </div>
         )
     }
@@ -1047,7 +1081,7 @@ export function CalendarDataSettingsPanel() {
     if (!canViewData) {
         return (
             <div className="text-sm text-muted-foreground">
-                이 캘린더의 데이터 설정은 멤버만 조회할 수 있습니다.
+                {t("membersOnlyView")}
             </div>
         )
     }
@@ -1058,10 +1092,9 @@ export function CalendarDataSettingsPanel() {
                 <FieldGroup>
                     <Field className="gap-4">
                         <FieldContent>
-                            <FieldLabel>일정 목록</FieldLabel>
+                            <FieldLabel>{t("eventListLabel")}</FieldLabel>
                             <FieldDescription>
-                                현재 이 캘린더에 등록된 모든 일정과 상태를
-                                관리합니다.
+                                {t("eventListDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -1076,9 +1109,9 @@ export function CalendarDataSettingsPanel() {
                                 columns={columns}
                                 data={filteredEvents}
                                 getRowId={(row) => row.id}
-                                emptyMessage="등록된 일정이 없습니다."
+                                emptyMessage={t("eventListEmpty")}
                                 filterColumnId="event"
-                                filterPlaceholder="제목, 작성자 이름 또는 이메일로 검색"
+                                filterPlaceholder={t("eventListFilterPlaceholder")}
                                 enableRowSelection={(row) =>
                                     canManageEvents && row.original.canManage
                                 }
@@ -1095,7 +1128,7 @@ export function CalendarDataSettingsPanel() {
                                                 ) : (
                                                     <ListFilterPlusIcon />
                                                 )}
-                                                필터
+                                                {t("filterButton")}
                                                 {activeFilterCount > 0
                                                     ? ` ${activeFilterCount}`
                                                     : ""}
@@ -1113,13 +1146,13 @@ export function CalendarDataSettingsPanel() {
                                                         }}
                                                     >
                                                         <CircleXIcon />
-                                                        필터 초기화
+                                                        {t("filterReset")}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
                                                 </>
                                             ) : null}
                                             <DropdownMenuLabel>
-                                                작성자
+                                                {t("filterAuthorLabel")}
                                             </DropdownMenuLabel>
                                             {authorOptions.length ? (
                                                 authorOptions.map((author) => (
@@ -1168,13 +1201,13 @@ export function CalendarDataSettingsPanel() {
                                                 ))
                                             ) : (
                                                 <DropdownMenuItem disabled>
-                                                    작성자 없음
+                                                    {t("filterAuthorEmpty")}
                                                 </DropdownMenuItem>
                                             )}
 
                                             <DropdownMenuSeparator />
                                             <DropdownMenuLabel>
-                                                컬렉션
+                                                {t("filterCollectionLabel")}
                                             </DropdownMenuLabel>
                                             <DropdownMenuCheckboxItem
                                                 checked={selectedCollectionIds.includes(
@@ -1198,7 +1231,7 @@ export function CalendarDataSettingsPanel() {
                                                     )
                                                 }}
                                             >
-                                                컬렉션 없음
+                                                {t("filterNoCollection")}
                                             </DropdownMenuCheckboxItem>
                                             {collectionOptions.length ? (
                                                 collectionOptions.map(
@@ -1247,13 +1280,13 @@ export function CalendarDataSettingsPanel() {
                                                 )
                                             ) : (
                                                 <DropdownMenuItem disabled>
-                                                    컬렉션 없음
+                                                    {t("filterNoCollection")}
                                                 </DropdownMenuItem>
                                             )}
 
                                             <DropdownMenuSeparator />
                                             <DropdownMenuLabel>
-                                                상태
+                                                {t("filterStatusLabel")}
                                             </DropdownMenuLabel>
                                             {editableStatuses.map((status) => (
                                                 <DropdownMenuCheckboxItem
@@ -1338,7 +1371,7 @@ export function CalendarDataSettingsPanel() {
                                                 onClick={clearAllFilters}
                                             >
                                                 <CircleXIcon />
-                                                필터 초기화
+                                                {t("filterReset")}
                                             </Button>
                                         </div>
                                     ) : null
@@ -1364,8 +1397,7 @@ export function CalendarDataSettingsPanel() {
                                                     size="sm"
                                                 >
                                                     <CheckCheckIcon />
-                                                    선택 항목 수정 (
-                                                    {selectedEvents.length})
+                                                    {t("bulkEditButton", { count: selectedEvents.length })}
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent
@@ -1373,13 +1405,13 @@ export function CalendarDataSettingsPanel() {
                                                 className="w-56"
                                             >
                                                 <DropdownMenuLabel>
-                                                    선택한 일정 일괄 수정
+                                                    {t("bulkEditLabel")}
                                                 </DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuSub>
                                                     <DropdownMenuSubTrigger>
                                                         <CalendarRangeIcon />
-                                                        상태 변경
+                                                        {t("bulkStatusChange")}
                                                     </DropdownMenuSubTrigger>
                                                     <DropdownMenuSubContent className="w-44">
                                                         {editableStatuses.map(
@@ -1413,7 +1445,7 @@ export function CalendarDataSettingsPanel() {
                                                 <DropdownMenuSub>
                                                     <DropdownMenuSubTrigger>
                                                         <TagsIcon />
-                                                        컬렉션 변경
+                                                        {t("bulkCollectionChange")}
                                                     </DropdownMenuSubTrigger>
                                                     <DropdownMenuSubContent className="w-52">
                                                         <DropdownMenuItem
@@ -1430,7 +1462,7 @@ export function CalendarDataSettingsPanel() {
                                                                 table.resetRowSelection()
                                                             }}
                                                         >
-                                                            컬렉션 없음
+                                                            {t("bulkNoCollection")}
                                                         </DropdownMenuItem>
                                                         {collectionOptions.length ? (
                                                             <>
@@ -1493,11 +1525,9 @@ export function CalendarDataSettingsPanel() {
 
                     <Field className="gap-4">
                         <FieldContent>
-                            <FieldLabel>컬렉션 목록</FieldLabel>
+                            <FieldLabel>{t("collectionListLabel")}</FieldLabel>
                             <FieldDescription>
-                                모든 컬렉션을 한 화면에서 추가하고, 이름을
-                                바로 수정하고, 사이드바 기본 체크 상태를 설정할
-                                수 있습니다.
+                                {t("collectionListDescription")}
                             </FieldDescription>
                         </FieldContent>
 

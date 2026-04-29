@@ -57,7 +57,7 @@ export function useCalendarSubscriptionEvents(
                     providerName:
                         subscription.providerName ??
                         (subscription.authority === "system"
-                            ? "캘린버"
+                            ? "Calenber"
                             : null),
                     calendar: subscription.calendar
                         ? {

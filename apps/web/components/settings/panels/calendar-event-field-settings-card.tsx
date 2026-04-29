@@ -1,6 +1,9 @@
 "use client"
 
-import { calendarEventFieldDefinitions } from "@/lib/calendar/event-field-settings"
+import {
+    getCalendarEventFieldDefinitions,
+    type CalendarEventFieldDefinition,
+} from "@/lib/calendar/event-field-settings"
 import type {
     CalendarEventFieldId,
     CalendarEventFieldSettings,
@@ -23,22 +26,22 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Switch } from "@workspace/ui/components/switch"
 import { cn } from "@workspace/ui/lib/utils"
 import { GripVerticalIcon } from "lucide-react"
-
-const definitionMap = new Map(
-    calendarEventFieldDefinitions.map((field) => [field.id, field])
-)
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 
 function CalendarEventFieldSettingsCardRow({
     item,
     index,
     disabled,
     onVisibilityChange,
+    definitionMap,
 }: {
     item: CalendarEventFieldSettings["items"][number]
     index: number
     disabled?: boolean
     onVisibilityChange: (fieldId: CalendarEventFieldId, visible: boolean) => void
+    definitionMap: Map<CalendarEventFieldId, CalendarEventFieldDefinition>
 }) {
+    const t = useDebugTranslations("settings.calendarData")
     const definition = definitionMap.get(item.id)
     const {
         attributes,
@@ -77,7 +80,9 @@ function CalendarEventFieldSettingsCardRow({
                     size="icon-sm"
                     className="mt-0.5 h-7 w-5 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing"
                     disabled={disabled}
-                    aria-label={`${definition.label} 속성 순서 변경`}
+                    aria-label={t("fieldOrderAria", {
+                        label: definition.label,
+                    })}
                     {...attributes}
                     {...listeners}
                 >
@@ -99,7 +104,7 @@ function CalendarEventFieldSettingsCardRow({
             </div>
             <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">
-                    {item.visible ? "표시" : "숨김"}
+                    {item.visible ? t("visible") : t("hidden")}
                 </span>
                 <Switch
                     checked={item.visible}
@@ -124,6 +129,12 @@ export function CalendarEventFieldSettingsCard({
     onVisibilityChange: (fieldId: CalendarEventFieldId, visible: boolean) => void
     onReorder: (activeId: CalendarEventFieldId, overId: CalendarEventFieldId) => void
 }) {
+    const t = useDebugTranslations("settings.calendarData")
+    const tField = useDebugTranslations("event.fieldDefinition")
+    const fieldDefinitions = getCalendarEventFieldDefinitions(tField)
+    const definitionMap = new Map(
+        fieldDefinitions.map((field) => [field.id, field] as const)
+    )
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -136,12 +147,14 @@ export function CalendarEventFieldSettingsCard({
         <div className="rounded-xl border">
             <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="space-y-1">
-                    <div className="text-sm font-medium">일정 속성 표시</div>
+                    <div className="text-sm font-medium">
+                        {t("fieldSettingsTitle")}
+                    </div>
                     <div className="text-sm text-muted-foreground">
-                        이 설정은 캘린더의 모든 일정 폼에 공통 적용됩니다.
+                        {t("fieldSettingsDescription")}
                     </div>
                 </div>
-                <Badge variant="secondary">캘린더 공통</Badge>
+                <Badge variant="secondary">{t("sharedBadge")}</Badge>
             </div>
 
             <DndContext
@@ -177,6 +190,7 @@ export function CalendarEventFieldSettingsCard({
                                 index={index}
                                 disabled={disabled}
                                 onVisibilityChange={onVisibilityChange}
+                                definitionMap={definitionMap}
                             />
                         ))}
                     </div>

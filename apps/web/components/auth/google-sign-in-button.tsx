@@ -2,6 +2,7 @@
 
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { Button } from "@workspace/ui/components/button"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -23,6 +24,8 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
     const [loading, setLoading] = useState(false)
     const popupRef = useRef<Window | null>(null)
     const popupMonitorRef = useRef<number | null>(null)
+    const t = useDebugTranslations("auth.toast")
+    const tError = useDebugTranslations("auth.errors")
 
     useEffect(() => {
         return () => {
@@ -70,12 +73,12 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             popupRef.current = null
 
             if (!event.data.ok) {
-                toast.error(event.data.error || "구글 로그인에 실패했습니다.")
+                toast.error(event.data.error || t("googleFailed"))
                 onComplete?.("error")
                 return
             }
 
-            toast.success("구글 로그인이 완료되었습니다.")
+            toast.success(t("googleCompleted"))
             onComplete?.("success")
         }
 
@@ -99,10 +102,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             window.removeEventListener("message", handleMessage)
             console.error(error)
             toast.error(
-                getSupabaseAuthErrorMessage(
-                    error,
-                    "구글 로그인 중 오류가 발생했습니다."
-                )
+                getSupabaseAuthErrorMessage(error, tError, "googleFailed")
             )
             onComplete?.("error")
             setLoading(false)
@@ -111,7 +111,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
 
         if (!data?.url) {
             window.removeEventListener("message", handleMessage)
-            toast.error("구글 로그인 URL을 가져오지 못했습니다.")
+            toast.error(t("googleUrlMissing"))
             onComplete?.("error")
             setLoading(false)
             return
@@ -125,9 +125,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
 
         if (!popup) {
             window.removeEventListener("message", handleMessage)
-            toast.error(
-                "팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도해주세요."
-            )
+            toast.error(t("googlePopupBlocked"))
             onComplete?.("error")
             setLoading(false)
             return
@@ -150,7 +148,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
 
                 popupRef.current = null
                 window.removeEventListener("message", handleMessage)
-                toast.warning("구글 로그인이 취소되었습니다.")
+                toast.warning(t("googleCancelled"))
                 onComplete?.("cancel")
                 return
             }
@@ -192,7 +190,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
                 />
                 <path d="M1 1h22v22H1z" fill="none" />
             </svg>
-            구글 계정으로 로그인
+            {t("google")}
         </Button>
     )
 }

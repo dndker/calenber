@@ -68,7 +68,7 @@ export function createSSRStore<T extends object>(
         equality?: (a: U, b: U) => boolean
     ) {
         const store = useContext(StoreContext);
-        if (!store) throw new Error("StoreProvider가 필요합니다.");
+        if (!store) throw new Error("StoreProvider is required.");
 
         // 훅은 항상 같은 순서로 1회 호출됩니다(조건부 훅 호출 금지).
         const sel = selector ?? ((s) => s as unknown as U);

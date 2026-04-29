@@ -2,9 +2,11 @@
 
 import { useSignOut } from "@/hooks/use-sign-out"
 import { Button } from "@workspace/ui/components/button"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 
 export function GoogleSignOutButton() {
     const { signOut, loading } = useSignOut()
+    const t = useDebugTranslations("auth.account")
 
     return (
         <Button
@@ -15,7 +17,7 @@ export function GoogleSignOutButton() {
             size="lg"
             className="leading-[normal] font-semibold"
         >
-            구글 계정 로그아웃
+            {t("googleSignOut")}
         </Button>
     )
 }

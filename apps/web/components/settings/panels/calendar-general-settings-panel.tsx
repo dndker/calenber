@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { AvatarUploadControl } from "@/components/settings/shared/avatar-upload-control"
 import { NameInputControl } from "@/components/settings/shared/name-input-control"
@@ -68,6 +69,8 @@ function CalendarGeneralCalendarNameField({
     isDemoCalendar: boolean
     canManageSettings: boolean
 }) {
+    const t = useDebugTranslations("settings.calendarGeneral")
+    const tForm = useDebugTranslations("common.form")
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
@@ -116,7 +119,7 @@ function CalendarGeneralCalendarNameField({
                 updateCalendarSnapshot(calendarId, { name: nextName })
             } catch (error) {
                 console.error("Failed to update calendar name:", error)
-                toast.error("캘린더 이름을 저장하지 못했습니다.")
+                toast.error(t("calendarNameSaveFailed"))
             } finally {
                 setIsSavingName(false)
             }
@@ -130,17 +133,18 @@ function CalendarGeneralCalendarNameField({
         serverName,
         trimmedCalendarName,
         updateCalendarSnapshot,
+        t,
     ])
 
     return (
         <Field>
             <FieldContent>
-                <FieldLabel>캘린더 이름</FieldLabel>
+                <FieldLabel>{t("calendarNameLabel")}</FieldLabel>
             </FieldContent>
 
             <NameInputControl
                 value={calendarName}
-                placeholder="캘린더 이름 입력.."
+                placeholder={t("calendarNamePlaceholder")}
                 onChange={setCalendarName}
                 invalid={hasCalendarNameLengthError}
                 isSaving={isSavingName}
@@ -151,8 +155,10 @@ function CalendarGeneralCalendarNameField({
             />
             {hasCalendarNameLengthError && (
                 <p className="text-xs text-destructive">
-                    {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_CALENDAR_NAME_LENGTH}
-                    자 이하로 입력해 주세요.
+                    {tForm("requiredLengthRange", {
+                        min: MIN_DISPLAY_NAME_LENGTH,
+                        max: MAX_CALENDAR_NAME_LENGTH,
+                    })}
                 </p>
             )}
         </Field>
@@ -162,6 +168,10 @@ function CalendarGeneralCalendarNameField({
 export function CalendarGeneralSettingsPanel() {
     const router = useRouter()
     const { closeSettings } = useSettingsModal()
+    const t = useDebugTranslations("settings.calendarGeneral")
+    const tVal = useDebugTranslations("common.validation")
+    const tCommon = useDebugTranslations("common.actions")
+    const tCommonStatus = useDebugTranslations("common.status")
     const { activeCalendar, eventLayout, saveEventLayout } =
         useCalendarEventLayout()
     const activeCalendarMembership = useCalendarStore(
@@ -245,9 +255,9 @@ export function CalendarGeneralSettingsPanel() {
     const layoutOptions = normalizeCalendarLayoutOptions(
         activeCalendar?.layoutOptions
     )
-    const layoutSaveQueueRef = useRef<
-        ReturnType<typeof normalizeCalendarLayoutOptions> | null
-    >(null)
+    const layoutSaveQueueRef = useRef<ReturnType<
+        typeof normalizeCalendarLayoutOptions
+    > | null>(null)
     const persistedLayoutOptionsRef = useRef(layoutOptions)
     const isLayoutSaveInFlightRef = useRef(false)
 
@@ -260,7 +270,7 @@ export function CalendarGeneralSettingsPanel() {
     if (!activeCalendar) {
         return (
             <div className="text-sm text-muted-foreground">
-                캘린더를 선택하면 일반 설정을 변경할 수 있습니다.
+                {t("selectCalendarToEdit")}
             </div>
         )
     }
@@ -268,7 +278,7 @@ export function CalendarGeneralSettingsPanel() {
     if (!canViewCalendarSettings(activeCalendarMembership)) {
         return (
             <div className="text-sm text-muted-foreground">
-                이 캘린더 설정은 멤버만 조회할 수 있습니다.
+                {t("membersOnlyView")}
             </div>
         )
     }
@@ -296,7 +306,7 @@ export function CalendarGeneralSettingsPanel() {
             const ok = await leaveCalendar(supabase, activeCalendar.id)
 
             if (!ok) {
-                toast.error("캘린더를 나가지 못했습니다.")
+                toast.error(t("leaveCalendarFailed"))
                 return
             }
 
@@ -307,12 +317,12 @@ export function CalendarGeneralSettingsPanel() {
             )
             clearActiveCalendarContext()
             closeSettings()
-            toast.success("캘린더에서 나갔습니다.")
+            toast.success(t("leaveCalendarSuccess"))
             router.push("/calendar")
             router.refresh()
         } catch (error) {
             console.error("Failed to leave calendar:", error)
-            toast.error("캘린더를 나가지 못했습니다.")
+            toast.error(t("leaveCalendarFailed"))
         } finally {
             setIsLeavingCalendar(false)
         }
@@ -354,8 +364,8 @@ export function CalendarGeneralSettingsPanel() {
             if (deleteResult !== true) {
                 toast.error(
                     deleteResult === "You must keep at least one owned calendar"
-                        ? "최소 하나의 소유 캘린더는 남아 있어야 합니다."
-                        : "캘린더를 삭제하지 못했습니다."
+                        ? t("deleteCalendarMustKeepOne")
+                        : t("deleteCalendarFailed")
                 )
                 return
             }
@@ -369,12 +379,12 @@ export function CalendarGeneralSettingsPanel() {
             closeSettings()
             setDeleteConfirmation("")
             setIsDeleteDialogOpen(false)
-            toast.success("캘린더를 삭제했습니다.")
+            toast.success(t("deleteCalendarSuccess"))
             router.push("/calendar")
             router.refresh()
         } catch (error) {
             console.error("Failed to delete calendar:", error)
-            toast.error("캘린더를 삭제하지 못했습니다.")
+            toast.error(t("deleteCalendarFailed"))
         } finally {
             setIsDeletingCalendar(false)
         }
@@ -387,10 +397,10 @@ export function CalendarGeneralSettingsPanel() {
             return
         }
 
-        const validationMessage = validateAvatarImage(file)
+        const validationCode = validateAvatarImage(file)
 
-        if (validationMessage) {
-            toast.error(validationMessage)
+        if (validationCode === "invalidType") {
+            toast.error(tVal("invalidAvatarFileType"))
             event.target.value = ""
             return
         }
@@ -432,10 +442,10 @@ export function CalendarGeneralSettingsPanel() {
             }
 
             updateCalendarSnapshot(activeCalendar.id, { avatarUrl })
-            toast.success("캘린더 이미지가 업데이트되었습니다.")
+            toast.success(t("avatarUpdateSuccess"))
         } catch (error) {
             console.error("Calendar avatar upload failed:", error)
-            toast.error("캘린더 이미지 업로드에 실패했습니다.")
+            toast.error(t("avatarUploadFailed"))
         } finally {
             setIsUploadingAvatar(false)
             event.target.value = ""
@@ -469,10 +479,10 @@ export function CalendarGeneralSettingsPanel() {
             }
 
             updateCalendarSnapshot(activeCalendar.id, { avatarUrl: null })
-            toast.success("캘린더 이미지가 삭제되었습니다.")
+            toast.success(t("avatarRemoveSuccess"))
         } catch (error) {
             console.error("Calendar avatar remove failed:", error)
-            toast.error("캘린더 이미지 삭제에 실패했습니다.")
+            toast.error(t("avatarRemoveFailed"))
         } finally {
             setIsRemovingAvatar(false)
         }
@@ -497,10 +507,10 @@ export function CalendarGeneralSettingsPanel() {
             }
 
             updateCalendarSnapshot(activeCalendar.id, { accessMode })
-            toast.success("캘린더 보안 설정이 업데이트되었습니다.")
+            toast.success(t("accessModeUpdateSuccess"))
         } catch (error) {
             console.error("Failed to update calendar access mode:", error)
-            toast.error("캘린더 보안 설정을 저장하지 못했습니다.")
+            toast.error(t("accessModeSaveFailed"))
         } finally {
             setIsSavingSecurity(false)
         }
@@ -510,7 +520,7 @@ export function CalendarGeneralSettingsPanel() {
         patch: Partial<ReturnType<typeof normalizeCalendarLayoutOptions>>
     ) => {
         if (!canManageSettings) {
-            toast.error("관리자 또는 소유자만 레이아웃을 변경할 수 있습니다.")
+            toast.error(t("layoutChangePermissionDenied"))
             return
         }
 
@@ -558,8 +568,11 @@ export function CalendarGeneralSettingsPanel() {
                     layoutOptions: persistedLayoutOptionsRef.current,
                 })
                 layoutSaveQueueRef.current = null
-                console.error("Failed to update calendar layout options:", error)
-                toast.error("캘린더 레이아웃 옵션을 저장하지 못했습니다.")
+                console.error(
+                    "Failed to update calendar layout options:",
+                    error
+                )
+                toast.error(t("layoutPersistFailed"))
                 break
             }
         }
@@ -571,13 +584,12 @@ export function CalendarGeneralSettingsPanel() {
         <FieldGroup>
             <FieldSet>
                 <FieldLegend className="mb-4 font-semibold">
-                    캘린더 설정
+                    {t("calendarSettingsSection")}
                 </FieldLegend>
                 <FieldGroup>
                     {!canManageSettings && (
                         <p className="text-sm text-muted-foreground">
-                            관리자 또는 소유자만 이 캘린더 설정을 변경할 수
-                            있습니다.
+                            {t("onlyManagersCanChangeSettings")}
                         </p>
                     )}
                     <CalendarGeneralCalendarNameField
@@ -589,9 +601,9 @@ export function CalendarGeneralSettingsPanel() {
                     />
                     <Field>
                         <FieldContent>
-                            <FieldLabel>캘린더 이미지</FieldLabel>
+                            <FieldLabel>{t("calendarImageLabel")}</FieldLabel>
                             <FieldDescription>
-                                이 이미지는 사이드바와 알림에 표시됩니다
+                                {t("calendarImageDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -610,9 +622,9 @@ export function CalendarGeneralSettingsPanel() {
                     </Field>
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
-                            <FieldLabel>캘린더 보안</FieldLabel>
+                            <FieldLabel>{t("securityLabel")}</FieldLabel>
                             <FieldDescription>
-                                공개 범위와 가입 방식을 함께 설정합니다.
+                                {t("securityDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -630,19 +642,21 @@ export function CalendarGeneralSettingsPanel() {
                             disabled={!canManageSettings || isSavingSecurity}
                         >
                             <SelectTrigger className="w-full max-w-54">
-                                <SelectValue placeholder="캘린더 보안" />
+                                <SelectValue placeholder={t("securityLabel")} />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>캘린더 보안</SelectLabel>
+                                    <SelectLabel>
+                                        {t("securityGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="public_open">
-                                        공개 · 바로 참여
+                                        {t("accessPublicOpen")}
                                     </SelectItem>
                                     <SelectItem value="public_approval">
-                                        공개 · 승인 후 참여
+                                        {t("accessPublicApproval")}
                                     </SelectItem>
                                     <SelectItem value="private">
-                                        비공개 · 초대 전용
+                                        {t("accessPrivate")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -653,14 +667,14 @@ export function CalendarGeneralSettingsPanel() {
             <FieldSeparator />
             <FieldSet>
                 <FieldLegend className="mb-4 font-semibold">
-                    레이아웃
+                    {t("layoutSection")}
                 </FieldLegend>
                 <FieldGroup>
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
-                            <FieldLabel>주 시작 요일</FieldLabel>
+                            <FieldLabel>{t("weekStartsOnLabel")}</FieldLabel>
                             <FieldDescription>
-                                캘린더 날짜/일정 표시 시작 요일을 선택합니다.
+                                {t("weekStartsOnDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -676,17 +690,21 @@ export function CalendarGeneralSettingsPanel() {
                             }}
                             disabled={!canManageSettings}
                         >
-                            <SelectTrigger className="w-full max-w-54">
-                                <SelectValue placeholder="주 시작 요일" />
+                            <SelectTrigger className="w-auto">
+                                <SelectValue
+                                    placeholder={t("weekStartsOnLabel")}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>주 시작 요일</SelectLabel>
+                                    <SelectLabel>
+                                        {t("weekStartsOnGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="sunday">
-                                        일 · 월 · 화 · 수 · 목 · 금 · 토
+                                        {t("weekRowSunday")}
                                     </SelectItem>
                                     <SelectItem value="monday">
-                                        월 · 화 · 수 · 목 · 금 · 토 · 일
+                                        {t("weekRowMonday")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -694,9 +712,9 @@ export function CalendarGeneralSettingsPanel() {
                     </Field>
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
-                            <FieldLabel>주말 숨기기</FieldLabel>
+                            <FieldLabel>{t("hideWeekendLabel")}</FieldLabel>
                             <FieldDescription>
-                                월~금 컬럼만 강조해서 보고 싶을 때 사용합니다.
+                                {t("hideWeekendDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -719,16 +737,20 @@ export function CalendarGeneralSettingsPanel() {
                             disabled={!canManageSettings}
                         >
                             <SelectTrigger className="w-full max-w-38">
-                                <SelectValue placeholder="주말 숨기기" />
+                                <SelectValue
+                                    placeholder={t("hideWeekendLabel")}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>주말 숨기기</SelectLabel>
+                                    <SelectLabel>
+                                        {t("hideWeekendGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="disabled">
-                                        표시
+                                        {t("optionShow")}
                                     </SelectItem>
                                     <SelectItem value="enabled">
-                                        숨김
+                                        {t("optionHide")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -743,7 +765,7 @@ export function CalendarGeneralSettingsPanel() {
                                         : undefined
                                 }
                             >
-                                주말 색상 표시
+                                {t("weekendColorLabel")}
                             </FieldLabel>
                             <FieldDescription
                                 className={
@@ -752,8 +774,7 @@ export function CalendarGeneralSettingsPanel() {
                                         : undefined
                                 }
                             >
-                                토요일(파란색), 일요일(빨간색) 텍스트 색상을
-                                표시합니다.
+                                {t("weekendColorDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -780,16 +801,20 @@ export function CalendarGeneralSettingsPanel() {
                             }
                         >
                             <SelectTrigger className="w-full max-w-38">
-                                <SelectValue placeholder="주말 색상 표시" />
+                                <SelectValue
+                                    placeholder={t("weekendColorLabel")}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>주말 색상 표시</SelectLabel>
+                                    <SelectLabel>
+                                        {t("weekendColorGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="enabled">
-                                        표시
+                                        {t("optionShow")}
                                     </SelectItem>
                                     <SelectItem value="disabled">
-                                        숨김
+                                        {t("optionHide")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -804,7 +829,7 @@ export function CalendarGeneralSettingsPanel() {
                                         : undefined
                                 }
                             >
-                                주말 배경 강조
+                                {t("weekendBackgroundLabel")}
                             </FieldLabel>
                             <FieldDescription
                                 className={
@@ -813,8 +838,7 @@ export function CalendarGeneralSettingsPanel() {
                                         : undefined
                                 }
                             >
-                                주말 라인 배경을 강조해 공휴일 영역처럼
-                                구분합니다.
+                                {t("weekendBackgroundDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -841,16 +865,22 @@ export function CalendarGeneralSettingsPanel() {
                             }
                         >
                             <SelectTrigger className="w-full max-w-38">
-                                <SelectValue placeholder="배경 강조" />
+                                <SelectValue
+                                    placeholder={t(
+                                        "backgroundEmphasisGroupLabel"
+                                    )}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>배경 강조</SelectLabel>
+                                    <SelectLabel>
+                                        {t("backgroundEmphasisGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="enabled">
-                                        표시
+                                        {t("optionShow")}
                                     </SelectItem>
                                     <SelectItem value="disabled">
-                                        숨김
+                                        {t("optionHide")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -859,11 +889,11 @@ export function CalendarGeneralSettingsPanel() {
 
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
-                            <FieldLabel>일정 레이아웃</FieldLabel>
+                            <FieldLabel>{t("eventLayoutLabel")}</FieldLabel>
                             <FieldDescription>
-                                {"'"}
-                                {activeCalendar.name}
-                                {"'"} 캘린더의 기본 일정 표시 방식을 설정합니다.
+                                {t("eventLayoutDescription", {
+                                    name: activeCalendar.name,
+                                })}
                             </FieldDescription>
                         </FieldContent>
 
@@ -877,16 +907,20 @@ export function CalendarGeneralSettingsPanel() {
                             disabled={!canManageSettings}
                         >
                             <SelectTrigger className="w-full max-w-38">
-                                <SelectValue placeholder="테마 설정" />
+                                <SelectValue
+                                    placeholder={t("eventLayoutPlaceholder")}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>일정 레이아웃</SelectLabel>
+                                    <SelectLabel>
+                                        {t("eventLayoutGroupLabel")}
+                                    </SelectLabel>
                                     <SelectItem value="compact">
-                                        일정 위로 쌓기
+                                        {t("layoutCompact")}
                                     </SelectItem>
                                     <SelectItem value="split">
-                                        일정 맞추기
+                                        {t("layoutSplit")}
                                     </SelectItem>
                                 </SelectGroup>
                             </SelectContent>
@@ -897,7 +931,7 @@ export function CalendarGeneralSettingsPanel() {
             <FieldSeparator />
             <FieldSet>
                 <FieldLegend className="mb-4 font-semibold">
-                    위험 구역
+                    {t("dangerZone")}
                 </FieldLegend>
                 <FieldGroup>
                     {canLeaveCalendar && (
@@ -906,11 +940,15 @@ export function CalendarGeneralSettingsPanel() {
                             className="items-center!"
                         >
                             <FieldContent>
-                                <FieldLabel>캘린더 나가기</FieldLabel>
+                                <FieldLabel>
+                                    {t("leaveCalendarLabel")}
+                                </FieldLabel>
                                 <FieldDescription>
                                     {isOwner && ownerCount < 2
-                                        ? "마지막 소유자는 캘린더를 나갈 수 없습니다. 다른 소유자를 추가하거나 캘린더를 삭제해 주세요."
-                                        : "이 캘린더에서 계정을 제거하면 자체 페이지를 포함하여 워크스페이스 및 모든 콘텐츠에 대한 사용 권한을 잃게 됩니다."}
+                                        ? t(
+                                              "leaveCalendarOwnerBlockedDescription"
+                                          )
+                                        : t("leaveCalendarDescription")}
                                 </FieldDescription>
                             </FieldContent>
 
@@ -929,23 +967,21 @@ export function CalendarGeneralSettingsPanel() {
                                         variant="destructive"
                                         disabled={isLeavingCalendar}
                                     >
-                                        캘린더 나가기
+                                        {t("leaveCalendarLabel")}
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent size="sm">
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                            캘린더에서 나가시겠습니까?
+                                            {t("leaveCalendarDialogTitle")}
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            이 작업은 내 멤버십만 제거하며, 내가
-                                            작성한 일정은 캘린더에 그대로
-                                            유지됩니다.
+                                            {t("leaveCalendarDialogBody")}
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
-                                            취소
+                                            {tCommon("cancel")}
                                         </AlertDialogCancel>
                                         <AlertDialogAction
                                             variant="destructive"
@@ -955,8 +991,8 @@ export function CalendarGeneralSettingsPanel() {
                                             }}
                                         >
                                             {isLeavingCalendar
-                                                ? "처리 중..."
-                                                : "캘린더 나가기"}
+                                                ? tCommonStatus("processing")
+                                                : t("leaveCalendarLabel")}
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -969,11 +1005,15 @@ export function CalendarGeneralSettingsPanel() {
                             className="items-center!"
                         >
                             <FieldContent>
-                                <FieldLabel>캘린더 삭제하기</FieldLabel>
+                                <FieldLabel>
+                                    {t("deleteCalendarLabel")}
+                                </FieldLabel>
                                 <FieldDescription>
                                     {canDeleteLastCalendar
-                                        ? "모든 일정을 포함하여 이 캘린더를 영구적으로 삭제합니다."
-                                        : "마지막 남은 내 캘린더는 삭제할 수 없습니다."}
+                                        ? t("deleteCalendarDescription")
+                                        : t(
+                                              "deleteLastCalendarBlockedDescription"
+                                          )}
                                 </FieldDescription>
                             </FieldContent>
 
@@ -986,27 +1026,23 @@ export function CalendarGeneralSettingsPanel() {
                                             isDeletingCalendar
                                         }
                                     >
-                                        캘린더 삭제하기
+                                        {t("deleteCalendarLabel")}
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent size="sm">
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                            캘린더를 삭제하시겠습니까?
+                                            {t("deleteCalendarDialogTitle")}
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            이 작업은 캘린더, 멤버, 일정을 모두
-                                            영구적으로 삭제하며 되돌릴 수
-                                            없습니다.
+                                            {t("deleteCalendarDialogBody")}
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <div className="grid gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                            삭제하려면{" "}
-                                            <span className="font-medium text-foreground">
-                                                {deleteConfirmationTarget}
-                                            </span>
-                                            를 입력해 주세요.
+                                            {t("deleteConfirmPrompt", {
+                                                name: deleteConfirmationTarget,
+                                            })}
                                         </p>
                                         <Input
                                             value={deleteConfirmation}
@@ -1018,12 +1054,14 @@ export function CalendarGeneralSettingsPanel() {
                                             placeholder={
                                                 deleteConfirmationTarget
                                             }
-                                            aria-label="캘린더 삭제 확인"
+                                            aria-label={t(
+                                                "deleteConfirmInputAria"
+                                            )}
                                         />
                                     </div>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
-                                            취소
+                                            {tCommon("cancel")}
                                         </AlertDialogCancel>
                                         <AlertDialogAction
                                             variant="destructive"
@@ -1037,8 +1075,8 @@ export function CalendarGeneralSettingsPanel() {
                                             }}
                                         >
                                             {isDeletingCalendar
-                                                ? "삭제 중..."
-                                                : "캘린더 삭제하기"}
+                                                ? tCommonStatus("deleting")
+                                                : t("deleteCalendarLabel")}
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>

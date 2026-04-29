@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     getCalendarCollectionLabelClassName,
     type CalendarCollectionColor,
@@ -107,10 +108,11 @@ export function EventFormCollectionChipsField({
     disabled = false,
     invalid = false,
     portalContainer,
-    emptyText = "컬렉션을 입력해 생성할 수 있습니다.",
+    emptyText,
     errors,
     listVariant = "popover",
 }: EventFormCollectionChipsFieldProps) {
+    const t = useDebugTranslations("event.collection")
     const options = useMemo(
         () =>
             buildEventFormCollectionComboboxOptions({
@@ -133,13 +135,13 @@ export function EventFormCollectionChipsField({
                 disabled={disabled}
                 options={options}
                 value={normalizeNames(value)}
-                emptyText={emptyText}
+                emptyText={emptyText ?? t("emptyText")}
                 onValueChange={(values) => {
                     onChange(normalizeNames(values))
                 }}
                 listVariant={listVariant}
                 invalid={invalid}
-                placeholder="검색 또는 생성"
+                placeholder={t("searchOrCreate")}
                 chipClassName={(option) =>
                     getCalendarCollectionLabelClassName(
                         option.color,
@@ -161,7 +163,7 @@ export function EventFormCollectionChipsField({
                         >
                             {option.label}
                         </span>
-                        {option.isCreate ? "새 컬렉션 생성" : null}
+                        {option.isCreate ? t("createNew") : null}
                     </span>
                 )}
                 createOptionFromQuery={(query) =>

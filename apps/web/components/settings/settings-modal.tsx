@@ -42,6 +42,7 @@ import type { ComponentType } from "react"
 import { useState } from "react"
 import { CalendarDataSettingsPanel } from "./panels/calendar-data-settings-panel"
 import { ProfileGeneralSettingsPanel } from "./panels/profile-general-settings-panel"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 
 export type SettingsTabId =
     | "profile"
@@ -51,49 +52,59 @@ export type SettingsTabId =
     | "calendar_members"
     | "calendar_data"
 
-const SETTINGS_TABS: Array<{
+const SETTINGS_TAB_META: Array<{
     id: SettingsTabId
-    label: string
     group: "account" | "calendar"
     icon: typeof Settings2Icon
 }> = [
     {
         id: "profile",
-        label: "프로필",
         group: "account",
         icon: Settings2Icon,
     },
     {
         id: "profile_general",
-        label: "기본 설정",
         group: "account",
         icon: Settings2Icon,
     },
     {
         id: "profile_notification",
-        label: "알림",
         group: "account",
         icon: BellIcon,
     },
     {
         id: "calendar_general",
-        label: "일반",
         group: "calendar",
         icon: SettingsIcon,
     },
     {
         id: "calendar_members",
-        label: "멤버",
         group: "calendar",
         icon: UsersIcon,
     },
     {
         id: "calendar_data",
-        label: "데이터",
         group: "calendar",
         icon: CalendarsIcon,
     },
 ]
+
+const SETTINGS_MODAL_LABEL_KEY: Record<
+    SettingsTabId,
+    | "tabProfile"
+    | "tabProfileGeneral"
+    | "tabProfileNotification"
+    | "tabCalendarGeneral"
+    | "tabCalendarMembers"
+    | "tabCalendarData"
+> = {
+    profile: "tabProfile",
+    profile_general: "tabProfileGeneral",
+    profile_notification: "tabProfileNotification",
+    calendar_general: "tabCalendarGeneral",
+    calendar_members: "tabCalendarMembers",
+    calendar_data: "tabCalendarData",
+}
 
 const SETTINGS_TAB_PANELS: Partial<Record<SettingsTabId, ComponentType>> = {
     profile: ProfileSettingsPanel,
@@ -107,7 +118,7 @@ const SETTINGS_TAB_PANELS: Partial<Record<SettingsTabId, ComponentType>> = {
 export function SettingsModal({
     open,
     onOpenChange,
-    title = "설정",
+    title,
     initialTab = "profile",
 }: {
     open: boolean
@@ -115,6 +126,9 @@ export function SettingsModal({
     title?: string
     initialTab?: SettingsTabId
 }) {
+    const tSettings = useDebugTranslations("settings")
+    const resolvedTitle = title ?? tSettings("title")
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
@@ -124,7 +138,7 @@ export function SettingsModal({
             >
                 <VisuallyHidden>
                     <DialogHeader className="border-b px-6 py-4">
-                        <DialogTitle>{title}</DialogTitle>
+                        <DialogTitle>{resolvedTitle}</DialogTitle>
                     </DialogHeader>
                 </VisuallyHidden>
                 {open ? (
@@ -139,19 +153,23 @@ export function SettingsModal({
 }
 
 function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
+    const tModal = useDebugTranslations("settings.modal")
     const user = useAuthStore((s) => s.user)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
-    const fallbackTab = SETTINGS_TABS[0]?.id ?? initialTab
+    const fallbackTab = SETTINGS_TAB_META[0]?.id ?? initialTab
     const canViewCalendarTabs = canViewCalendarSettings(
         activeCalendarMembership
     )
-    const availableTabs = SETTINGS_TABS.filter(
+    const availableTabs = SETTINGS_TAB_META.filter(
         (tab) =>
             tab.group === "account" || (activeCalendar && canViewCalendarTabs)
-    )
+    ).map((tab) => ({
+        ...tab,
+        label: tModal(SETTINGS_MODAL_LABEL_KEY[tab.id]),
+    }))
     const [activeTab, setActiveTab] = useState<SettingsTabId>(
         availableTabs.find((tab) => tab.id === initialTab)?.id ?? fallbackTab
     )
@@ -166,7 +184,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
                     {user && (
                         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                             <SidebarGroupLabel className="px-2.5">
-                                계정 설정
+                                {tModal("sidebarAccountSettings")}
                             </SidebarGroupLabel>
                             <SidebarGroupContent>
                                 <SidebarMenu className="gap-1">
@@ -222,7 +240,7 @@ function SettingsModalBody({ initialTab }: { initialTab: SettingsTabId }) {
 
                     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
                         <SidebarGroupLabel className="px-2.5">
-                            캘린더
+                            {tModal("sidebarCalendar")}
                         </SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu className="gap-1">

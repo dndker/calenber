@@ -5,6 +5,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 
 type AuthFormShellProps = React.ComponentProps<"div"> & {
     title: string
@@ -19,6 +20,7 @@ export function AuthFormShell({
     children,
     ...props
 }: AuthFormShellProps) {
+    const t = useDebugTranslations("auth.legal")
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
             <div className="flex flex-col items-center gap-2 text-center">
@@ -43,9 +45,10 @@ export function AuthFormShell({
             <FieldGroup>{children}</FieldGroup>
 
             <FieldDescription className="px-6 text-center">
-                계속 진행하면 <br />
-                <a href="#">서비스 이용약관</a> 및{" "}
-                <a href="#">개인정보 처리방침</a>에 동의하게 됩니다.
+                {t("continuePrefix")} <br />
+                <a href="#">{t("terms")}</a> {t("and")}{" "}
+                <a href="#">{t("privacy")}</a>
+                {t("agreeSuffix")}
             </FieldDescription>
         </div>
     )

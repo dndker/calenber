@@ -34,6 +34,7 @@ import {
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
 import { Loader2Icon, MoreHorizontalIcon, PlusIcon } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 export type CalendarCollectionTableRow = CalendarEventCollection & {
@@ -51,6 +52,7 @@ function CollectionNameInput({
     isSaving: boolean
     onRename: (collectionId: string, nextName: string) => Promise<boolean>
 }) {
+    const t = useDebugTranslations("settings.collectionTable")
     const [draft, setDraft] = useState(collection.name)
     const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -136,7 +138,7 @@ function CollectionNameInput({
                         event.currentTarget.blur()
                     }
                 }}
-                placeholder="컬렉션 이름"
+                placeholder={t("namePlaceholder")}
             />
             {isSaving ? (
                 <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
@@ -181,6 +183,8 @@ export function CalendarCollectionTable({
     ) => void
     onRemoveCollection: (collection: CalendarEventCollection) => void
 }) {
+    const t = useDebugTranslations("settings.collectionTable")
+    const tData = useDebugTranslations("settings.calendarData")
     return (
         <div className="rounded-xl border">
             <div className="flex flex-col gap-3 border-b px-3 py-3 sm:flex-row sm:items-center">
@@ -199,12 +203,14 @@ export function CalendarCollectionTable({
                                 onCreateCollection()
                             }
                         }}
-                        placeholder="새 컬렉션 추가"
+                        placeholder={t("newCollectionPlaceholder")}
                         className="h-9"
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <Badge variant="secondary">전체 {rows.length}개</Badge>
+                    <Badge variant="secondary">
+                        {t("totalCount", { count: rows.length })}
+                    </Badge>
                     <Button
                         type="button"
                         size="sm"
@@ -220,7 +226,7 @@ export function CalendarCollectionTable({
                         ) : (
                             <PlusIcon />
                         )}
-                        추가
+                        {t("add")}
                     </Button>
                 </div>
             </div>
@@ -228,10 +234,16 @@ export function CalendarCollectionTable({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-full pl-3.5">이름</TableHead>
-                        <TableHead className="w-44">색상</TableHead>
-                        <TableHead className="w-34">초기 체크</TableHead>
-                        <TableHead className="w-28">연결 일정</TableHead>
+                        <TableHead className="w-full pl-3.5">
+                            {t("name")}
+                        </TableHead>
+                        <TableHead className="w-44">{t("color")}</TableHead>
+                        <TableHead className="w-34">
+                            {t("defaultChecked")}
+                        </TableHead>
+                        <TableHead className="w-28">
+                            {t("linkedEvents")}
+                        </TableHead>
                         <TableHead className="w-12 text-right" />
                     </TableRow>
                 </TableHeader>
@@ -325,10 +337,10 @@ export function CalendarCollectionTable({
                                             <SelectContent>
                                                 <SelectGroup>
                                                     <SelectItem value="visible">
-                                                        기본 표시
+                                                        {tData("collectionVisibleDefault")}
                                                     </SelectItem>
                                                     <SelectItem value="hidden">
-                                                        기본 숨김
+                                                        {tData("collectionHiddenDefault")}
                                                     </SelectItem>
                                                 </SelectGroup>
                                             </SelectContent>
@@ -339,7 +351,7 @@ export function CalendarCollectionTable({
                                             variant="outline"
                                             className="font-normal"
                                         >
-                                            {row.usageCount}개 일정
+                                            {tData("collectionLinkedEventsCount", { count: row.usageCount })}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -369,7 +381,7 @@ export function CalendarCollectionTable({
                                                         )
                                                     }}
                                                 >
-                                                    컬렉션 삭제
+                                                    {tData("collectionDeleteAction")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -383,7 +395,7 @@ export function CalendarCollectionTable({
                                 colSpan={5}
                                 className="h-24 text-center text-muted-foreground"
                             >
-                                등록된 컬렉션이 없습니다.
+                                {tData("collectionEmpty")}
                             </TableCell>
                         </TableRow>
                     )}

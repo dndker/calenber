@@ -8,25 +8,27 @@ import {
     SelectValue,
 } from "@workspace/ui/components/select"
 import { useTheme } from "next-themes"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useServerTheme } from "./provider/theme-context"
 
 export default function ThemeSelect() {
     const { theme: ssrTheme } = useServerTheme()
     const { theme, setTheme } = useTheme()
+    const t = useDebugTranslations("common.theme")
 
     const currentTheme = theme ?? ssrTheme
 
     return (
         <Select value={currentTheme} onValueChange={setTheme}>
             <SelectTrigger className="w-full max-w-48">
-                <SelectValue placeholder="테마 설정" />
+                <SelectValue placeholder={t("placeholder")} />
             </SelectTrigger>
             <SelectContent>
                 <SelectGroup>
-                    <SelectLabel>테마</SelectLabel>
-                    <SelectItem value="system">시스템 테마 사용</SelectItem>
-                    <SelectItem value="light">라이트 모드</SelectItem>
-                    <SelectItem value="dark">다크 모드</SelectItem>
+                    <SelectLabel>{t("label")}</SelectLabel>
+                    <SelectItem value="system">{t("system")}</SelectItem>
+                    <SelectItem value="light">{t("light")}</SelectItem>
+                    <SelectItem value="dark">{t("dark")}</SelectItem>
                 </SelectGroup>
             </SelectContent>
         </Select>

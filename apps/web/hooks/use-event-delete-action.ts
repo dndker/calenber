@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useDeleteEvent } from "@/hooks/use-delete-event"
 import { getCalendarEventSourceId } from "@/lib/calendar/recurrence"
 import type { CalendarEvent } from "@/store/calendar-store.types"
@@ -18,6 +19,7 @@ export function useEventDeleteAction({
     event,
     onSuccess,
 }: UseEventDeleteActionOptions = {}) {
+    const t = useDebugTranslations("event.toast")
     const deleteEvent = useDeleteEvent()
     const updateEvent = useCalendarStore((s) => s.updateEvent)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -96,7 +98,7 @@ export function useEventDeleteAction({
         })
 
         if (ok) {
-            toast.success("일정이 삭제되었습니다.")
+            toast.success(t("deleted"))
             closeRecurringDeleteDialog()
             handleDeleteSuccess()
         }

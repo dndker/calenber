@@ -6,6 +6,7 @@ import {
     getAvatarGroupBadge,
     getAvatarGroupFallbackLabel,
 } from "@/components/calendar/avatar-group-dropdown"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -16,6 +17,8 @@ const MAX_VISIBLE_MEMBERS = 4
 const KOREAN_LOCALE = "ko"
 
 export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
+    const tCommon = useDebugTranslations("common.labels")
+    const tCalendar = useDebugTranslations("calendar")
     const my = useAuthStore((state) => state.user)
     const myUserId = my?.id ?? null
     const myId =
@@ -78,7 +81,7 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
                 member.displayName,
                 member.isAnonymous
             ),
-            badge: isMe ? getAvatarGroupBadge("나") : undefined,
+            badge: isMe ? getAvatarGroupBadge(tCommon("me")) : undefined,
         }
     })
 
@@ -97,7 +100,7 @@ export function CalendarEventPresenceGroup({ eventId }: { eventId: string }) {
                 >
                     <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                         <EyeIcon className="size-4" />
-                        함께 보고 있는 멤버 {eventMembers.length - 1}명
+                        {tCalendar("eventPresenceViewingMembers", { count: eventMembers.length - 1 })}
                     </span>
                     <AvatarGroupDropdownPreview
                         items={items}

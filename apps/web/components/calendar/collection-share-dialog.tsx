@@ -19,6 +19,7 @@ import {
     ResponsiveModal,
     ResponsiveModalContent,
 } from "@/components/responsive-modal"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     publishCollectionAsSubscription,
     unpublishCollectionSubscription,
@@ -105,22 +106,20 @@ const VISIBILITY_OPTIONS: VisibilityOption[] = [
     {
         value: "private",
         icon: GlobeOffIcon,
-        label: "공유 안함",
-        description: "구독 리스트에서 노출되지 않으며, 공유가 비활성화됩니다.",
+        label: "visibilityPrivateLabel",
+        description: "visibilityPrivateDescription",
     },
     {
         value: "public",
         icon: Globe2Icon,
-        label: "누구나 구독 가능",
-        description:
-            "구독 리스트에 공개되어 누구나 검색하고 구독할 수 있습니다.",
+        label: "visibilityPublicLabel",
+        description: "visibilityPublicDescription",
     },
     {
         value: "unlisted",
         icon: GlobeLockIcon,
-        label: "링크로만 구독 가능",
-        description:
-            "검색에는 노출되지 않고, 링크를 아는 사람만 구독할 수 있습니다.",
+        label: "visibilityUnlistedLabel",
+        description: "visibilityUnlistedDescription",
     },
 ]
 
@@ -151,6 +150,8 @@ function CollectionShareForm({
     activeCalendarId: string
     onClose: () => void
 }) {
+    const t = useDebugTranslations("calendar.collectionShare")
+    const tCommon = useDebugTranslations("common.actions")
     const upsertEventCollectionSnapshot = useCalendarStore(
         (s) => s.upsertEventCollectionSnapshot
     )
@@ -187,11 +188,11 @@ function CollectionShareForm({
                         collectionId: collection.id,
                     })
                     if (!ok) {
-                        toast.error("공유를 비활성화하지 못했습니다.")
+                        toast.error(t("disableFailed"))
                         return
                     }
                     onUnpublished?.()
-                    toast.success("컬렉션 공유가 비활성화되었습니다.")
+                    toast.success(t("disabled"))
                 }
                 onClose()
                 return
@@ -199,7 +200,7 @@ function CollectionShareForm({
 
             const trimmedName = name.trim()
             if (!trimmedName) {
-                toast.error("컬렉션 이름을 입력해 주세요.")
+                toast.error(t("nameRequired"))
                 return
             }
 
@@ -213,7 +214,7 @@ function CollectionShareForm({
             })
 
             if (!result) {
-                toast.error("공유 설정을 저장하지 못했습니다.")
+                toast.error(t("saveFailed"))
                 return
             }
 
@@ -232,13 +233,11 @@ function CollectionShareForm({
 
             onPublished?.({ catalogId: result.catalogId, visibility })
             toast.success(
-                isPublished
-                    ? "공유 설정이 저장되었습니다."
-                    : "컬렉션 공유가 시작되었습니다."
+                isPublished ? t("saved") : t("started")
             )
             onClose()
         } catch {
-            toast.error("오류가 발생했습니다. 다시 시도해 주세요.")
+            toast.error(t("unexpectedError"))
         } finally {
             setIsSaving(false)
         }
@@ -267,7 +266,7 @@ function CollectionShareForm({
 
             {/* 공개 범위 */}
             <FieldSet>
-                <FieldLegend variant="label">공개 범위</FieldLegend>
+                <FieldLegend variant="label">{t("visibilityLegend")}</FieldLegend>
                 <Field>
                     <Select
                         value={visibility}
@@ -300,7 +299,7 @@ function CollectionShareForm({
                                                 <div>
                                                     <p className="font-base flex items-center gap-1 font-medium">
                                                         {/* <Icon className="size-4 shrink-0" /> */}
-                                                        {opt.label}
+                                                        {t(opt.label)}
                                                         {current &&
                                                             isPublished &&
                                                             subscriberCount >
@@ -310,12 +309,14 @@ function CollectionShareForm({
                                                                     className="px-1.5 text-xs text-muted-foreground"
                                                                 >
                                                                     {subscriberCount.toLocaleString()}
-                                                                    명 구독 중
+                                                                    {t("subscriberCount", {
+                                                                        count: subscriberCount,
+                                                                    })}
                                                                 </Badge>
                                                             )}
                                                     </p>
                                                     <span className="truncate text-xs text-muted-foreground">
-                                                        {opt.description}
+                                                        {t(opt.description)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -334,33 +335,33 @@ function CollectionShareForm({
                     <>
                         <Field>
                             <FieldLabel htmlFor="collection-share-name">
-                                컬렉션 이름
+                                {t("nameLabel")}
                             </FieldLabel>
                             <Input
                                 id="collection-share-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="컬렉션 이름"
+                                placeholder={t("namePlaceholder")}
                                 disabled={isBusy}
                                 maxLength={80}
                             />
                             <FieldDescription>
-                                컬렉션 이름이 함께 변경됩니다.
+                                {t("nameDescription")}
                             </FieldDescription>
                         </Field>
 
                         <Field>
                             <FieldLabel htmlFor="collection-share-description">
-                                설명{" "}
+                                {t("descriptionLabel")}{" "}
                                 <span className="font-normal text-muted-foreground">
-                                    (선택)
+                                    ({t("optional")})
                                 </span>
                             </FieldLabel>
                             <Textarea
                                 id="collection-share-description"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
-                                placeholder="컬렉션 설명을 입력해주세요."
+                                placeholder={t("descriptionPlaceholder")}
                                 disabled={isBusy}
                                 className="resize-none"
                                 rows={3}
@@ -375,7 +376,7 @@ function CollectionShareForm({
             <DialogFooter>
                 <DialogClose asChild>
                     <Button variant="outline" className="flex-1">
-                        닫기
+                        {tCommon("close")}
                     </Button>
                 </DialogClose>
                 <Button
@@ -389,14 +390,14 @@ function CollectionShareForm({
                         <Spinner className="size-4" />
                     ) : visibility === "private" ? (
                         isPublished ? (
-                            "공유 비활성화"
+                            t("disableAction")
                         ) : (
-                            "확인"
+                            tCommon("confirm")
                         )
                     ) : isPublished ? (
-                        "설정 저장"
+                        t("saveAction")
                     ) : (
-                        "공유 시작"
+                        t("startAction")
                     )}
                 </Button>
             </DialogFooter>
@@ -419,16 +420,17 @@ export function CollectionShareDialog({
     onUnpublished,
     onCollectionRenamed,
 }: CollectionShareDialogProps) {
+    const t = useDebugTranslations("calendar.collectionShare")
     const activeCalendarId = useCalendarStore((s) => s.activeCalendar?.id)
 
     if (!activeCalendarId) {
         return null
     }
 
-    const title = isPublished ? "컬렉션 공유 설정" : "컬렉션 공유하기"
+    const title = isPublished ? t("dialogEditTitle") : t("dialogCreateTitle")
     const description = isPublished
-        ? "공유 설정을 수정하거나 공유를 비활성화할 수 있습니다."
-        : "컬렉션을 공개하면 다른 사람들이 구독할 수 있습니다."
+        ? t("dialogEditDescription")
+        : t("dialogCreateDescription")
 
     return (
         <ResponsiveModal open={open} onOpenChange={onOpenChange}>

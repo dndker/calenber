@@ -1,4 +1,5 @@
 import type { CalendarEventLayout } from "@/lib/calendar/types"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
@@ -46,6 +47,7 @@ export const EventRow = memo(function EventRow({
     size?: number
     assumeWeekScoped?: boolean
 }) {
+    const t = useDebugTranslations("event.row")
     const {
         calendarTz,
         eventLayout,
@@ -389,6 +391,7 @@ const OverflowButton = memo(function OverflowButton({
     splitDisplayLaneCount: number
     weekStart: number
 }) {
+    const t = useDebugTranslations("event.row")
     const [open, setOpen] = useState(false)
     const pos = getOverflowPosition(dayIndex, dayCount)
     const handleDragStateChange = useCallback((isDragging: boolean) => {
@@ -425,7 +428,7 @@ const OverflowButton = memo(function OverflowButton({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    +{hiddenSegments.length}개
+                    {t("hiddenCount", { count: hiddenSegments.length })}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -434,7 +437,7 @@ const OverflowButton = memo(function OverflowButton({
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className="p-1.5 text-xs font-medium text-muted-foreground">
-                    숨겨진 일정 {hiddenSegments.length}개
+                    {t("hiddenEvents", { count: hiddenSegments.length })}
                 </div>
                 <ScrollArea>
                     <div className="max-h-30">

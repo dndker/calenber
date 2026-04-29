@@ -1,8 +1,8 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCalendarEventHistory } from "@/hooks/use-calendar-event-history"
 import { type CalendarEventHistoryItem } from "@/lib/calendar/event-history"
-import { type CalendarRole } from "@/lib/calendar/permissions"
 import dayjs from "@/lib/dayjs"
 import {
     Avatar,
@@ -21,16 +21,13 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Separator } from "@workspace/ui/components/separator"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { HistoryIcon } from "lucide-react"
+import { useLocale } from "next-intl"
 import { Fragment, useMemo } from "react"
 
-const roleLabelMap: Record<CalendarRole, string> = {
-    viewer: "뷰어",
-    editor: "편집자",
-    manager: "매니저",
-    owner: "소유자",
-}
-
-function getChangePreviewValue(value: unknown) {
+function getChangePreviewValue(
+    value: unknown,
+    t: ReturnType<typeof useDebugTranslations>
+) {
     if (value == null) {
         return "-"
     }
@@ -40,19 +37,23 @@ function getChangePreviewValue(value: unknown) {
     }
 
     if (typeof value === "boolean") {
-        return value ? "예" : "아니오"
+        return value ? t("valueTrue") : t("valueFalse")
     }
 
-    return "변경됨"
+    return t("valueChanged")
 }
 
 function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
+    const t = useDebugTranslations("event.history")
+    const tRoles = useDebugTranslations("common.roles")
+    const tLabels = useDebugTranslations("common.labels")
+    const locale = useLocale()
     return (
         <div className="flex gap-3 p-3">
             <Avatar className="mt-0.5 size-8 shrink-0">
                 <AvatarImage
                     src={item.actorAvatarUrl ?? undefined}
-                    alt={item.actorName ?? "작업자"}
+                    alt={item.actorName ?? t("actorFallback")}
                 />
                 <AvatarFallback>
                     {item.actorName?.charAt(0)?.toUpperCase() ?? "?"}
@@ -61,14 +62,14 @@ function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <div className="truncate text-sm font-medium text-primary">
-                        {item.actorName ?? item.actorEmail ?? "알 수 없는 멤버"}
+                        {item.actorName ?? item.actorEmail ?? tLabels("unknownMember")}
                     </div>
                     {item.actorRole === "owner" && (
                         <Badge
                             variant="outline"
                             className="px-1.5 py-0 text-[11px]"
                         >
-                            {roleLabelMap[item.actorRole]}
+                            {tRoles(item.actorRole)}
                         </Badge>
                     )}
                 </div>
@@ -86,16 +87,16 @@ function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
                                     {change.label}
                                 </span>{" "}
                                 {change.op === "added"
-                                    ? "추가"
+                                    ? t("changeAdded")
                                     : change.op === "removed"
-                                      ? "삭제"
-                                      : "변경"}
+                                      ? t("changeRemoved")
+                                      : t("changeUpdated")}
                                 {(change.before !== undefined ||
                                     change.after !== undefined) && (
                                     <span className="ml-1">
-                                        {getChangePreviewValue(change.before)}{" "}
+                                        {getChangePreviewValue(change.before, t)}{" "}
                                         {"→"}{" "}
-                                        {getChangePreviewValue(change.after)}
+                                        {getChangePreviewValue(change.after, t)}
                                     </span>
                                 )}
                             </div>
@@ -103,9 +104,17 @@ function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
                     </div>
                 )}
                 <div className="mt-2 text-xs text-muted-foreground">
-                    {dayjs(item.occurredAt).format(
-                        "YYYY년 MM월 DD일 HH시 mm분"
-                    )}
+                    {new Intl.DateTimeFormat(
+                        locale === "ko" ? "ko-KR" : "en-US",
+                        {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                        }
+                    ).format(dayjs(item.occurredAt).toDate())}
                 </div>
             </div>
         </div>
@@ -125,6 +134,7 @@ export function EventHistoryDrawer({
     portalContainer?: HTMLElement | null
     preloadedHistory?: CalendarEventHistoryItem[] | null
 }) {
+    const t = useDebugTranslations("event.history")
     const { history, isLoading } = useCalendarEventHistory(eventId, {
         enabled: open,
         preloaded: preloadedHistory,
@@ -147,7 +157,7 @@ export function EventHistoryDrawer({
 
             const normalizedCreatedItem: CalendarEventHistoryItem = {
                 ...createdItem,
-                summary: "일정을 생성했습니다.",
+                summary: t("createdSummary"),
                 changes: [],
             }
 
@@ -168,7 +178,7 @@ export function EventHistoryDrawer({
             ...oldestItem,
             id: `${oldestItem.id}-created-fallback`,
             action: "created",
-            summary: "일정을 생성했습니다.",
+            summary: t("createdSummary"),
             changes: [],
         }
 
@@ -185,7 +195,7 @@ export function EventHistoryDrawer({
             >
                 <DrawerHeader className="border-b px-4 py-3 text-left">
                     <DrawerTitle className="flex items-center gap-1">
-                        <HistoryIcon className="size-4.5" /> 일정 기록
+                        <HistoryIcon className="size-4.5" /> {t("title")}
                     </DrawerTitle>
                     <DrawerDescription></DrawerDescription>
                 </DrawerHeader>
@@ -205,7 +215,7 @@ export function EventHistoryDrawer({
                         ))
                     ) : (
                         <div className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-                            아직 기록이 없습니다.
+                            {t("empty")}
                         </div>
                     )}
                 </ScrollArea>

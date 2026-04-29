@@ -17,6 +17,7 @@ import {
     ResponsiveModal,
     ResponsiveModalContent,
 } from "@/components/responsive-modal"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import type { MyCalendarItem } from "@/lib/calendar/queries"
 import { resolveSubscriptionCatalogIdForInstall } from "@/lib/calendar/resolve-subscription-catalog-id"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -79,15 +80,20 @@ function CalendarAvatarRow({
     /** 이 컬렉션을 공유 중인 소스 캘린더 여부 */
     isSource?: boolean
 }) {
+    const t = useDebugTranslations("calendar.collectionSubscribe")
     const initial = calendar.name.trim().charAt(0).toUpperCase() || "?"
     const roleLabel =
         calendar.role === "owner"
-            ? "소유자"
+            ? t("ownerRole")
             : calendar.role === "manager"
-              ? "관리자"
+              ? t("managerRole")
               : null
 
-    const statusLabel = isSource ? "공유중" : isInstalled ? "구독중" : null
+    const statusLabel = isSource
+        ? t("sharedStatus")
+        : isInstalled
+          ? t("subscribedStatus")
+          : null
 
     return (
         <div className="flex items-center gap-2.5">
@@ -138,6 +144,8 @@ function CollectionSubscribeForm({
     onSubscribed?: (calendarId: string) => void
     onClose: () => void
 }) {
+    const t = useDebugTranslations("calendar.collectionSubscribe")
+    const tCommon = useDebugTranslations("common.actions")
     // 이미 이 컬렉션이 설치된 캘린더 ID 집합 — 모달 마운트 시 DB 조회
     const [installedCalendarIdSet, setInstalledCalendarIdSet] = React.useState<
         Set<string>
@@ -203,17 +211,17 @@ function CollectionSubscribeForm({
 
     const handleSubscribe = async () => {
         if (!selectedCalendarId) {
-            toast.error("구독할 캘린더를 선택해 주세요.")
+            toast.error(t("selectCalendarError"))
             return
         }
 
         if (selectedCalendarId === sourceCalendarId) {
-            toast.error("이 컬렉션을 공유 중인 캘린더입니다.")
+            toast.error(t("sourceCalendarError"))
             return
         }
 
         if (installedCalendarIdSet.has(selectedCalendarId)) {
-            toast.error("이미 구독된 캘린더입니다.")
+            toast.error(t("alreadySubscribedError"))
             return
         }
 
@@ -231,7 +239,7 @@ function CollectionSubscribeForm({
             )
 
             if (!catalogUuid) {
-                toast.error("구독 정보를 찾을 수 없습니다.")
+                toast.error(t("catalogMissingError"))
                 return
             }
 
@@ -252,12 +260,10 @@ function CollectionSubscribeForm({
             }
 
             onSubscribed?.(selectedCalendarId)
-            toast.success(
-                `내 캘린더에 '${catalogName}' 컬렉션이 추가되었습니다.`
-            )
+            toast.success(t("subscribedSuccess", { name: catalogName }))
             onClose()
         } catch {
-            toast.error("구독 중 오류가 발생했습니다. 다시 시도해 주세요.")
+            toast.error(t("subscribeFailed"))
         } finally {
             setIsSaving(false)
         }
@@ -267,12 +273,12 @@ function CollectionSubscribeForm({
         return (
             <div className="flex flex-col gap-5">
                 <p className="text-sm text-muted-foreground">
-                    구독을 추가할 수 있는 캘린더가 없습니다.
+                    {t("emptyCalendars")}
                 </p>
                 <DialogFooter>
                     <DialogClose asChild>
                         <Button variant="outline" className="flex-1">
-                            닫기
+                            {tCommon("close")}
                         </Button>
                     </DialogClose>
                 </DialogFooter>
@@ -289,7 +295,7 @@ function CollectionSubscribeForm({
     return (
         <div className="flex flex-col gap-5">
             <Field>
-                <FieldLabel>캘린더 선택</FieldLabel>
+                <FieldLabel>{t("selectCalendarLabel")}</FieldLabel>
                 <Select
                     value={selectedCalendarId}
                     onValueChange={(v) => {
@@ -307,8 +313,8 @@ function CollectionSubscribeForm({
                         <SelectValue
                             placeholder={
                                 isSelectedDisabled
-                                    ? "구독 가능한 캘린더가 없습니다."
-                                    : "캘린더를 선택하세요"
+                                    ? t("noAvailableCalendars")
+                                    : t("selectCalendarPlaceholder")
                             }
                         />
                     </SelectTrigger>
@@ -344,7 +350,7 @@ function CollectionSubscribeForm({
             <DialogFooter>
                 <DialogClose asChild>
                     <Button variant="outline" className="flex-1">
-                        닫기
+                        {tCommon("close")}
                     </Button>
                 </DialogClose>
                 <Button
@@ -353,7 +359,7 @@ function CollectionSubscribeForm({
                     className="flex-1"
                 >
                     {isSaving && <Spinner className="size-4" />}
-                    구독하기
+                    {t("submit")}
                 </Button>
             </DialogFooter>
         </div>
@@ -372,6 +378,7 @@ export function CollectionSubscribeDialog({
     sourceCalendarId,
     onSubscribed,
 }: CollectionSubscribeDialogProps) {
+    const t = useDebugTranslations("calendar.collectionSubscribe")
     const myCalendars = useCalendarStore((s) => s.myCalendars)
 
     // owner/manager 전체 목록 — 소스 캘린더는 제외 않고 포함해 "공유중"으로 표시
@@ -386,8 +393,8 @@ export function CollectionSubscribeDialog({
     return (
         <ResponsiveModal open={open} onOpenChange={onOpenChange}>
             <ResponsiveModalContent
-                title="내 캘린더에 추가"
-                description={`'${catalogName}' 컬렉션을 추가할 캘린더를 선택하세요.`}
+                title={t("dialogTitle")}
+                description={t("dialogDescription", { name: catalogName })}
                 maxWidth="sm:max-w-sm"
             >
                 <CollectionSubscribeForm

@@ -371,7 +371,7 @@ function mergeBuiltinSystemSubscriptionCatalog(
             status: builtin.status ?? "active",
             sourceDeletedAt: builtin.sourceDeletedAt ?? null,
             sourceDeletedReason: builtin.sourceDeletedReason ?? null,
-            providerName: builtin.ownerName ?? "캘린버",
+            providerName: builtin.ownerName ?? "Calenber",
             sourceCalendar: builtin.calendar
                 ? {
                       id: builtin.calendar.id ?? null,
@@ -650,7 +650,7 @@ export async function getCalendarInitialData(
             authority: subscription.verified ? "system" : "user",
             ownerName:
                 subscription.providerName ??
-                (subscription.verified ? "캘린버" : "공유 사용자"),
+                (subscription.verified ? "Calenber" : "Shared user"),
             providerName: subscription.providerName,
             verified: subscription.verified,
             tags: [],

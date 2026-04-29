@@ -43,10 +43,13 @@ import {
     UserPlus,
 } from "lucide-react"
 import Link from "next/link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { usePathname, useRouter } from "next/navigation"
 import { memo, useEffect, useMemo, useState } from "react"
 
 export const NavUser = memo(function NavUser() {
+    const t = useDebugTranslations("navigation.user")
+    const tCommon = useDebugTranslations("common.labels")
     const { isMobile } = useSidebar()
     const pathname = usePathname()
     const user = useAuthStore((s) => s.user)
@@ -71,7 +74,10 @@ export const NavUser = memo(function NavUser() {
         () =>
             activeCalendar ?? {
                 id: "calendar-home",
-                name: pathname === "/calendar" ? "캘린더" : "알 수 없는 캘린더",
+                name:
+                    pathname === "/calendar"
+                        ? t("calendar")
+                        : tCommon("unknownCalendar"),
                 role: null,
                 avatarUrl: null,
                 accessMode: "public_open" as const,
@@ -81,7 +87,7 @@ export const NavUser = memo(function NavUser() {
                 updatedAt: "",
                 createdAt: "",
             },
-        [activeCalendar, pathname]
+        [activeCalendar, pathname, t, tCommon]
     )
 
     const handleSignOut = async () => {
@@ -170,7 +176,7 @@ export const NavUser = memo(function NavUser() {
                                                 onClick={handleOpenSettings}
                                             >
                                                 <Settings />
-                                                설정
+                                                {t("settings")}
                                             </Button>
                                             <Button
                                                 size="sm"
@@ -180,7 +186,7 @@ export const NavUser = memo(function NavUser() {
                                                 }
                                             >
                                                 <UserPlus />
-                                                멤버 초대
+                                                {t("inviteMembers")}
                                             </Button>
                                         </div>
                                     )}
@@ -205,7 +211,7 @@ export const NavUser = memo(function NavUser() {
                                                 <DropdownMenuItem asChild>
                                                     <Link href="/discover">
                                                         <PlusSquare />
-                                                        캘린더 생성 또는 참여
+                                                        {t("discoverCalendars")}
                                                     </Link>
                                                 </DropdownMenuItem>
                                             </DropdownMenuGroup>
@@ -215,7 +221,7 @@ export const NavUser = memo(function NavUser() {
                                                     onClick={handleSignOut}
                                                 >
                                                     <LogOut />
-                                                    로그아웃
+                                                    {t("signOut")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuGroup>
                                         </DropdownMenuContent>
@@ -282,7 +288,7 @@ export const NavUser = memo(function NavUser() {
                                 onClick={handleSignOut}
                             >
                                 <LogOutIcon />
-                                로그아웃
+                                {t("signOut")}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     )}

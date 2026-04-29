@@ -47,6 +47,7 @@ import {
     Trash2Icon,
     UsersIcon,
 } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useMemo, useState } from "react"
 import { VerifiedIcon } from "./icon/verified-icon"
 
@@ -55,6 +56,7 @@ function normalizeKeyword(value: string) {
 }
 
 export function CalendarSubscriptionManager() {
+    const t = useDebugTranslations("calendar.subscriptionManager")
     const {
         subscriptions,
         installedSubscriptions,
@@ -116,7 +118,9 @@ export function CalendarSubscriptionManager() {
                         )}
                     >
                         <CollapsibleTrigger>
-                            <div className="flex items-center gap-1">구독</div>
+                            <div className="flex items-center gap-1">
+                                {t("title")}
+                            </div>
                             <div className="ml-auto flex items-center gap-1.5">
                                 {canManage && (
                                     <div
@@ -218,8 +222,9 @@ export function CalendarSubscriptionManager() {
                                                                 >
                                                                     <Trash2Icon />
                                                                     <span>
-                                                                        구독
-                                                                        해제
+                                                                        {t(
+                                                                            "unsubscribe"
+                                                                        )}
                                                                     </span>
                                                                 </DropdownMenuItem>
                                                             </DropdownMenuContent>
@@ -236,7 +241,7 @@ export function CalendarSubscriptionManager() {
                                 <SidebarMenu>
                                     <SidebarMenuItem>
                                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                            구독된 일정이 없습니다.
+                                            {t("emptyInstalled")}
                                         </div>
                                     </SidebarMenuItem>
                                 </SidebarMenu>
@@ -252,19 +257,21 @@ export function CalendarSubscriptionManager() {
                     <CommandInput
                         value={query}
                         onValueChange={setQuery}
-                        placeholder="구독 캘린더 검색"
+                        placeholder={t("searchPlaceholder")}
                     />
                     <CommandList>
                         {searchableSubscriptions.length === 0 ? (
                             <CommandEmpty className="-mb-2 py-6 text-center text-sm text-muted-foreground">
-                                검색 결과가 없습니다.
+                                {t("emptySearch")}
                             </CommandEmpty>
                         ) : null}
                         <CommandGroup
                             heading={
                                 searchableSubscriptions.length === 0
                                     ? undefined
-                                    : `검색 결과 (${searchableSubscriptions.length}개)`
+                                    : t("searchResults", {
+                                          count: searchableSubscriptions.length,
+                                      })
                             }
                         >
                             {searchableSubscriptions.map((subscription) => {
@@ -315,7 +322,7 @@ export function CalendarSubscriptionManager() {
                                                 {isUnlisted && (
                                                     <span className="ml-0.5 inline-flex items-center gap-0.5 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-normal text-muted-foreground">
                                                         <LockIcon className="size-2.5" />
-                                                        링크 전용
+                                                        {t("linkOnly")}
                                                     </span>
                                                 )}
                                             </div>
@@ -328,7 +335,9 @@ export function CalendarSubscriptionManager() {
                                                     <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                                                         <UsersIcon className="size-3 shrink-0" />
                                                         <span>
-                                                            누구나 구독 가능
+                                                            {t(
+                                                                "publicAvailable"
+                                                            )}
                                                         </span>
                                                     </div>
                                                 )}
@@ -351,12 +360,12 @@ export function CalendarSubscriptionManager() {
                                             }}
                                         >
                                             {isMyPublished
-                                                ? "공유중"
+                                                ? t("shared")
                                                 : isInstalled
-                                                  ? "구독중"
+                                                  ? t("subscribed")
                                                   : isUnlisted
-                                                    ? "링크 필요"
-                                                    : "구독"}
+                                                    ? t("linkRequired")
+                                                    : t("subscribe")}
                                         </Button>
                                     </CommandItem>
                                 )

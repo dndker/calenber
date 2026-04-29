@@ -7,6 +7,7 @@ import {
     getCalendarCollectionPaletteClassName,
     type CalendarCollectionColor,
 } from "@/lib/calendar/collection-color"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { normalizeCollectionName } from "@/lib/calendar/event-form-names"
 import {
     createCalendarEventCollection,
@@ -49,6 +50,7 @@ function CollectionRenameInput({
     isSaving: boolean
     onRename: (collectionId: string, nextName: string) => Promise<boolean>
 }) {
+    const tCollectionTable = useDebugTranslations("settings.collectionTable")
     const [draft, setDraft] = useState(collection.name)
     const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -136,7 +138,7 @@ function CollectionRenameInput({
                         event.currentTarget.blur()
                     }
                 }}
-                placeholder="컬렉션 이름"
+                placeholder={tCollectionTable("namePlaceholder")}
                 className="h-8"
             />
             {isSaving ? <Spinner className="size-4 shrink-0" /> : null}
@@ -150,6 +152,10 @@ export const EventCollectionSettingsPanel = memo(
     }: {
         disabled?: boolean
     }) {
+        const t = useDebugTranslations("calendar.collectionSettings")
+        const tCollectionTable = useDebugTranslations("settings.collectionTable")
+        const tCommon = useDebugTranslations("common.actions")
+        const tFilterMenu = useDebugTranslations("calendar.filterMenu")
         const activeCalendar = useCalendarStore((state) => state.activeCalendar)
         const eventCollections = useCalendarStore((state) => state.eventCollections)
         const upsertEventCollectionSnapshot = useCalendarStore(
@@ -245,7 +251,7 @@ export const EventCollectionSettingsPanel = memo(
             )
 
             if (existingCollection) {
-                toast.message("이미 같은 이름의 컬렉션이 있습니다.")
+                toast.message(t("duplicateName"))
                 setOpenCollectionId(existingCollection.id)
                 setIsCreateInputOpen(false)
                 setNewCollectionName("")
@@ -277,7 +283,7 @@ export const EventCollectionSettingsPanel = memo(
                 setIsCreateInputOpen(false)
             } catch (error) {
                 console.error("Failed to create calendar collection:", error)
-                toast.error("컬렉션을 추가하지 못했습니다.")
+                toast.error(t("createFailed"))
             } finally {
                 setIsCreatingCollection(false)
             }
@@ -309,7 +315,7 @@ export const EventCollectionSettingsPanel = memo(
                 )
 
                 if (existingCollection) {
-                    toast.message("이미 같은 이름의 컬렉션이 있습니다.")
+                    toast.message(t("duplicateName"))
                     return false
                 }
 
@@ -338,7 +344,7 @@ export const EventCollectionSettingsPanel = memo(
                             "Failed to rename calendar collection:",
                             error
                         )
-                        toast.error("컬렉션 이름을 변경하지 못했습니다.")
+                        toast.error(t("renameFailed"))
                     }
                 })
 
@@ -389,7 +395,7 @@ export const EventCollectionSettingsPanel = memo(
                             "Failed to update calendar collection color:",
                             error
                         )
-                        toast.error("컬렉션 색상을 변경하지 못했습니다.")
+                        toast.error(t("colorUpdateFailed"))
                     }
                 })
             },
@@ -423,7 +429,7 @@ export const EventCollectionSettingsPanel = memo(
                             "Failed to delete calendar collection:",
                             error
                         )
-                        toast.error("컬렉션을 삭제하지 못했습니다.")
+                        toast.error(t("deleteFailed"))
                     }
                 })
             },
@@ -434,7 +440,7 @@ export const EventCollectionSettingsPanel = memo(
             <div className="w-62 min-w-62">
                 <DropdownMenuLabel className="flex h-8 items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
-                        옵션
+                        {t("options")}
                     </span>
                     {!isCreateInputOpen && (
                         <Button
@@ -503,7 +509,7 @@ export const EventCollectionSettingsPanel = memo(
                                     setNewCollectionName("")
                                 }
                             }}
-                            placeholder="새 컬렉션 추가"
+                            placeholder={tCollectionTable("newCollectionPlaceholder")}
                             className="h-7 px-2 text-sm"
                         />
                     </div>
@@ -598,12 +604,12 @@ export const EventCollectionSettingsPanel = memo(
                                                     )?.isPublished ? (
                                                         <>
                                                             <Settings2Icon className="size-4" />
-                                                            공유 설정
+                                                            {tFilterMenu("shareSettings")}
                                                         </>
                                                     ) : (
                                                         <>
                                                             <Globe2Icon className="size-4" />
-                                                            공유하기
+                                                            {tFilterMenu("share")}
                                                         </>
                                                     )}
                                                 </DropdownMenuItem>
@@ -622,7 +628,7 @@ export const EventCollectionSettingsPanel = memo(
                                                     }}
                                                 >
                                                     <Trash2Icon />
-                                                    삭제
+                                                    {tCommon("delete")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuGroup>
                                             <DropdownMenuSeparator />
@@ -636,7 +642,7 @@ export const EventCollectionSettingsPanel = memo(
                                                 }}
                                             >
                                                 <DropdownMenuLabel className="flex h-8 items-center">
-                                                    색상
+                                                    {tCollectionTable("color")}
                                                 </DropdownMenuLabel>
                                                 {calendarCollectionColors.map(
                                                     (color) => (
@@ -680,7 +686,7 @@ export const EventCollectionSettingsPanel = memo(
                         })
                     ) : (
                         <div className="px-2 py-3 text-sm text-muted-foreground">
-                            등록된 컬렉션이 없습니다.
+                            {t("empty")}
                         </div>
                     )}
                 </div>

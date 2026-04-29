@@ -11,6 +11,7 @@ import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.typ
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 
@@ -28,10 +29,12 @@ function getPresenceCursorLabel(
         | undefined,
     getEventTitle?: (eventId?: string) => string | null,
     selectedDate?: number,
-    calendarTimezone?: string
+    calendarTimezone?: string,
+    t?: (key: string, values?: Record<string, string | number>) => string,
+    dateFormats?: { sameYear: string; diffYear: string }
 ) {
     if (!cursor) {
-        return "캘린더 보는 중"
+        return t?.("viewingCalendar") ?? "viewingCalendar"
     }
 
     const cursorDate = calendarTimezone
@@ -45,22 +48,33 @@ function getPresenceCursorLabel(
           ? dayjs().tz(calendarTimezone)
           : dayjs()
     const format =
-        myDate.year() === cursorDate.year() ? "M월 D일" : "YY년 M월 D일"
+        myDate.year() === cursorDate.year()
+            ? (dateFormats?.sameYear ?? "M월 D일")
+            : (dateFormats?.diffYear ?? "YY년 M월 D일")
 
     if (cursor.type === "event") {
         const eventTitle = getEventTitle?.(cursor.eventId)
 
         if (eventTitle) {
-            return `${eventTitle} 확인 중`
+            return t?.("viewingEvent", { title: eventTitle }) ?? eventTitle
         }
 
-        return `${cursorDate.format(format)} 일정 확인 중`
+        return (
+            t?.("viewingEventDate", { date: cursorDate.format(format) }) ??
+            cursorDate.format(format)
+        )
     }
 
-    return `${cursorDate.format(format)} 날짜 보는 중`
+    return (
+        t?.("viewingDate", { date: cursorDate.format(format) }) ??
+        cursorDate.format(format)
+    )
 }
 
 export function CalendarWorkspacePresenceGroup() {
+    const t = useDebugTranslations("calendar.presence")
+    const tCommon = useDebugTranslations("common.labels")
+    const tCalendar = useDebugTranslations("calendar")
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -106,10 +120,10 @@ export function CalendarWorkspacePresenceGroup() {
             new Map(
                 events.map((event) => [
                     event.id,
-                    event.title.trim() || "새 일정",
+                    event.title.trim() || tCommon("newEvent"),
                 ])
             ),
-        [events]
+        [events, tCommon]
     )
     const getEventTitle = useMemo(
         () => (eventId?: string) =>
@@ -128,12 +142,17 @@ export function CalendarWorkspacePresenceGroup() {
                 user.displayName,
                 user.isAnonymous
             ),
-            badge: isMe ? getAvatarGroupBadge("나") : undefined,
+            badge: isMe ? getAvatarGroupBadge(tCommon("me")) : undefined,
             time: getPresenceCursorLabel(
                 user.cursor,
                 getEventTitle,
                 selectedDate,
-                calendarTimezone
+                calendarTimezone,
+                t,
+                {
+                    sameYear: tCalendar("dateFormatMonthDay"),
+                    diffYear: tCalendar("dateFormatYearMonthDay"),
+                }
             ),
             onSelect: isMe
                 ? undefined
@@ -163,14 +182,14 @@ export function CalendarWorkspacePresenceGroup() {
             items={items}
             align="end"
             contentClassName="min-w-47"
-            label={sortedMembers.length > 0 ? "온라인 멤버" : undefined}
+            label={sortedMembers.length > 0 ? t("onlineMembers") : undefined}
             trigger={
                 <div className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
                     {isLoading && members.length === 0 ? (
                         <div className="flex size-8 items-center justify-center text-muted-foreground">
                             <Spinner
                                 className="size-5"
-                                aria-label="온라인 멤버 불러오는 중"
+                                aria-label={t("loadingOnlineMembers")}
                             />
                         </div>
                     ) : (

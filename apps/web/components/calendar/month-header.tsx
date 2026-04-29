@@ -3,9 +3,11 @@ import {
     normalizeCalendarLayoutOptions,
 } from "@/lib/calendar/layout-options"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useFormatter } from "next-intl"
 import { memo } from "react"
 
 export const MonthHeader = memo(() => {
+    const format = useFormatter()
     const weekStartsOn = useCalendarStore(
         (s) =>
             normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
@@ -26,21 +28,21 @@ export const MonthHeader = memo(() => {
             normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions)
                 .hideWeekendColumns
     )
-    const labels = getCalendarWeekdayLabels(weekStartsOn)
-    const visibleLabels = hideWeekendColumns
-        ? labels.filter((label) => label !== "일" && label !== "토")
-        : labels
+    const weekdays = getCalendarWeekdayLabels(weekStartsOn)
+    const visibleWeekdays = hideWeekendColumns
+        ? weekdays.filter((weekday) => weekday !== 0 && weekday !== 6)
+        : weekdays
 
     return (
         <div
             className="grid shrink-0 gap-px border-b border-border/65"
             style={{
-                gridTemplateColumns: `repeat(${visibleLabels.length || 1}, minmax(0, 1fr))`,
+                gridTemplateColumns: `repeat(${visibleWeekdays.length || 1}, minmax(0, 1fr))`,
             }}
         >
-            {visibleLabels.map((d, index) => {
-                const isSunday = d === "일"
-                const isSaturday = d === "토"
+            {visibleWeekdays.map((weekday, index) => {
+                const isSunday = weekday === 0
+                const isSaturday = weekday === 6
                 const weekendTextColor =
                     showWeekendTextColors && isSunday
                         ? "text-red-500/95 dark:text-red-500/80"
@@ -55,11 +57,13 @@ export const MonthHeader = memo(() => {
 
                 return (
                     <div
-                        key={`${d}-${index}`}
+                        key={`${weekday}-${index}`}
                         className={`px-3 py-2 text-right text-sm font-medium ${weekendBackground} ${weekendTextColor}`}
                     >
                         <span className="inline-block w-8 text-center">
-                            {d}
+                            {format.dateTime(new Date(2026, 3, 26 + weekday), {
+                                weekday: "short",
+                            })}
                         </span>
                     </div>
                 )

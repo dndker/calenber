@@ -1,25 +1,9 @@
 import dayjs from "@/lib/dayjs"
 import type { Dayjs } from "dayjs"
 
-export const calendarWeekdayLabelsSundayFirst = [
-    "일",
-    "월",
-    "화",
-    "수",
-    "목",
-    "금",
-    "토",
-] as const
+export const calendarWeekdayOrderSundayFirst = [0, 1, 2, 3, 4, 5, 6] as const
 
-export const calendarWeekdayLabelsMondayFirst = [
-    "월",
-    "화",
-    "수",
-    "목",
-    "금",
-    "토",
-    "일",
-] as const
+export const calendarWeekdayOrderMondayFirst = [1, 2, 3, 4, 5, 6, 0] as const
 
 export type CalendarWeekStartsOn = "sunday" | "monday"
 
@@ -79,8 +63,8 @@ export function getCalendarWeekStartIndex(weekStartsOn: CalendarWeekStartsOn) {
 
 export function getCalendarWeekdayLabels(weekStartsOn: CalendarWeekStartsOn) {
     return weekStartsOn === "monday"
-        ? calendarWeekdayLabelsMondayFirst
-        : calendarWeekdayLabelsSundayFirst
+        ? calendarWeekdayOrderMondayFirst
+        : calendarWeekdayOrderSundayFirst
 }
 
 export function getCalendarWeekStart(

@@ -1,5 +1,6 @@
 import { EventFormCollectionChipsField } from "@/components/calendar/event-form-collection-field"
 import { EventFormStatusCheckListField } from "@/components/calendar/event-form-status-field"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useEventQuickPropertySave } from "@/hooks/use-event-quick-property-save"
@@ -173,6 +174,11 @@ export const EventItem = memo(
         /** 월 그리드 한 주의 시작일(`EventRow`의 `weekStart`). 리사이즈 레인 고정·핸들 활성 표시에 사용 */
         layoutWeekStart?: number
     }) {
+        const tActions = useDebugTranslations("event.actions")
+        const tDialog = useDebugTranslations("event.dialog")
+        const tHeader = useDebugTranslations("event.header")
+        const tSidebar = useDebugTranslations("calendar.sidebarEvents")
+        const tLabels = useDebugTranslations("common.labels")
         const pathname = usePathname()
         const sourceEventId = getCalendarEventSourceId(event)
 
@@ -360,8 +366,8 @@ export const EventItem = memo(
                 if (ok) {
                     toast.success(
                         nextIsFavorite
-                            ? "즐겨찾기에 추가했습니다."
-                            : "즐겨찾기에서 삭제되었습니다."
+                            ? tHeader("favoriteAdded")
+                            : tHeader("favoriteRemoved")
                     )
                 }
             } finally {
@@ -767,7 +773,9 @@ export const EventItem = memo(
                                     ></span>
                                 )}
                             <span className="flex-initial truncate overflow-hidden">
-                                {event.title === "" ? "새 일정" : event.title}
+                                {event.title === ""
+                                    ? tLabels("newEvent")
+                                    : event.title}
                             </span>
                         </Button>
                         {!inline && !continuesToNextWeek && (
@@ -810,12 +818,14 @@ export const EventItem = memo(
                                     ) : (
                                         <StarIcon />
                                     )}
-                                    {isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+                                    {isFavorite
+                                        ? tActions("removeFavorite")
+                                        : tActions("addFavorite")}
                                 </ContextMenuItem>
                                 <ContextMenuSub>
                                     <ContextMenuSubTrigger disabled={!canEdit}>
                                         <ListIcon />
-                                        속성 편집
+                                        {tHeader("editProperties")}
                                     </ContextMenuSubTrigger>
                                     <ContextMenuSubContent
                                         className="p-0 duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
@@ -830,7 +840,7 @@ export const EventItem = memo(
                                                 }}
                                             >
                                                 <CircleCheckBigIcon />
-                                                상태
+                                                {tSidebar("status")}
                                             </ContextMenuItem>
                                             <ContextMenuItem
                                                 disabled={!canEdit}
@@ -840,7 +850,7 @@ export const EventItem = memo(
                                                 }}
                                             >
                                                 <TagsIcon />
-                                                컬렉션
+                                                {tSidebar("collection")}
                                             </ContextMenuItem>
                                         </ContextMenuGroup>
                                     </ContextMenuSubContent>
@@ -856,7 +866,7 @@ export const EventItem = memo(
                                     }}
                                 >
                                     <TrashIcon />
-                                    일정 삭제
+                                    {tActions("delete")}
                                 </ContextMenuItem>
                             </ContextMenuGroup>
                         </>
@@ -910,11 +920,10 @@ export const EventItem = memo(
                         </AlertDialogCancel>
                         <AlertDialogHeader>
                             <AlertDialogTitle>
-                                반복 일정을 삭제할까요?
+                                {tDialog("recurringDeleteTitle")}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                                현재 선택한 일정만 삭제하거나,
-                                <br /> 반복 일정 전체를 삭제할 수 있습니다.
+                                {tDialog("recurringDeleteDescription")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -925,7 +934,7 @@ export const EventItem = memo(
                                     void confirmDeleteOnlyThis()
                                 }}
                             >
-                                이 일정만 삭제
+                                {tActions("deleteThis")}
                             </AlertDialogAction>
                             <AlertDialogAction
                                 variant="destructive"
@@ -934,7 +943,7 @@ export const EventItem = memo(
                                     void confirmDeleteSeries()
                                 }}
                             >
-                                전체 반복 일정 삭제
+                                {tActions("deleteAll")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>

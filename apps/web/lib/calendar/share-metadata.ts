@@ -4,12 +4,14 @@ import {
     APP_NAME,
     APP_URL,
 } from "@/lib/app-config"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
+import { getMessageTranslator } from "@/lib/i18n/messages"
 import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { DEFAULT_CALENDAR_LAYOUT_OPTIONS } from "@/lib/calendar/layout-options"
 import type { CalendarSummary } from "@/lib/calendar/queries"
 import dayjs from "@/lib/dayjs"
 import {
-    eventStatusLabel,
+    eventStatusTranslationKey,
     type CalendarEvent,
 } from "@/store/calendar-store.types"
 import type { Metadata } from "next"
@@ -17,7 +19,7 @@ import type { CalendarEventMetadata } from "./queries"
 
 export const demoCalendarSummary: CalendarSummary = {
     id: "demo",
-    name: "데모 캘린더",
+    name: getMessageTranslator(defaultLocale)("calendar.meta.demoName"),
     avatarUrl: null,
     accessMode: "public_open",
     eventLayout: "compact",
@@ -32,6 +34,14 @@ type CalendarEventShareData =
     | CalendarEventMetadata
     | null
 
+function formatDateTime(
+    date: dayjs.Dayjs,
+    locale: Locale,
+    options: Intl.DateTimeFormatOptions
+) {
+    return new Intl.DateTimeFormat(locale, options).format(date.toDate())
+}
+
 export function absoluteUrl(path: string) {
     return new URL(path, APP_URL).toString()
 }
@@ -40,22 +50,20 @@ function isPrivateCalendar(calendar: CalendarSummary | null) {
     return Boolean(calendar && calendar.accessMode === "private")
 }
 
-function getCalendarVisibilityBadge(calendar: CalendarSummary | null) {
-    return "캘린더"
+function getCalendarVisibilityBadge(
+    calendar: CalendarSummary | null,
+    locale: Locale = defaultLocale
+) {
+    return getMessageTranslator(locale)("calendar.meta.badge")
     // return isPrivateCalendar(calendar) ? "비공개 캘린더" : "공개 캘린더"
 }
 
-function getEventStatusBadge(status: CalendarEvent["status"]) {
-    switch (status) {
-        case "scheduled":
-            return "시작 전"
-        case "in_progress":
-            return "진행 중"
-        case "completed":
-            return "완료"
-        case "cancelled":
-            return "취소됨"
-    }
+function getEventStatusBadge(
+    status: CalendarEvent["status"],
+    locale: Locale = defaultLocale
+) {
+    const t = getMessageTranslator(locale)
+    return t(`event.status.${eventStatusTranslationKey[status]}`)
 }
 
 function truncateText(value: string, maxLength: number) {
@@ -90,65 +98,115 @@ function extractPlainText(value: unknown): string {
     return ""
 }
 
-export function getCalendarShareTitle(calendar: CalendarSummary | null) {
+export function getCalendarShareTitle(
+    calendar: CalendarSummary | null,
+    locale: Locale = defaultLocale
+) {
     if (!calendar) {
         return APP_NAME
     }
 
-    return isPrivateCalendar(calendar) ? "캘린더" : calendar.name
+    return isPrivateCalendar(calendar)
+        ? getMessageTranslator(locale)("calendar.meta.title")
+        : calendar.name
 }
 
-export function getCalendarShareDescription(calendar: CalendarSummary | null) {
+export function getCalendarShareDescription(
+    calendar: CalendarSummary | null,
+    locale: Locale = defaultLocale
+) {
+    const t = getMessageTranslator(locale)
+
     if (!calendar) {
         return APP_DESCRIPTION
     }
 
-    const subject = isPrivateCalendar(calendar) ? "" : `${calendar.name}의 `
-
-    return `${subject}일정과 업데이트를 실시간으로 확인해 보세요.`
+    return isPrivateCalendar(calendar)
+        ? t("calendar.meta.shareDescription")
+        : t("calendar.meta.shareDescriptionWithName", { name: calendar.name })
 }
 
 export function getEventShareTitle(
     event: CalendarEventShareData,
-    calendar?: CalendarSummary | null
+    calendar?: CalendarSummary | null,
+    locale: Locale = defaultLocale
 ) {
     if (!event) {
         return calendar && !isPrivateCalendar(calendar)
-            ? `${calendar.name} 일정`
+            ? getMessageTranslator(locale)("calendar.meta.calendarEvents", {
+                  name: calendar.name,
+              })
             : APP_NAME
     }
 
-    const title = event.title.trim() || "새 일정"
+    const title =
+        event.title.trim() ||
+        getMessageTranslator(locale)("common.labels.newEvent")
     return calendar && !isPrivateCalendar(calendar)
         ? `${title} | ${calendar.name}`
         : title
 }
 
-export function formatEventDateRange(event: CalendarEvent) {
+export function formatEventDateRange(
+    event: CalendarEvent,
+    locale: Locale = defaultLocale
+) {
     const timezone = event.timezone || "Asia/Seoul"
     const start = dayjs(event.start).tz(timezone)
     const end = dayjs(event.end).tz(timezone)
 
     if (event.allDay) {
         if (start.isSame(end, "day")) {
-            return start.format("YYYY년 M월 D일")
+            return formatDateTime(start, locale, {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            })
         }
 
-        return `${start.format("YYYY년 M월 D일")} - ${end.format(
-            "YYYY년 M월 D일"
-        )}`
+        return `${formatDateTime(start, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })} - ${formatDateTime(end, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })}`
     }
 
     if (start.isSame(end, "day")) {
-        return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format("HH:mm")}`
+        return `${formatDateTime(start, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        })} - ${formatDateTime(end, locale, {
+            hour: "2-digit",
+            minute: "2-digit",
+        })}`
     }
 
-    return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format(
-        "YYYY년 M월 D일 HH:mm"
-    )}`
+    return `${formatDateTime(start, locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })} - ${formatDateTime(end, locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })}`
 }
 
-function formatEventDateRangeFromShareData(event: CalendarEventShareData) {
+function formatEventDateRangeFromShareData(
+    event: CalendarEventShareData,
+    locale: Locale = defaultLocale
+) {
     if (!event) {
         return ""
     }
@@ -159,21 +217,50 @@ function formatEventDateRangeFromShareData(event: CalendarEventShareData) {
 
     if ("allDay" in event && event.allDay) {
         if (start.isSame(end, "day")) {
-            return start.format("YYYY년 M월 D일")
+            return formatDateTime(start, locale, {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            })
         }
 
-        return `${start.format("YYYY년 M월 D일")} - ${end.format(
-            "YYYY년 M월 D일"
-        )}`
+        return `${formatDateTime(start, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })} - ${formatDateTime(end, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })}`
     }
 
     if (start.isSame(end, "day")) {
-        return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format("HH:mm")}`
+        return `${formatDateTime(start, locale, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        })} - ${formatDateTime(end, locale, {
+            hour: "2-digit",
+            minute: "2-digit",
+        })}`
     }
 
-    return `${start.format("YYYY년 M월 D일 HH:mm")} - ${end.format(
-        "YYYY년 M월 D일 HH:mm"
-    )}`
+    return `${formatDateTime(start, locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })} - ${formatDateTime(end, locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    })}`
 }
 
 export function getEventExcerpt(
@@ -187,16 +274,17 @@ export function getEventExcerpt(
 
 export function getEventShareDescription(
     event: CalendarEventShareData,
-    calendar: CalendarSummary | null
+    calendar: CalendarSummary | null,
+    locale: Locale = defaultLocale
 ) {
     if (!event) {
-        return getCalendarShareDescription(calendar)
+        return getCalendarShareDescription(calendar, locale)
     }
 
     const summary = [
         calendar && !isPrivateCalendar(calendar) ? calendar.name : null,
-        formatEventDateRangeFromShareData(event),
-        eventStatusLabel[event.status],
+        formatEventDateRangeFromShareData(event, locale),
+        getEventStatusBadge(event.status, locale),
         event.author?.name ? `@${event.author.name}` : null,
     ]
         .filter(Boolean)
@@ -259,12 +347,14 @@ function buildBaseMetadata({
 export function buildCalendarMetadata({
     calendar,
     calendarId,
+    locale = defaultLocale,
 }: {
     calendar: CalendarSummary | null
     calendarId: string
+    locale?: Locale
 }) {
-    const title = getCalendarShareTitle(calendar)
-    const description = getCalendarShareDescription(calendar)
+    const title = getCalendarShareTitle(calendar, locale)
+    const description = getCalendarShareDescription(calendar, locale)
     const url = absoluteUrl(`/calendar/${encodeURIComponent(calendarId)}`)
     const imageUrl = absoluteUrl(
         `/calendar/${encodeURIComponent(calendarId)}/opengraph-image`
@@ -285,15 +375,17 @@ export function buildEventMetadata({
     event,
     eventId,
     modal,
+    locale = defaultLocale,
 }: {
     calendar: CalendarSummary | null
     calendarId: string
     event: CalendarEventShareData
     eventId: string
     modal?: boolean
+    locale?: Locale
 }) {
-    const title = getEventShareTitle(event, calendar)
-    const description = getEventShareDescription(event, calendar)
+    const title = getEventShareTitle(event, calendar, locale)
+    const description = getEventShareDescription(event, calendar, locale)
     const shareUrl = modal
         ? absoluteUrl(
               `/calendar/${encodeURIComponent(calendarId)}?e=${encodeURIComponent(
@@ -318,23 +410,29 @@ export function buildEventMetadata({
     })
 }
 
-export function getCalendarOgImageData(calendar: CalendarSummary | null) {
+export function getCalendarOgImageData(
+    calendar: CalendarSummary | null,
+    locale: Locale = defaultLocale
+) {
     return {
-        badge: getCalendarVisibilityBadge(calendar),
-        title: calendar ? getCalendarShareTitle(calendar) : APP_NAME,
-        description: getCalendarShareDescription(calendar),
+        badge: getCalendarVisibilityBadge(calendar, locale),
+        title: calendar ? getCalendarShareTitle(calendar, locale) : APP_NAME,
+        description: getCalendarShareDescription(calendar, locale),
     }
 }
 
 export function getEventOgImageData(
     calendar: CalendarSummary | null,
-    event: CalendarEventShareData
+    event: CalendarEventShareData,
+    locale: Locale = defaultLocale
 ) {
     return {
-        badge: "일정",
-        title: event?.title.trim() || "새 일정",
+        badge: getMessageTranslator(locale)("event.dialog.title"),
+        title:
+            event?.title.trim() ||
+            getMessageTranslator(locale)("common.labels.newEvent"),
         description: event
-            ? getEventShareDescription(event, calendar)
-            : getCalendarShareDescription(calendar),
+            ? getEventShareDescription(event, calendar, locale)
+            : getCalendarShareDescription(calendar, locale),
     }
 }

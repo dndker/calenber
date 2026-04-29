@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
 import type { EditorContent } from "@/store/calendar-store.types"
 import { BlockNoteSchema, defaultInlineContentSpecs } from "@blocknote/core"
@@ -59,6 +60,7 @@ function MentionSuggestionMenu({
     selectedIndex,
     onItemClick,
 }: SuggestionMenuProps<MentionSuggestionItem>) {
+    const t = useDebugTranslations("common.labels")
     return (
         <div className="max-h-72 min-w-56 overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
             {items.map((item, index) => {
@@ -90,7 +92,7 @@ function MentionSuggestionMenu({
                                 {displayName}
                             </div>
                             <div className="truncate text-xs text-muted-foreground">
-                                {member.email ?? "이메일 정보 없음"}
+                                {member.email ?? t("noEmail")}
                             </div>
                         </div>
                     </button>

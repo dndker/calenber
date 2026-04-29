@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     Avatar,
     AvatarFallback,
@@ -33,6 +34,7 @@ export function AvatarUploadControl({
     onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
     onRemove: () => void
 }) {
+    const t = useDebugTranslations("settings.avatarUpload")
     const isBusy = isUploading || isRemoving
     const isInteractive = !disabled && !isBusy
 
@@ -80,10 +82,10 @@ export function AvatarUploadControl({
                     <TooltipContent side="bottom">
                         <p>
                             {disabled
-                                ? "이미지 변경 권한이 없습니다"
+                                ? t("disabled")
                                 : imageUrl
-                                  ? "사진 변경"
-                                  : "사진 업로드"}
+                                  ? t("change")
+                                  : t("upload")}
                         </p>
                     </TooltipContent>
                 </Tooltip>

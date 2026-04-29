@@ -91,10 +91,10 @@ const EXCERPT_CONTEXT_LEADING = 42
 const EXCERPT_CONTEXT_TRAILING = 84
 
 const eventStatusLabel: Record<CalendarEventStatus, string> = {
-    scheduled: "시작 전",
-    in_progress: "진행 중",
-    completed: "완료",
-    cancelled: "취소",
+    scheduled: "Scheduled",
+    in_progress: "In Progress",
+    completed: "Done",
+    cancelled: "Cancelled",
 }
 
 function normalizeWhitespace(value: string) {
@@ -241,9 +241,12 @@ function matchesFilters(event: CalendarEvent, filters: CalendarSearchFilters) {
     return true
 }
 
-export function buildCalendarEventSearchDocuments(events: CalendarEvent[]) {
+export function buildCalendarEventSearchDocuments(
+    events: CalendarEvent[],
+    fallbackTitle = "New event"
+) {
     return events.map((event) => {
-        const title = event.title.trim() || "새 일정"
+        const title = event.title.trim() || fallbackTitle
         const content = getCalendarEventSearchContent(event)
 
         return {
@@ -496,10 +499,11 @@ export function listRecentCalendarEventIndex({
 }
 
 export function buildCalendarMemberSearchDocuments(
-    members: CalendarMemberDirectoryItem[]
+    members: CalendarMemberDirectoryItem[],
+    fallbackName = "No name"
 ) {
     return members.map((member) => {
-        const name = member.name?.trim() || "이름 없음"
+        const name = member.name?.trim() || fallbackName
         const email = member.email ?? ""
 
         return {
@@ -674,7 +678,9 @@ export function searchCalendarMemberIndex({
 }
 
 export function getCalendarSearchAvailableFilters(
-    events: CalendarEvent[]
+    events: CalendarEvent[],
+    fallbackAuthorName = "Unknown user",
+    statusLabels?: Partial<Record<CalendarEventStatus, string>>
 ): CalendarSearchAvailableFilters {
     const authorMap = new Map<
         string,
@@ -715,7 +721,7 @@ export function getCalendarSearchAvailableFilters(
 
             authorMap.set(event.authorId, {
                 id: event.authorId,
-                name: event.author?.name?.trim() || "이름 없는 사용자",
+                name: event.author?.name?.trim() || fallbackAuthorName,
                 count: (current?.count ?? 0) + 1,
             })
         }
@@ -724,7 +730,7 @@ export function getCalendarSearchAvailableFilters(
 
         statusMap.set(event.status, {
             value: event.status,
-            label: eventStatusLabel[event.status],
+            label: statusLabels?.[event.status] ?? eventStatusLabel[event.status],
             count: (currentStatus?.count ?? 0) + 1,
         })
 
@@ -743,7 +749,7 @@ export function getCalendarSearchAvailableFilters(
 
             participantMap.set(participant.userId, {
                 id: participant.userId,
-                name: participant.user.name?.trim() || "이름 없는 사용자",
+                name: participant.user.name?.trim() || fallbackAuthorName,
                 count: (currentParticipant?.count ?? 0) + 1,
             })
         }
@@ -765,13 +771,17 @@ export function getCalendarSearchAvailableFilters(
     }
 }
 
-export function formatSearchDateRange(start: number, end: number) {
+export function formatSearchDateRange(
+    start: number,
+    end: number,
+    dateFormat = "MMM D"
+) {
     const startDate = dayjs(start)
     const endDate = dayjs(end)
 
     if (startDate.isSame(endDate, "day")) {
-        return startDate.format("M월 D일")
+        return startDate.format(dateFormat)
     }
 
-    return `${startDate.format("M월 D일")} - ${endDate.format("M월 D일")}`
+    return `${startDate.format(dateFormat)} - ${endDate.format(dateFormat)}`
 }

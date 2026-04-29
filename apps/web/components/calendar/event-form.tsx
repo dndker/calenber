@@ -62,7 +62,7 @@ import {
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
-    calendarEventFieldDefinitions,
+    getCalendarEventFieldDefinitions,
     isCalendarEventFieldVisible,
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
@@ -114,6 +114,8 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
 import dynamic from "next/dynamic"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { useLocale } from "next-intl"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
 import {
@@ -135,8 +137,8 @@ const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
 const hourOptions = createArray(12, 1)
 const minuteOptions = createArray(60)
 const meridiemOptions: WheelPickerOption<"am" | "pm">[] = [
-    { label: "오전", value: "am" },
-    { label: "오후", value: "pm" },
+    { label: "AM", value: "am" },
+    { label: "PM", value: "pm" },
 ]
 
 const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
@@ -412,10 +414,20 @@ function getRangeModifiers(start: Date, end: Date, timezone: string) {
 
 function formatExceptionDateTagLabel(
     exceptionDateIso: string,
-    timezone: string
+    timezone: string,
+    locale: string
 ) {
     const parsed = dayjs(exceptionDateIso).tz(timezone)
-    return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
+
+    if (!parsed.isValid()) {
+        return exceptionDateIso
+    }
+
+    return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
+        year: "2-digit",
+        month: "numeric",
+        day: "numeric",
+    }).format(parsed.toDate())
 }
 
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
@@ -619,6 +631,22 @@ export function EventForm({
     modal?: boolean
     portalContainer?: HTMLElement | null
 }) {
+    const tForm = useDebugTranslations("event.form")
+    const tCommonTime = useDebugTranslations("common.time")
+    const tCommonLabels = useDebugTranslations("common.labels")
+    const tField = useDebugTranslations("event.fieldDefinition")
+    const locale = useLocale()
+    const calendarEventFieldDefinitions = useMemo(
+        () => getCalendarEventFieldDefinitions(tField),
+        [tField]
+    )
+    const localizedMeridiemOptions = useMemo(
+        () => [
+            { label: tCommonTime("am"), value: "am" as const },
+            { label: tCommonTime("pm"), value: "pm" as const },
+        ],
+        [tCommonTime]
+    )
     const user = useAuthStore((a) => a.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const defaultParticipantIds = useMemo(
@@ -1701,7 +1729,7 @@ export function EventForm({
             timezone
         )
 
-        const filteredMeridiemOptions = meridiemOptions.filter((option) =>
+        const filteredMeridiemOptions = localizedMeridiemOptions.filter((option) =>
             isWheelTimeAllowed({
                 boundary: activeScheduleBoundary,
                 candidate: {
@@ -1748,7 +1776,7 @@ export function EventForm({
             filteredMeridiemOptions:
                 filteredMeridiemOptions.length > 0
                     ? filteredMeridiemOptions
-                    : meridiemOptions,
+                    : localizedMeridiemOptions,
             filteredHourOptions:
                 filteredHourOptions.length > 0
                     ? filteredHourOptions
@@ -1761,6 +1789,7 @@ export function EventForm({
     }, [
         activeScheduleBoundary,
         form,
+        localizedMeridiemOptions,
         resolvedWatchedTimezone,
         scheduleAllDay,
         scheduleEnd,
@@ -1812,7 +1841,7 @@ export function EventForm({
                         {
                             type: "panel",
                             key: "edit-collection-property",
-                            label: "속성 편집",
+                            label: tForm("editProperty"),
                             icon: Settings2Icon,
                             content: (
                                 <EventCollectionSettingsPanel
@@ -1931,7 +1960,11 @@ export function EventForm({
                                                         )
                                                     }
                                                 >
-                                                    {`시작일 ${dayjs(start).tz(timezone).format("YYYY.MM.DD")}`}
+                                                    {tForm("startDateValue", {
+                                                        date: dayjs(start)
+                                                            .tz(timezone)
+                                                            .format("YYYY.MM.DD"),
+                                                    })}
                                                 </Button>
                                             </div>
                                         ) : (
@@ -2000,11 +2033,11 @@ export function EventForm({
                                                                     )
                                                                     .replace(
                                                                         "AM",
-                                                                        "오전"
+                                                                        tCommonTime("am")
                                                                     )
                                                                     .replace(
                                                                         "PM",
-                                                                        "오후"
+                                                                        tCommonTime("pm")
                                                                     )}
                                                             </Button>
                                                         </div>
@@ -2069,12 +2102,12 @@ export function EventForm({
                                             <SidebarMenu>
                                                 <SidebarMenuButton asChild>
                                                     <label className="flex cursor-pointer items-center justify-between">
-                                                        하루종일
+                                                        {tForm("allDay")}
                                                         <Switch
                                                             size="sm"
                                                             checked={allDay}
                                                             disabled={disabled}
-                                                            aria-label="하루종일 일정"
+                                                            aria-label={tForm("allDayAria")}
                                                             onCheckedChange={
                                                                 handleAllDayToggle
                                                             }
@@ -2115,7 +2148,7 @@ export function EventForm({
                                         disabled={disabled}
                                         options={participantOptions}
                                         value={normalizeIds(field.value ?? [])}
-                                        emptyText="표시할 멤버가 없습니다."
+                                        emptyText={tForm("noVisibleMembers")}
                                         onValueChange={(values) => {
                                             const nextParticipantIds =
                                                 normalizeIds(values)
@@ -2128,7 +2161,7 @@ export function EventForm({
                                             })
                                         }}
                                         invalid={fieldState.invalid}
-                                        placeholder="멤버 선택"
+                                        placeholder={tForm("selectMember")}
                                         chipClassName="px-1.5 h-6.5 text-sm leading-[normal] gap-1 pr-0"
                                         renderChipContent={(participant) => (
                                             <HoverCard
@@ -2146,7 +2179,7 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ??
-                                                                "참가자"
+                                                                tCommonLabels("participant")
                                                             }
                                                         />
                                                         <AvatarFallback className="text-xs">
@@ -2172,7 +2205,7 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ||
-                                                                "사용자"
+                                                                tCommonLabels("user")
                                                             }
                                                         />
                                                         <AvatarFallback className="text-sm">
@@ -2195,7 +2228,7 @@ export function EventForm({
                                                                     variant="outline"
                                                                     className="shrink-0 px-1.75 leading-[normal]"
                                                                 >
-                                                                    나
+                                                                    {tCommonLabels("me")}
                                                                 </Badge>
                                                             ) : null}
                                                         </div>
@@ -2221,7 +2254,8 @@ export function EventForm({
                                                         }
                                                         alt={
                                                             participant.data
-                                                                ?.name ?? "멤버"
+                                                                ?.name ??
+                                                                tCommonLabels("member")
                                                         }
                                                     />
                                                     <AvatarFallback className="text-xs">
@@ -2233,7 +2267,7 @@ export function EventForm({
                                                     <div className="truncate">
                                                         {participant.data
                                                             ?.name ??
-                                                            "이름 없음"}
+                                                            tCommonLabels("noName")}
                                                     </div>
                                                     <div className="truncate text-xs text-muted-foreground">
                                                         {participant.data
@@ -2386,14 +2420,24 @@ export function EventForm({
                                         >
                                             {formatExceptionDateTagLabel(
                                                 exception,
-                                                watchedTimezone
+                                                watchedTimezone,
+                                                locale
                                             )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 disabled={disabled}
                                                 className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-[normal] aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
-                                                aria-label={`${formatExceptionDateTagLabel(exception, watchedTimezone)} 제외 삭제`}
+                                                aria-label={tForm(
+                                                    "removeExceptionAria",
+                                                    {
+                                                        label: formatExceptionDateTagLabel(
+                                                            exception,
+                                                            watchedTimezone,
+                                                            locale
+                                                        ),
+                                                    }
+                                                )}
                                                 onClick={() => {
                                                     const nextExceptions = (
                                                         field.value ?? []
@@ -2418,7 +2462,7 @@ export function EventForm({
                                     ))
                                 ) : (
                                     <span className="text-sm text-muted-foreground">
-                                        설정된 제외 날짜가 없습니다.
+                                        {tForm("noExceptionDates")}
                                     </span>
                                 )}
                             </div>
@@ -2556,7 +2600,7 @@ export function EventForm({
                             {/* <FieldLabel>제목</FieldLabel> */}
                             <input
                                 {...field}
-                                placeholder="새 일정"
+                                placeholder={tForm("titlePlaceholder")}
                                 autoFocus
                                 onChange={(e) => {
                                     if (disabled) {
@@ -2572,7 +2616,7 @@ export function EventForm({
                             {/* <Input
                                 {...field}
                                 autoFocus={true}
-                                placeholder="새 일정"
+                                placeholder={tForm("titlePlaceholder")}
                                 className="h-auto border-0 p-0 font-bold not-focus:hover:bg-muted/60 md:text-4xl"
                                 onChange={(e) => {
                                     field.onChange(e)
@@ -2631,12 +2675,14 @@ export function EventForm({
                                 className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
                             >
                                 <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
-                                속성 {hiddenFieldCount}개{" "}
+                                {tForm("hiddenProperties", {
+                                    count: hiddenFieldCount,
+                                })}{" "}
                                 <span className="group-data-[state=open]:hidden">
-                                    더 보기
+                                    {tForm("showMore")}
                                 </span>
                                 <span className="hidden group-data-[state=open]:inline">
-                                    숨기기
+                                    {tForm("hide")}
                                 </span>
                             </Button>
                         </CollapsibleTrigger>

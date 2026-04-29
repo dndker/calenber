@@ -1,6 +1,5 @@
 "use client"
 
-import { APP_NAME } from "@/lib/app-config"
 import { useEmailAuth } from "@/hooks/use-email-auth"
 import { useRouteToPostAuthCalendar } from "@/hooks/use-route-to-post-auth-calendar"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -18,26 +17,20 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react"
 import Link from "next/link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
 import { AuthFormShell } from "./auth-form-shell"
 import { GoogleButton } from "./google-sign-in-button"
 
-const signInSchema = z.object({
-    email: z.string().email("올바른 이메일 주소를 입력해 주세요."),
-    password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
-})
-
-type SignInValues = z.infer<typeof signInSchema>
-
-function getAuthErrorMessage(error: string | null) {
+function getAuthErrorCode(error: string | null) {
     switch (error) {
         case "invalid_confirmation_link":
-            return "유효하지 않은 인증 링크입니다."
+            return "invalid_confirmation_link"
         case "email_verification_failed":
-            return "이메일 인증에 실패했습니다. 다시 시도해 주세요."
+            return "email_verification_failed"
         case "access_denied":
-            return "이메일 인증 링크가 유효하지 않거나 만료되었습니다."
+            return "access_denied"
         default:
             return null
     }
@@ -52,8 +45,16 @@ export function SignInForm({
     initialVerified?: boolean
     initialNotice?: string | null
 }) {
+    const t = useDebugTranslations("auth.signIn")
+    const tNotice = useDebugTranslations("auth.notice")
+    const tValidation = useDebugTranslations("auth.validation")
     const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signInWithEmail } = useEmailAuth()
+    const signInSchema = z.object({
+        email: z.string().email(tValidation("invalidEmail")),
+        password: z.string().min(8, tValidation("passwordMin")),
+    })
+    type SignInValues = z.infer<typeof signInSchema>
     const form = useForm<SignInValues>({
         resolver: zodResolver(signInSchema),
         defaultValues: {
@@ -61,7 +62,15 @@ export function SignInForm({
             password: "",
         },
     })
-    const authAlertError = getAuthErrorMessage(initialError)
+    const authAlertError = getAuthErrorCode(initialError)
+    const translatedAuthAlertError =
+        authAlertError === "invalid_confirmation_link"
+            ? tNotice("invalidConfirmationLink")
+            : authAlertError === "email_verification_failed"
+              ? tNotice("emailVerificationFailed")
+              : authAlertError === "access_denied"
+                ? tNotice("accessDenied")
+                : null
 
     const onSubmit = async (values: SignInValues) => {
         const result = await signInWithEmail(values)
@@ -85,28 +94,31 @@ export function SignInForm({
 
     return (
         <AuthFormShell
-            title={`${APP_NAME}에 오신 것을 환영합니다.`}
+            title={t("title")}
             description={
                 <>
-                    아직 계정이 없으신가요? <Link href="/signup">회원가입</Link>
+                    {t("description")}{" "}
+                    <Link href="/signup">{t("signUpLink")}</Link>
                 </>
             }
         >
-            {authAlertError && (
+            {translatedAuthAlertError && (
                 <Alert variant="destructive" className="max-w-md">
                     <AlertCircleIcon />
-                    <AlertTitle>인증 링크 오류</AlertTitle>
-                    <AlertDescription>{authAlertError}</AlertDescription>
+                    <AlertTitle>{tNotice("linkErrorTitle")}</AlertTitle>
+                    <AlertDescription>
+                        {translatedAuthAlertError}
+                    </AlertDescription>
                 </Alert>
             )}
-            {initialVerified && !authAlertError && (
+            {initialVerified && !translatedAuthAlertError && (
                 <Alert className="max-w-md">
                     <CheckCircle2Icon />
-                    <AlertTitle>이메일 인증 완료</AlertTitle>
+                    <AlertTitle>{tNotice("verifiedTitle")}</AlertTitle>
                     <AlertDescription>
                         {initialNotice === "email_confirmed_login_required"
-                            ? "이메일 인증은 완료되었습니다. 인증을 진행했던 브라우저가 달라 다시 로그인 해주세요."
-                            : "이메일 인증이 완료되었습니다."}
+                            ? tNotice("emailConfirmedLoginRequired")
+                            : tNotice("emailConfirmed")}
                     </AlertDescription>
                 </Alert>
             )}
@@ -127,7 +139,7 @@ export function SignInForm({
                                 {...field}
                                 id="signin-email"
                                 type="email"
-                                placeholder="이메일"
+                                placeholder={t("emailPlaceholder")}
                                 autoComplete="email"
                                 aria-invalid={fieldState.invalid}
                             />
@@ -150,7 +162,7 @@ export function SignInForm({
                                 {...field}
                                 id="signin-password"
                                 type="password"
-                                placeholder="비밀번호"
+                                placeholder={t("passwordPlaceholder")}
                                 autoComplete="current-password"
                                 aria-invalid={fieldState.invalid}
                             />
@@ -167,11 +179,11 @@ export function SignInForm({
                     className="font-bold"
                     loading={loading}
                 >
-                    이메일로 로그인
+                    {t("submit")}
                 </Button>
             </form>
 
-            <FieldSeparator>또는</FieldSeparator>
+            <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
                 onComplete={(result) => {

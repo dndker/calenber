@@ -2,6 +2,7 @@
 
 import { useCopyToClipboard } from "@/hooks/use-copy"
 import { getShortCalendarEventPath } from "@/lib/calendar/short-link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { toast } from "sonner"
 
 type CopyCalendarEventLinkParams = {
@@ -12,6 +13,7 @@ type CopyCalendarEventLinkParams = {
 
 export function useCopyCalendarEventLink() {
     const { copyToClipboard, isCopied } = useCopyToClipboard()
+    const t = useDebugTranslations("event.toast")
 
     const copyEventLink = async ({
         calendarId,
@@ -19,7 +21,7 @@ export function useCopyCalendarEventLink() {
         modal = false,
     }: CopyCalendarEventLinkParams) => {
         if (typeof window === "undefined") {
-            toast.error("링크를 복사하지 못했습니다.")
+            toast.error(t("copyLinkFailed"))
             return false
         }
 
@@ -30,11 +32,11 @@ export function useCopyCalendarEventLink() {
         const hasCopied = await copyToClipboard(shortUrl)
 
         if (hasCopied) {
-            toast.success("클립보드에 일정 링크가 복사되었습니다.")
+            toast.success(t("linkCopied"))
             return true
         }
 
-        toast.error("링크를 복사하지 못했습니다.")
+        toast.error(t("copyLinkFailed"))
         return false
     }
 

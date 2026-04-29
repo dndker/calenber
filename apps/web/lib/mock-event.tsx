@@ -8,11 +8,11 @@ import {
 import { nanoid } from "nanoid"
 
 const demoCollectionDefinitions = [
-    { id: "demo-collection-team", name: "팀 일정" },
-    { id: "demo-collection-meeting", name: "회의" },
-    { id: "demo-collection-focus", name: "집중 업무" },
-    { id: "demo-collection-personal", name: "개인" },
-    { id: "demo-collection-deadline", name: "마감" },
+    { id: "demo-collection-team", name: "Team" },
+    { id: "demo-collection-meeting", name: "Meeting" },
+    { id: "demo-collection-focus", name: "Focus" },
+    { id: "demo-collection-personal", name: "Personal" },
+    { id: "demo-collection-deadline", name: "Deadline" },
 ] as const
 
 export function getDemoEventCollections(): CalendarEventCollection[] {
@@ -69,7 +69,7 @@ export function generateMockEvents(
 
         return {
             id: nanoid(),
-            title: `${durationDays}일 일정 ${i + 1}`,
+            title: `${durationDays}-day event ${i + 1}`,
             content: defaultContent,
 
             start: start.valueOf(),

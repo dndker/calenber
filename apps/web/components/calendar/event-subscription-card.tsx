@@ -20,6 +20,7 @@ import {
     TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { memo } from "react"
 import { VerifiedIcon } from "../icon/verified-icon"
 
@@ -32,6 +33,7 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
     className?: string
     size?: "default" | "sm"
 }) {
+    const t = useDebugTranslations("event.subscription")
     const isSystem = subscription.authority === "system"
 
     return (
@@ -109,7 +111,7 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                     <AlertDescription className="flex items-center gap-0.5 text-xs">
                         {isSystem ? (
                             <>
-                                캘린버 <VerifiedIcon size="sm" />
+                                Calenber <VerifiedIcon size="sm" />
                             </>
                         ) : (
                             (subscription.calendar?.name ??
@@ -121,10 +123,10 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
             <div className="flex shrink-0 items-center justify-center gap-1">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Badge variant="outline">구독 일정</Badge>
+                        <Badge variant="outline">{t("badge")}</Badge>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                        <p>구독된 일정은 편집할 수 없습니다.</p>
+                        <p>{t("readOnly")}</p>
                     </TooltipContent>
                 </Tooltip>
             </div>

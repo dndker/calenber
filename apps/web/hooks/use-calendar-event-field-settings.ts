@@ -6,9 +6,11 @@ import {
 import { canManageCalendar } from "@/lib/calendar/permissions"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { toast } from "sonner"
 
 export function useCalendarEventFieldSettings() {
+    const t = useDebugTranslations("settings.calendarData")
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const updateCalendarSnapshot = useCalendarStore(
         (s) => s.updateCalendarSnapshot
@@ -28,7 +30,7 @@ export function useCalendarEventFieldSettings() {
             return true
         }
         if (!canManageCalendar(activeCalendarMembership)) {
-            toast.error("관리자 또는 소유자만 일정 속성 설정을 변경할 수 있습니다.")
+            toast.error(t("fieldSettingsPermissionDenied"))
             return false
         }
 
@@ -55,7 +57,7 @@ export function useCalendarEventFieldSettings() {
                 eventFieldSettings: previousSettings,
             })
             console.error("Failed to update calendar event field settings:", error)
-            toast.error("일정 속성 설정을 저장하지 못했습니다.")
+            toast.error(t("fieldSettingsSaveFailed"))
             return false
         }
 

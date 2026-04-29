@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     AvatarGroupDropdown,
     AvatarGroupDropdownPreview,
@@ -13,13 +14,6 @@ import type { CalendarRole } from "@/lib/calendar/permissions"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useMemo } from "react"
 
-const roleLabelMap: Record<CalendarRole, string> = {
-    viewer: "뷰어",
-    editor: "에디터",
-    manager: "매니저",
-    owner: "소유자",
-}
-
 type Collaborator = {
     id: string
     name: string
@@ -30,11 +24,12 @@ type Collaborator = {
 }
 
 function CollaboratorLastUpdated({ value }: { value: number }) {
+    const t = useDebugTranslations("event.collaborators")
     const relativeTime = useRelativeTime(value, { clampFuture: true })
 
     return (
         <span className="truncate text-xs text-muted-foreground" suppressHydrationWarning>
-            {relativeTime} 수정
+            {t("updatedAt", { relativeTime })}
         </span>
     )
 }
@@ -46,13 +41,16 @@ export function EventCollaboratorsHoverCard({
     event: CalendarEvent
     history: CalendarEventHistoryItem[]
 }) {
+    const t = useDebugTranslations("event.collaborators")
+    const tRoles = useDebugTranslations("common.roles")
+    const tLabels = useDebugTranslations("common.labels")
     const collaborators = useMemo(() => {
         const map = new Map<string, Collaborator>()
 
         if (event.authorId) {
             map.set(event.authorId, {
                 id: event.authorId,
-                name: event.author?.name ?? event.author?.email ?? "이름 없음",
+                name: event.author?.name ?? event.author?.email ?? tLabels("noName"),
                 email: event.author?.email ?? null,
                 avatarUrl: event.author?.avatarUrl ?? null,
                 role: null,
@@ -66,7 +64,8 @@ export function EventCollaboratorsHoverCard({
             }
 
             const existing = map.get(item.actorUserId)
-            const name = item.actorName ?? item.actorEmail ?? "알 수 없는 멤버"
+            const name =
+                item.actorName ?? item.actorEmail ?? tLabels("unknownMember")
 
             map.set(item.actorUserId, {
                 id: item.actorUserId,
@@ -84,7 +83,7 @@ export function EventCollaboratorsHoverCard({
         return Array.from(map.values()).sort(
             (a, b) => b.lastTouchedAt - a.lastTouchedAt
         )
-    }, [event, history])
+    }, [event, history, tLabels])
 
     if (collaborators.length === 0) {
         return null
@@ -97,7 +96,7 @@ export function EventCollaboratorsHoverCard({
         avatarFallback: getAvatarGroupFallbackLabel(member.name),
         badge:
             member.role != null
-                ? getAvatarGroupBadge(roleLabelMap[member.role])
+                ? getAvatarGroupBadge(tRoles(member.role))
                 : undefined,
         email: member.email,
         time: <CollaboratorLastUpdated value={member.lastTouchedAt} />,
@@ -106,7 +105,7 @@ export function EventCollaboratorsHoverCard({
     return (
         <AvatarGroupDropdown
             items={items}
-            label={`관련 작업자 ${collaborators.length}명`}
+            label={t("label", { count: collaborators.length })}
             align="end"
             contentClassName="w-56"
             triggerAsChild

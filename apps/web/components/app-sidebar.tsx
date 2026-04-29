@@ -6,7 +6,10 @@ import { CalendarFilter } from "@/components/calendar-filter"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
-import { eventStatus, eventStatusLabel } from "@/store/calendar-store.types"
+import {
+    eventStatus,
+    eventStatusTranslationKey,
+} from "@/store/calendar-store.types"
 import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
@@ -21,10 +24,15 @@ import {
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { Settings } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { CalendarSubscriptionManager } from "./calendar-subscription-manager"
 import { CalendarSidebarEvents } from "./calendar-sidebar-events"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const tFilter = useDebugTranslations("calendar.filterSidebar")
+    const tStatus = useDebugTranslations("event.status")
+    const tCollection = useDebugTranslations("calendar.collection")
+    const tSettings = useDebugTranslations("settings")
     const { openSettings } = useSettingsModal()
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
@@ -54,20 +62,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         () => [
             {
                 id: "status",
-                name: "상태",
+                name: tFilter("statusGroup"),
                 items: eventStatus.map((status) => ({
                     id: status,
-                    label: eventStatusLabel[status],
+                    label: tStatus(eventStatusTranslationKey[status]),
                     checked: !excludedStatusSet.has(status),
                 })),
             },
             {
                 id: "collection",
-                name: "컬렉션",
+                name: tFilter("collectionGroup"),
                 items: [
                     {
                         id: "__without_collection__",
-                        label: "컬렉션 없음",
+                        label: tCollection("noCollection"),
                         checked: !eventFilters.excludedWithoutCollection,
                     },
                     ...eventCollections.map((collection) => ({
@@ -84,6 +92,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             eventFilters.excludedWithoutCollection,
             excludedCollectionIdSet,
             excludedStatusSet,
+            tCollection,
+            tFilter,
+            tStatus,
         ]
     )
 
@@ -141,7 +152,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     }
                                 >
                                     <Settings />
-                                    <span>설정</span>
+                                    <span>{tSettings("title")}</span>
                                 </SidebarMenuButton>
                             </>
                         ) : null}

@@ -42,13 +42,6 @@ export type CalendarMemberRow = {
     canRemove: boolean
 }
 
-const roleLabelMap: Record<CalendarMemberRow["role"], string> = {
-    viewer: "보기 전용",
-    editor: "편집자",
-    manager: "관리자",
-    owner: "소유자",
-}
-
 function shortenUserId(userId: string) {
     return `${userId.slice(0, 8)}...${userId.slice(-4)}`
 }
@@ -58,6 +51,7 @@ export function getCalendarMemberColumns({
     getAssignableRoles,
     onRoleChange,
     onRemove,
+    labels,
 }: {
     canManageMembers: boolean
     getAssignableRoles: (
@@ -68,6 +62,18 @@ export function getCalendarMemberColumns({
         nextRole: CalendarMemberRow["role"]
     ) => void | Promise<void>
     onRemove: (member: CalendarMemberRow) => void
+    labels: {
+        roles: Record<CalendarMemberRow["role"], string>
+        selectAllAria: string
+        selectRowAria: string
+        memberHeader: string
+        meBadge: string
+        joinedAtHeader: string
+        roleHeader: string
+        roleSelectPlaceholder: string
+        roleSelectLabel: string
+        removeMember: string
+    }
 }): ColumnDef<CalendarMemberRow>[] {
     return [
         ...(canManageMembers
@@ -90,7 +96,7 @@ export function getCalendarMemberColumns({
                               onCheckedChange={(value) =>
                                   table.toggleAllPageRowsSelected(!!value)
                               }
-                              aria-label="전체 선택"
+                              aria-label={labels.selectAllAria}
                           />
                       ),
                       cell: ({ row }) => (
@@ -100,7 +106,7 @@ export function getCalendarMemberColumns({
                                   row.toggleSelected(!!value)
                               }
                               disabled={!row.original.canEditRole}
-                              aria-label="행 선택"
+                              aria-label={labels.selectRowAria}
                           />
                       ),
                   } satisfies ColumnDef<CalendarMemberRow>,
@@ -117,7 +123,7 @@ export function getCalendarMemberColumns({
                 [row.displayName, row.email, row.userId]
                     .filter(Boolean)
                     .join(" "),
-            header: "멤버",
+            header: labels.memberHeader,
             filterFn: (row, columnId, value) => {
                 const rawValue = String(row.getValue(columnId)).toLowerCase()
                 return rawValue.includes(String(value).toLowerCase())
@@ -139,10 +145,12 @@ export function getCalendarMemberColumns({
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
                                 <span className="truncate font-medium">
-                                    {member.displayName}
+                                        {member.displayName}
                                 </span>
                                 {member.isCurrentUser && (
-                                    <Badge variant="outline">나</Badge>
+                                    <Badge variant="outline">
+                                        {labels.meBadge}
+                                    </Badge>
                                 )}
                             </div>
                             <div className="truncate text-sm text-muted-foreground">
@@ -156,13 +164,13 @@ export function getCalendarMemberColumns({
 
         {
             accessorKey: "createdAt",
-            header: "참여일",
+            header: labels.joinedAtHeader,
             cell: ({ row }) =>
                 dayjs(row.original.createdAt).format("YYYY.MM.DD"),
         },
         {
             accessorKey: "role",
-            header: "역할",
+            header: labels.roleHeader,
             cell: ({ row }) => {
                 const rowRole = row.original.role
                 const member = row.original
@@ -189,19 +197,25 @@ export function getCalendarMemberColumns({
                             disabled={!isRoleEditable}
                         >
                             <SelectTrigger className="-ml-2 w-full border-0 px-2 shadow-none hover:bg-muted">
-                                <SelectValue placeholder="역할 선택.." />
+                                <SelectValue
+                                    placeholder={
+                                        labels.roleSelectPlaceholder
+                                    }
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>역할 선택</SelectLabel>
+                                    <SelectLabel>
+                                        {labels.roleSelectLabel}
+                                    </SelectLabel>
                                     {!assignableRoles.includes(rowRole) && (
                                         <SelectItem value={rowRole}>
-                                            {roleLabelMap[rowRole]}
+                                            {labels.roles[rowRole]}
                                         </SelectItem>
                                     )}
                                     {assignableRoles.map((role) => (
                                         <SelectItem key={role} value={role}>
-                                            {roleLabelMap[role]}
+                                            {labels.roles[role]}
                                         </SelectItem>
                                     ))}
                                 </SelectGroup>
@@ -248,7 +262,7 @@ export function getCalendarMemberColumns({
                                               disabled={!member.canRemove}
                                               onSelect={() => onRemove(member)}
                                           >
-                                              멤버 내보내기
+                                              {labels.removeMember}
                                           </DropdownMenuItem>
                                       </DropdownMenuContent>
                                   </DropdownMenu>

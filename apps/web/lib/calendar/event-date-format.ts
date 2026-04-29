@@ -2,32 +2,44 @@ import {
     formatRecurrenceBaseText,
     formatRecurrenceMenuShortText,
 } from "@/components/calendar/event-form-recurrence"
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
 import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 
-function formatMeridiemHour(target: dayjs.Dayjs) {
-    const hour = target.hour()
-    const minute = target.minute()
-    const meridiem = hour < 12 ? "오전" : "오후"
-    const hour12 = hour % 12 === 0 ? 12 : hour % 12
-    const minuteTime = minute !== 0 ? ` ${minute}분` : ""
-
-    return `${meridiem} ${hour12}시${minuteTime}`
+function formatDate(
+    target: dayjs.Dayjs,
+    locale: Locale,
+    options: Intl.DateTimeFormatOptions
+) {
+    return new Intl.DateTimeFormat(locale, options).format(target.toDate())
 }
 
-function formatHour24Korean(target: dayjs.Dayjs) {
-    const hour = target.hour()
-    const minute = target.minute()
-
-    if (minute === 0) {
-        return `${hour}시`
-    }
-
-    return `${hour}시 ${minute}분`
+function formatMeridiemHour(target: dayjs.Dayjs, locale: Locale) {
+    return formatDate(target, locale, { hour: "numeric", minute: "2-digit" })
 }
 
-function formatShortKoreanDate(target: dayjs.Dayjs) {
-    return target.format("YY년 M월 D일")
+function formatHour24Label(target: dayjs.Dayjs, locale: Locale) {
+    return formatDate(target, locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    })
+}
+
+function formatShortDate(target: dayjs.Dayjs, locale: Locale) {
+    return formatDate(target, locale, {
+        year: "2-digit",
+        month: "numeric",
+        day: "numeric",
+    })
+}
+
+function formatLongDate(target: dayjs.Dayjs, locale: Locale) {
+    return formatDate(target, locale, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    })
 }
 
 export function formatCalendarEventScheduleLabel({
@@ -38,6 +50,7 @@ export function formatCalendarEventScheduleLabel({
     variant = "long",
     timeStyle = "meridiem",
     omitTime = false,
+    locale,
 }: {
     start: Date | number
     end: Date | number
@@ -46,77 +59,80 @@ export function formatCalendarEventScheduleLabel({
     variant?: "long" | "short"
     timeStyle?: "meridiem" | "hour24-korean"
     omitTime?: boolean
+    locale?: Locale
 }) {
     const zonedStart = dayjs(start).tz(timezone)
     const zonedEnd = dayjs(end).tz(timezone)
     const isSameDay = zonedStart.isSame(zonedEnd, "day")
     const isSameTime = zonedStart.valueOf() === zonedEnd.valueOf()
+    const resolvedLocale = locale ?? defaultLocale
     const formatShortLabel =
-        timeStyle === "hour24-korean" ? formatHour24Korean : formatMeridiemHour
+        timeStyle === "hour24-korean"
+            ? formatHour24Label
+            : formatMeridiemHour
 
     if (variant === "short") {
         if (omitTime) {
             if (isSameDay) {
-                return formatShortKoreanDate(zonedStart)
+                return formatShortDate(zonedStart, resolvedLocale)
             }
 
-            return `${formatShortKoreanDate(zonedStart)} - ${formatShortKoreanDate(
-                zonedEnd
+            return `${formatShortDate(zonedStart, resolvedLocale)} - ${formatShortDate(
+                zonedEnd,
+                resolvedLocale
             )}`
         }
 
         if (allDay) {
             if (isSameDay) {
-                return formatShortKoreanDate(zonedStart)
+                return formatShortDate(zonedStart, resolvedLocale)
             }
 
-            return `${formatShortKoreanDate(zonedStart)} - ${formatShortKoreanDate(
-                zonedEnd
+            return `${formatShortDate(zonedStart, resolvedLocale)} - ${formatShortDate(
+                zonedEnd,
+                resolvedLocale
             )}`
         }
 
         if (isSameDay) {
-            const formattedStartTime = formatShortLabel(zonedStart)
+            const formattedStartTime = formatShortLabel(
+                zonedStart,
+                resolvedLocale
+            )
 
             if (isSameTime) {
-                return `${formatShortKoreanDate(zonedStart)} ${formattedStartTime}`
+                return `${formatShortDate(zonedStart, resolvedLocale)} ${formattedStartTime}`
             }
 
-            return `${formatShortKoreanDate(zonedStart)} ${formattedStartTime} - ${formatShortLabel(
-                zonedEnd
+            return `${formatShortDate(zonedStart, resolvedLocale)} ${formattedStartTime} - ${formatShortLabel(
+                zonedEnd,
+                resolvedLocale
             )}`
         }
 
-        return `${formatShortKoreanDate(zonedStart)} ${formatShortLabel(
-            zonedStart
-        )} - ${formatShortKoreanDate(zonedEnd)} ${formatShortLabel(zonedEnd)}`
+        return `${formatShortDate(zonedStart, resolvedLocale)} ${formatShortLabel(
+            zonedStart,
+            resolvedLocale
+        )} - ${formatShortDate(zonedEnd, resolvedLocale)} ${formatShortLabel(zonedEnd, resolvedLocale)}`
     }
 
     if (allDay) {
         if (isSameDay) {
-            return zonedStart.format("YYYY년 M월 D일")
+            return formatLongDate(zonedStart, resolvedLocale)
         }
 
-        return `${zonedStart.format("YYYY년 M월 D일")} - ${zonedEnd.format(
-            "YYYY년 M월 D일"
-        )}`
+        return `${formatLongDate(zonedStart, resolvedLocale)} - ${formatLongDate(zonedEnd, resolvedLocale)}`
     }
 
     if (isSameDay) {
         if (isSameTime) {
-            return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(
-                zonedStart
-            )}`
+            return `${formatLongDate(zonedStart, resolvedLocale)} ${formatMeridiemHour(zonedStart, resolvedLocale)}`
         }
 
-        return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(
-            zonedStart
-        )} - ${formatMeridiemHour(zonedEnd)}`
+        return `${formatLongDate(zonedStart, resolvedLocale)} ${formatMeridiemHour(zonedStart, resolvedLocale)} - ${formatMeridiemHour(zonedEnd, resolvedLocale)}`
     }
 
-    return `${zonedStart.format("YYYY년 M월 D일")} ${formatMeridiemHour(
-        zonedStart
-    )} - ${zonedEnd.format("YYYY년 M월 D일")} ${formatMeridiemHour(zonedEnd)}`
+    return `${formatLongDate(zonedStart, resolvedLocale)} ${formatMeridiemHour(zonedStart, resolvedLocale)} - ${formatLongDate(zonedEnd, resolvedLocale)} ${formatMeridiemHour(zonedEnd, resolvedLocale)}`
 }
 
 export function formatCalendarEventScheduleLabelFromEvent(
@@ -125,6 +141,7 @@ export function formatCalendarEventScheduleLabelFromEvent(
         variant?: "long" | "short"
         timeStyle?: "meridiem" | "hour24-korean"
         omitTime?: boolean
+        locale?: Locale
     }
 ) {
     return formatCalendarEventScheduleLabel({
@@ -135,6 +152,7 @@ export function formatCalendarEventScheduleLabelFromEvent(
         variant: options?.variant,
         timeStyle: options?.timeStyle,
         omitTime: options?.omitTime,
+        locale: options?.locale,
     })
 }
 
@@ -152,6 +170,7 @@ export function formatCalendarEventRecurrenceOrDateLabel(
         scheduleVariant?: "long" | "short"
         timeStyle?: "meridiem" | "hour24-korean"
         omitTime?: boolean
+        locale?: Locale
     }
 ) {
     if (!event.recurrence) {
@@ -163,6 +182,7 @@ export function formatCalendarEventRecurrenceOrDateLabel(
             variant: options?.scheduleVariant ?? "short",
             timeStyle: options?.timeStyle,
             omitTime: options?.omitTime,
+            locale: options?.locale,
         })
     }
 
@@ -173,8 +193,9 @@ export function formatCalendarEventRecurrenceOrDateLabel(
         recurrence: event.recurrence,
         startDate,
         timezone: event.timezone,
+        locale: options?.locale,
     })
-    const base = formatRecurrenceBaseText(event.recurrence)
+    const base = formatRecurrenceBaseText(event.recurrence, options?.locale)
 
     return detail ? `${base} ${detail}` : base
 }

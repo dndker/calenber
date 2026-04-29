@@ -1,30 +1,60 @@
+import { defaultLocale, type Locale } from "@/lib/i18n/config"
+import { getMessageTranslator } from "@/lib/i18n/messages"
 import dayjs from "@/lib/dayjs"
 import type { Dayjs } from "dayjs"
 
 import type { EventFormValues } from "./event-form.schema"
 
 export const recurrenceTypeLabelMap = {
-    daily: "매일",
-    weekly: "매주",
-    monthly: "매월",
-    yearly: "매년",
+    daily: "event.recurrence.daily",
+    weekly: "event.recurrence.weekly",
+    monthly: "event.recurrence.monthly",
+    yearly: "event.recurrence.yearly",
 } as const
 
 export const recurrenceIntervalUnitLabelMap = {
-    daily: "일",
-    weekly: "주",
-    monthly: "개월",
-    yearly: "년",
+    daily: "event.recurrence.intervalDay",
+    weekly: "event.recurrence.intervalWeek",
+    monthly: "event.recurrence.intervalMonth",
+    yearly: "event.recurrence.intervalYear",
 } as const
 
 export const recurrenceWeekdayItems = [
-    { value: 0, shortLabel: "일", fullLabel: "일요일" },
-    { value: 1, shortLabel: "월", fullLabel: "월요일" },
-    { value: 2, shortLabel: "화", fullLabel: "화요일" },
-    { value: 3, shortLabel: "수", fullLabel: "수요일" },
-    { value: 4, shortLabel: "목", fullLabel: "목요일" },
-    { value: 5, shortLabel: "금", fullLabel: "금요일" },
-    { value: 6, shortLabel: "토", fullLabel: "토요일" },
+    {
+        value: 0,
+        shortLabelKey: "common.weekdays.short.sun",
+        fullLabelKey: "common.weekdays.long.sun",
+    },
+    {
+        value: 1,
+        shortLabelKey: "common.weekdays.short.mon",
+        fullLabelKey: "common.weekdays.long.mon",
+    },
+    {
+        value: 2,
+        shortLabelKey: "common.weekdays.short.tue",
+        fullLabelKey: "common.weekdays.long.tue",
+    },
+    {
+        value: 3,
+        shortLabelKey: "common.weekdays.short.wed",
+        fullLabelKey: "common.weekdays.long.wed",
+    },
+    {
+        value: 4,
+        shortLabelKey: "common.weekdays.short.thu",
+        fullLabelKey: "common.weekdays.long.thu",
+    },
+    {
+        value: 5,
+        shortLabelKey: "common.weekdays.short.fri",
+        fullLabelKey: "common.weekdays.long.fri",
+    },
+    {
+        value: 6,
+        shortLabelKey: "common.weekdays.short.sat",
+        fullLabelKey: "common.weekdays.long.sat",
+    },
 ] as const
 
 const textWeekdayOrder = new Map<number, number>([
@@ -53,6 +83,19 @@ type RecurrenceTextOptions = {
     recurrence: RecurrenceValue | undefined
     startDate: Date
     timezone: string
+    locale?: Locale
+}
+
+function getTranslator(locale: Locale = defaultLocale) {
+    return getMessageTranslator(locale)
+}
+
+function formatLocaleDate(
+    value: Date,
+    locale: Locale,
+    options: Intl.DateTimeFormatOptions
+) {
+    return new Intl.DateTimeFormat(locale, options).format(value)
 }
 
 function getStartDay(startDate: Date, timezone: string) {
@@ -122,25 +165,36 @@ export function getRecurrenceEndMode(
 }
 
 export function formatRecurrenceBaseText(
-    recurrence: RecurrenceValue | undefined
+    recurrence: RecurrenceValue | undefined,
+    locale: Locale = defaultLocale
 ) {
+    const t = getTranslator(locale)
+
     if (!recurrence) {
-        return "반복 안 함"
+        return t("event.recurrence.none")
     }
 
     const interval = Math.max(1, recurrence.interval || 1)
 
     return interval === 1
-        ? recurrenceTypeLabelMap[recurrence.type]
-        : `${interval}${recurrenceIntervalUnitLabelMap[recurrence.type]}마다`
+        ? t(recurrenceTypeLabelMap[recurrence.type])
+        : t("event.recurrence.everyInterval", {
+              interval,
+              unit: t(recurrenceIntervalUnitLabelMap[recurrence.type]),
+          })
 }
 
-function formatWeekdayText(weekdays: number[], format: "short" | "full") {
+function formatWeekdayText(
+    weekdays: number[],
+    format: "short" | "full",
+    locale: Locale = defaultLocale
+) {
+    const t = getTranslator(locale)
     const weekdayLabelMap = new Map<
         number,
         Pick<
             (typeof recurrenceWeekdayItems)[number],
-            "shortLabel" | "fullLabel"
+            "shortLabelKey" | "fullLabelKey"
         >
     >(recurrenceWeekdayItems.map((item) => [item.value, item]))
     const orderedWeekdays = [...weekdays].sort(
@@ -150,7 +204,9 @@ function formatWeekdayText(weekdays: number[], format: "short" | "full") {
 
     const labels = orderedWeekdays.map((value) => {
         const item = weekdayLabelMap.get(value)
-        return item ? item.shortLabel : String(value)
+        return item
+            ? t(format === "short" ? item.shortLabelKey : item.fullLabelKey)
+            : String(value)
     })
 
     if (format === "short") {
@@ -162,28 +218,58 @@ function formatWeekdayText(weekdays: number[], format: "short" | "full") {
     }
 
     if (labels.length === 1) {
-        return `${labels[0]}요일`
+        return labels[0]
     }
 
-    return `${labels.join(", ")}요일`
+    return labels.join(", ")
 }
 
-function formatRecurrenceStartDateText(startDate: Date, timezone: string) {
-    return getStartDay(startDate, timezone).format("YYYY.MM.DD(dd)")
+function formatRecurrenceStartDateText(
+    startDate: Date,
+    timezone: string,
+    locale: Locale = defaultLocale
+) {
+    return formatLocaleDate(getStartDay(startDate, timezone).toDate(), locale, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+    })
 }
 
-function formatRecurrenceUntilDateText(until: string, timezone: string) {
-    return dayjs.tz(until, timezone).format("YYYY.MM.DD(dd)")
+function formatRecurrenceUntilDateText(
+    until: string,
+    timezone: string,
+    locale: Locale = defaultLocale
+) {
+    return formatLocaleDate(dayjs.tz(until, timezone).toDate(), locale, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+    })
 }
 
-function formatRecurrenceUntilDateShortText(until: string, timezone: string) {
-    return `${dayjs.tz(until, timezone).format("YY.MM.DD")} 까지`
+function formatRecurrenceUntilDateShortText(
+    until: string,
+    timezone: string,
+    locale: Locale = defaultLocale
+) {
+    const t = getTranslator(locale)
+    return t("event.recurrence.untilDate", {
+        date: formatLocaleDate(dayjs.tz(until, timezone).toDate(), locale, {
+            year: "2-digit",
+            month: "2-digit",
+            day: "2-digit",
+        }),
+    })
 }
 
 export function formatRecurrenceWeeklyWeekdaysShort({
     recurrence,
     startDate,
     timezone,
+    locale,
 }: RecurrenceTextOptions) {
     if (!recurrence || recurrence.type !== "weekly") {
         return undefined
@@ -194,7 +280,8 @@ export function formatRecurrenceWeeklyWeekdaysShort({
             recurrence.byWeekday,
             getRecurrenceFallbackWeekday(startDate, timezone)
         ),
-        "short"
+        "short",
+        locale
     )
 }
 
@@ -202,6 +289,7 @@ export function formatRecurrenceWeeklyWeekdaysFull({
     recurrence,
     startDate,
     timezone,
+    locale,
 }: RecurrenceTextOptions) {
     if (!recurrence || recurrence.type !== "weekly") {
         return undefined
@@ -212,7 +300,8 @@ export function formatRecurrenceWeeklyWeekdaysFull({
             recurrence.byWeekday,
             getRecurrenceFallbackWeekday(startDate, timezone)
         ),
-        "full"
+        "full",
+        locale
     )
 }
 
@@ -220,24 +309,36 @@ export function formatRecurrenceMonthlyDateText({
     recurrence,
     startDate,
     timezone,
+    locale,
 }: RecurrenceTextOptions) {
     if (!recurrence || recurrence.type !== "monthly") {
         return undefined
     }
 
-    return `${getStartDay(startDate, timezone).date()}일`
+    const t = getTranslator(locale)
+    return t("event.recurrence.monthlyDate", {
+        day: getStartDay(startDate, timezone).date(),
+    })
 }
 
 export function formatRecurrenceYearlyDateText({
     recurrence,
     startDate,
     timezone,
+    locale,
 }: RecurrenceTextOptions) {
     if (!recurrence || recurrence.type !== "yearly") {
         return undefined
     }
 
-    return getStartDay(startDate, timezone).format("M월 D일")
+    return formatLocaleDate(
+        getStartDay(startDate, timezone).toDate(),
+        locale ?? defaultLocale,
+        {
+            month: "short",
+            day: "numeric",
+        }
+    )
 }
 
 export function formatRecurrenceDetailText(options: RecurrenceTextOptions) {
@@ -292,6 +393,7 @@ export function formatRecurrenceEndText({
     recurrence,
     startDate,
     timezone,
+    locale = defaultLocale,
 }: RecurrenceTextOptions) {
     if (!recurrence) {
         return undefined
@@ -300,11 +402,14 @@ export function formatRecurrenceEndText({
     const endMode = getRecurrenceEndMode(recurrence)
 
     if (endMode === "until" && recurrence.until) {
-        return `(${formatRecurrenceStartDateText(startDate, timezone)} ~ ${formatRecurrenceUntilDateText(recurrence.until, timezone)})`
+        return `(${formatRecurrenceStartDateText(startDate, timezone, locale)} ~ ${formatRecurrenceUntilDateText(recurrence.until, timezone, locale)})`
     }
 
     if (endMode === "count" && recurrence.count) {
-        return `(${formatRecurrenceStartDateText(startDate, timezone)}부터 ${recurrence.count}회)`
+        return getTranslator(locale)("event.recurrence.countFromStart", {
+            start: formatRecurrenceStartDateText(startDate, timezone, locale),
+            count: recurrence.count,
+        })
     }
 
     return undefined
@@ -313,7 +418,8 @@ export function formatRecurrenceEndText({
 export function formatRecurrenceEndShortText({
     recurrence,
     timezone,
-}: Pick<RecurrenceTextOptions, "recurrence" | "timezone">) {
+    locale = defaultLocale,
+}: Pick<RecurrenceTextOptions, "recurrence" | "timezone" | "locale">) {
     if (!recurrence) {
         return undefined
     }
@@ -321,11 +427,17 @@ export function formatRecurrenceEndShortText({
     const endMode = getRecurrenceEndMode(recurrence)
 
     if (endMode === "until" && recurrence.until) {
-        return formatRecurrenceUntilDateShortText(recurrence.until, timezone)
+        return formatRecurrenceUntilDateShortText(
+            recurrence.until,
+            timezone,
+            locale
+        )
     }
 
     if (endMode === "count" && recurrence.count) {
-        return `${recurrence.count}회`
+        return getTranslator(locale)("event.recurrence.countOnly", {
+            count: recurrence.count,
+        })
     }
 
     return undefined
@@ -335,10 +447,10 @@ export function formatRecurrenceSummary(options: RecurrenceTextOptions) {
     const { recurrence } = options
 
     if (!recurrence) {
-        return "반복 안 함"
+        return formatRecurrenceBaseText(undefined, options.locale)
     }
 
-    const summaryParts = [formatRecurrenceBaseText(recurrence)]
+    const summaryParts = [formatRecurrenceBaseText(recurrence, options.locale)]
     const detail = formatRecurrenceDetailText(options)
     const end = formatRecurrenceEndText(options)
 

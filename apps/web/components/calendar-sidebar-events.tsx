@@ -59,6 +59,7 @@ import {
     TagsIcon,
     Trash2Icon,
 } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { usePathname } from "next/navigation"
 import { useSidebarCollapse } from "@/hooks/use-sidebar-collapse-state"
 import React, { memo, useCallback, useMemo, useState } from "react"
@@ -127,6 +128,7 @@ const subscriptionEventVisibleHoverCardFieldIds = new Set<
 >(["schedule", "collections"])
 
 export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
+    const t = useDebugTranslations("calendar.sidebarEvents")
     const [isOpen, setIsOpen] = useSidebarCollapse("favorites")
     const events = useCalendarStore((s) => s.events)
     const favoriteEventMap = useCalendarStore((s) => s.favoriteEventMap)
@@ -203,10 +205,12 @@ export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
                             className="group/label w-full text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         >
                             <CollapsibleTrigger className="flex items-center gap-1">
-                                즐겨찾기
+                                {t("favorites")}
                                 {favoriteEvents.length > 0 ? (
                                     <Badge variant="outline">
-                                        {favoriteEvents.length}개
+                                        {t("count", {
+                                            count: favoriteEvents.length,
+                                        })}
                                     </Badge>
                                 ) : null}
                                 <ChevronRightIcon className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
@@ -224,7 +228,7 @@ export const CalendarSidebarEvents = memo(function CalendarSidebarEvents() {
                                         ))
                                     ) : (
                                         <div className="px-2 py-1 text-sm text-muted-foreground">
-                                            즐겨찾기한 일정이 없습니다.
+                                            {t("emptyFavorites")}
                                         </div>
                                     )}
                                 </SidebarMenu>
@@ -243,6 +247,8 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
 }: {
     event: CalendarEvent
 }) {
+    const t = useDebugTranslations("calendar.sidebarEvents")
+    const tCommon = useDebugTranslations("common.labels")
     const isMobile = useIsMobile()
     const pathname = usePathname()
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
@@ -299,7 +305,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <div className="flex items-start gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <CalendarIcon className="size-3.5" />
-                                날짜
+                                {t("date")}
                             </span>
                             <span className="flex-1 text-foreground">
                                 {formatCalendarEventScheduleLabelFromEvent(
@@ -321,7 +327,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <div className="flex gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <Repeat2Icon className="size-3.5" />
-                                반복
+                                {t("recurrence")}
                             </span>
                             <span className="flex-1 text-foreground">
                                 {recurrencePreview}
@@ -338,7 +344,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <div className="flex gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <CircleCheckBigIcon className="size-3.5" />
-                                상태
+                                {t("status")}
                             </span>
                             <span className="flex-1 text-foreground">
                                 <EventStatusItem
@@ -358,7 +364,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         <div className="flex gap-2.75">
                             <span className="flex w-16 shrink-0 items-center gap-1 font-medium text-muted-foreground uppercase">
                                 <TagsIcon className="size-3.5" />
-                                컬렉션
+                                {t("collection")}
                             </span>
                             <span className="flex-1 text-foreground">
                                 <span
@@ -417,7 +423,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         }}
                     >
                         <p className="inline-block w-full truncate text-sm">
-                            {event.title.trim() || "새 일정"}
+                            {event.title.trim() || tCommon("newEvent")}
                         </p>
                         <div className="flex justify-between text-xs text-muted-foreground">
                             {/* <span>{formatFavoriteEventDate(event)}</span> */}
@@ -433,7 +439,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                     <div className="flex flex-col gap-2">
                         <div className="flex flex-col gap-0.5">
                             <p className="truncate text-base font-medium text-foreground">
-                                {event.title.trim() || "새 일정"}
+                                {event.title.trim() || tCommon("newEvent")}
                             </p>
                             {contentPreview && (
                                 <span className="truncate text-[13px] leading-5 text-muted-foreground">
@@ -484,9 +490,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                                 )
 
                                 if (ok) {
-                                    toast.success(
-                                        "즐겨찾기에서 삭제되었습니다."
-                                    )
+                                    toast.success(t("removedFromFavorites"))
                                 }
                             } finally {
                                 setIsFavoritePending(false)
@@ -494,11 +498,11 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         }}
                     >
                         <StarOffIcon className="text-muted-foreground" />
-                        <span>즐겨찾기 해제</span>
+                        <span>{t("removeFavorite")}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleMoveToEventDate}>
                         <CalendarSearchIcon className="text-muted-foreground" />
-                        <span>날짜로 이동</span>
+                        <span>{t("moveToDate")}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onClick={() => {
@@ -509,7 +513,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                         }}
                     >
                         <ShareIcon className="text-muted-foreground" />
-                        <span>일정 공유</span>
+                        <span>{t("shareEvent")}</span>
                     </DropdownMenuItem>
                     {!isSubscriptionEvent ? (
                         <>
@@ -521,7 +525,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                                 }}
                             >
                                 <Trash2Icon className="text-muted-foreground" />
-                                <span>일정 삭제</span>
+                                <span>{t("deleteEvent")}</span>
                             </DropdownMenuItem>
                         </>
                     ) : null}

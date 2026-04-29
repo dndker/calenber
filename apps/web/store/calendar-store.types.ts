@@ -90,12 +90,12 @@ export type CalendarEventFieldSettings = {
     }[]
 }
 
-export const eventStatusLabel = {
-    scheduled: "시작 전",
-    in_progress: "진행 중",
-    completed: "완료",
-    cancelled: "취소",
-}
+export const eventStatusTranslationKey = {
+    scheduled: "scheduled",
+    in_progress: "inProgress",
+    completed: "done",
+    cancelled: "cancelled",
+} as const
 
 export const eventStatus = [
     "scheduled",

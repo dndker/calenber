@@ -33,16 +33,19 @@
 - `meaning`: 텍스트 의미 — `title`, `placeholder`, `label`, `description`
 
 **금지 패턴**
+
 - 4단계 이상 중첩 금지 — `event.form.title.placeholder` (X) → `event.form.titlePlaceholder` (O)
 - snake_case 금지 — `event.form.title_placeholder` (X)
 
 **파일 규칙**
+
 - 번역 파일: `apps/web/messages/{locale}.json` (ko.json, en.json)
 - ko.json에 키를 추가하면 en.json에도 동시에 추가한다 — 구조는 항상 동일하게 유지
 
 **사용 패턴**
+
 ```typescript
-const t = useTranslations("event.form")  // 클라이언트
+const t = useDebugTranslations("event.form")  // 클라이언트 (디버그용)
 const t = await getTranslations("event.form")  // 서버
 t("titlePlaceholder")  // → event.form.titlePlaceholder
 ```

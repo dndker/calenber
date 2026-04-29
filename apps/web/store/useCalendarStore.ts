@@ -26,6 +26,7 @@ import {
     toCalendarEventSource,
 } from "@/lib/calendar/recurrence"
 import dayjs from "@/lib/dayjs"
+import { tClient } from "@/lib/i18n/client-translator"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { toast } from "sonner"
 import type {
@@ -78,7 +79,7 @@ async function persistCreatedEvent(event: CalendarEvent) {
     const created = await createCalendarEvent(supabase, calendarId, event)
 
     if (!created) {
-        toast.error("일정 생성 실패")
+        toast.error(tClient("event.toast.createFailed"))
     }
 }
 
@@ -106,13 +107,11 @@ async function persistUpdatedEvent(
     if (!result.ok) {
         if (result.status === "conflict" && result.event) {
             useCalendarStore.getState().upsertEventSnapshot(result.event)
-            toast.warning(
-                "다른 멤버의 수정과 충돌해 최신 내용으로 갱신했습니다."
-            )
+            toast.warning(tClient("event.toast.conflictReloaded"))
             return
         }
 
-        toast.error("일정 수정 실패")
+        toast.error(tClient("event.toast.updateFailed"))
         return
     }
 
@@ -138,7 +137,7 @@ async function persistDeletedEvent(eventId: string) {
     const ok = await deleteCalendarEvent(supabase, eventId)
 
     if (!ok) {
-        toast.error("일정 삭제 실패")
+        toast.error(tClient("event.toast.deleteFailed"))
     }
 }
 
@@ -963,7 +962,7 @@ export const useCalendarStore = createSSRStore<
             state.activeCalendar?.id !== "demo" &&
             !state.activeCalendarMembership.isMember
         ) {
-            toast.error("캘린더 멤버만 즐겨찾기를 사용할 수 있습니다.")
+            toast.error(tClient("event.toast.favoriteMembersOnly"))
             return false
         }
 
@@ -1011,7 +1010,7 @@ export const useCalendarStore = createSSRStore<
                 }
             })
 
-            toast.error("즐겨찾기를 저장하지 못했습니다.")
+            toast.error(tClient("event.toast.favoriteSaveFailed"))
             return false
         }
 
@@ -1045,7 +1044,7 @@ export const useCalendarStore = createSSRStore<
             activeCalendar?.id !== "demo" &&
             !canCreateCalendarEvents(activeCalendarMembership)
         ) {
-            toast.error("이 캘린더에서는 일정을 생성할 수 없습니다.")
+            toast.error(tClient("event.toast.createPermissionDenied"))
             return null
         }
 
@@ -1133,7 +1132,7 @@ export const useCalendarStore = createSSRStore<
                 currentUserId
             )
         ) {
-            toast.error("이 일정은 수정할 수 없습니다.")
+            toast.error(tClient("event.toast.updatePermissionDenied"))
             return false
         }
 
@@ -1231,7 +1230,7 @@ export const useCalendarStore = createSSRStore<
                 currentUserId
             )
         ) {
-            toast.error("이 일정은 삭제할 수 없습니다.")
+            toast.error(tClient("event.toast.deletePermissionDenied"))
             return false
         }
 

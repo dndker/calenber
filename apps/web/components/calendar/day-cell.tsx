@@ -1,3 +1,4 @@
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCellMembers } from "@/hooks/use-calendar-cell-member"
 import { useCalendarToday } from "@/hooks/use-calendar-today"
 import { useOpenEvent } from "@/hooks/use-open-event"
@@ -51,6 +52,7 @@ function getHolidayDateSetForYear(year: number) {
 
 export const DayCell = memo(
     ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
+        const tCalendar = useDebugTranslations("calendar")
         const createEvent = useOpenEvent()
         const {
             calendarTz,
@@ -302,7 +304,7 @@ export const DayCell = memo(
                                         weekendDateTextClass
                                     )}
                                 >
-                                    {dayjs.tz(day, calendarTz).format("M월")}
+                                    {dayjs.tz(day, calendarTz).format(tCalendar("dateFormatMonth"))}
                                 </span>
                             )}
                         </>

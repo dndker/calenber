@@ -18,10 +18,12 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { CalendarCheck2Icon, CalendarPlusIcon } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { memo, useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 export const DatePicker = memo(function DatePicker() {
+    const t = useDebugTranslations("calendar.datePicker")
     const createEvent = useOpenEvent()
 
     const user = useAuthStore((s) => s.user)
@@ -137,21 +139,21 @@ export const DatePicker = memo(function DatePicker() {
 
         if (activeCalendarMembership.status === "pending") {
             return {
-                label: "가입 요청 중",
+                label: t("pendingJoin"),
                 disabled: true,
             }
         }
 
         if (activeCalendar.accessMode === "public_open") {
             return {
-                label: "캘린더 참여하기",
+                label: t("joinCalendar"),
                 disabled: false,
             }
         }
 
         if (activeCalendar.accessMode === "public_approval") {
             return {
-                label: "가입 요청하기",
+                label: t("requestJoin"),
                 disabled: false,
             }
         }
@@ -180,7 +182,7 @@ export const DatePicker = memo(function DatePicker() {
             )
 
             if (!membership) {
-                toast.error("캘린더 가입을 처리하지 못했습니다.")
+                toast.error(t("joinFailed"))
                 return
             }
 
@@ -188,12 +190,12 @@ export const DatePicker = memo(function DatePicker() {
 
             toast.success(
                 membership.isMember
-                    ? "캘린더에 참여했습니다."
-                    : "가입 요청을 보냈습니다."
+                    ? t("joined")
+                    : t("requestSent")
             )
         } catch (error) {
             console.error("Failed to join calendar:", error)
-            toast.error("캘린더 가입을 처리하지 못했습니다.")
+            toast.error(t("joinFailed"))
         } finally {
             setIsJoiningCalendar(false)
         }
@@ -227,7 +229,7 @@ export const DatePicker = memo(function DatePicker() {
                     {canCreateEvent && (
                         <Button variant="outline" onClick={() => createEvent()}>
                             <CalendarPlusIcon />
-                            일정 생성하기
+                            {t("createEvent")}
                         </Button>
                     )}
                     {joinAction && (
