@@ -5,11 +5,12 @@ import {
     getTimedScheduleRangeAfterAllDayOff,
 } from "@/lib/calendar/default-timed-schedule"
 import {
-    normalizeCategoryName,
+    normalizeCollectionName,
     normalizeNames,
 } from "@/lib/calendar/event-form-names"
-import { buildEventCategoriesAssignmentPatch } from "@/lib/calendar/event-property-category-patch"
-import { createCalendarEventCategory } from "@/lib/calendar/mutations"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
+import { buildEventCollectionsAssignmentPatch } from "@/lib/calendar/event-property-collection-patch"
+import { createCalendarEventCollection } from "@/lib/calendar/mutations"
 import {
     getCalendarMemberDirectory,
     type CalendarMemberDirectoryItem,
@@ -34,10 +35,10 @@ import {
 import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
-import { useEventFormDraftCategoryColor } from "@/hooks/use-event-form-draft-category-color"
-import { EventCategorySettingsPanel } from "./event-category-settings-panel"
+import { useEventFormDraftCollectionColor } from "@/hooks/use-event-form-draft-collection-color"
 import { EventChipsCombobox } from "./event-chips-combobox"
-import { EventFormCategoryChipsField } from "./event-form-category-field"
+import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
+import { EventFormCollectionChipsField } from "./event-form-collection-field"
 import {
     EventFormPropertyRow,
     type EventFormPropertyMenuItem,
@@ -58,14 +59,18 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
+import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
-    calendarEventFieldDefinitions,
+    getCalendarEventFieldDefinitions,
     isCalendarEventFieldVisible,
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
-import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
+import { type Locale } from "@/lib/i18n/config"
+import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import {
     defaultContent,
     eventStatus,
@@ -112,6 +117,7 @@ import {
     SidebarMenuButton,
 } from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
+import { useLocale } from "next-intl"
 import dynamic from "next/dynamic"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
@@ -120,6 +126,7 @@ import {
     WheelPickerOption,
     WheelPickerWrapper,
 } from "../wheel-picker"
+import { EventSubscriptionCard } from "./event-subscription-card"
 
 const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
     Array.from({ length }, (_, i) => {
@@ -133,8 +140,8 @@ const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
 const hourOptions = createArray(12, 1)
 const minuteOptions = createArray(60)
 const meridiemOptions: WheelPickerOption<"am" | "pm">[] = [
-    { label: "오전", value: "am" },
-    { label: "오후", value: "pm" },
+    { label: "AM", value: "am" },
+    { label: "PM", value: "pm" },
 ]
 
 const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
@@ -144,7 +151,7 @@ const ContentEditorCSR = dynamic(() => import("../editor/content-editor"), {
 const eventFieldIconMap = {
     schedule: CalendarRangeIcon,
     participants: UsersIcon,
-    categories: TagsIcon,
+    collections: TagsIcon,
     status: CircleCheckBigIcon,
     recurrence: Repeat2Icon,
     exceptions: ClockAlertIcon,
@@ -218,7 +225,34 @@ function isSameScheduleDay(start: Date, end: Date, timezone: string) {
 }
 
 function formatDateInputValue(date: Date, timezone: string) {
-    return dayjs(date).tz(timezone).format("YY.MM.DD")
+    return dayjs(date).tz(timezone).format("YYYY-MM-DD")
+}
+
+function formatEventFormDateLabel(
+    date: Date | string,
+    timezone: string,
+    locale: Locale
+) {
+    return formatIntlDate(date, {
+        locale,
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    })
+}
+
+function formatEventFormTimeLabel(
+    date: Date | string,
+    timezone: string,
+    locale: Locale
+) {
+    return formatIntlDate(date, {
+        locale,
+        timeZone: timezone,
+        hour: "numeric",
+        minute: "2-digit",
+    })
 }
 
 function getMeridiemHourMinute(
@@ -410,10 +444,22 @@ function getRangeModifiers(start: Date, end: Date, timezone: string) {
 
 function formatExceptionDateTagLabel(
     exceptionDateIso: string,
-    timezone: string
+    timezone: string,
+    locale: Locale
 ) {
     const parsed = dayjs(exceptionDateIso).tz(timezone)
-    return parsed.isValid() ? parsed.format("YY년 M월 D일") : exceptionDateIso
+
+    if (!parsed.isValid()) {
+        return exceptionDateIso
+    }
+
+    return formatIntlDate(parsed.toDate(), {
+        locale,
+        timeZone: timezone,
+        year: "2-digit",
+        month: "numeric",
+        day: "numeric",
+    })
 }
 
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
@@ -617,6 +663,22 @@ export function EventForm({
     modal?: boolean
     portalContainer?: HTMLElement | null
 }) {
+    const tForm = useDebugTranslations("event.form")
+    const tCommonTime = useDebugTranslations("common.time")
+    const tCommonLabels = useDebugTranslations("common.labels")
+    const tField = useDebugTranslations("event.fieldDefinition")
+    const locale = useLocale() as Locale
+    const calendarEventFieldDefinitions = useMemo(
+        () => getCalendarEventFieldDefinitions(tField),
+        [tField]
+    )
+    const localizedMeridiemOptions = useMemo(
+        () => [
+            { label: tCommonTime("am"), value: "am" as const },
+            { label: tCommonTime("pm"), value: "pm" as const },
+        ],
+        [tCommonTime]
+    )
     const user = useAuthStore((a) => a.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const defaultParticipantIds = useMemo(
@@ -633,8 +695,8 @@ export function EventForm({
                   start: new Date(event.start),
                   end: new Date(event.end),
                   timezone: event.timezone || calendarTimezone || "Asia/Seoul",
-                  categoryNames: event.categories.map(
-                      (category) => category.name
+                  collectionNames: event.collections.map(
+                      (collection) => collection.name
                   ),
                   participantIds: defaultParticipantIds,
                   allDay: event.allDay ?? false,
@@ -652,7 +714,7 @@ export function EventForm({
                       start,
                       end,
                       timezone: tz,
-                      categoryNames: [],
+                      collectionNames: [],
                       participantIds: defaultParticipantIds,
                       allDay: false,
                       status: eventStatus[0],
@@ -661,9 +723,9 @@ export function EventForm({
     })
 
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
-    const upsertEventCategorySnapshot = useCalendarStore(
-        (s) => s.upsertEventCategorySnapshot
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
+    const upsertEventCollectionSnapshot = useCalendarStore(
+        (s) => s.upsertEventCollectionSnapshot
     )
     const { eventFieldSettings, saveEventFieldSettings } =
         useCalendarEventFieldSettings()
@@ -702,8 +764,41 @@ export function EventForm({
         name: "exceptions",
     })
 
-    const getDraftCategoryColor =
-        useEventFormDraftCategoryColor(eventCategories)
+    const getDraftCollectionColorBase = useEventFormDraftCollectionColor(
+        eventCollections,
+        event?.collections.map((collection) => ({
+            name: collection.name,
+            color: collection.options.color,
+        }))
+    )
+    const eventCollectionColorMap = useMemo(() => {
+        const map = new Map<
+            string,
+            NonNullable<CalendarEvent["primaryCollection"]>["options"]["color"]
+        >()
+
+        for (const collection of event?.collections ?? []) {
+            map.set(
+                normalizeCollectionName(collection.name),
+                collection.options.color
+            )
+        }
+
+        return map
+    }, [event?.collections])
+    const getDraftCollectionColor = useCallback(
+        (name: string) => {
+            const matchedEventColor = eventCollectionColorMap.get(
+                normalizeCollectionName(name)
+            )
+
+            return matchedEventColor ?? getDraftCollectionColorBase(name)
+        },
+        [eventCollectionColorMap, getDraftCollectionColorBase]
+    )
+    const isSystemSubscriptionEventForm = Boolean(
+        event?.id && isGeneratedSubscriptionEventId(event.id)
+    )
     const memberDirectory =
         !activeCalendar?.id ||
         activeCalendar.id === "demo" ||
@@ -720,8 +815,8 @@ export function EventForm({
                 end: new Date(targetEvent.end),
                 timezone:
                     targetEvent.timezone || calendarTimezone || "Asia/Seoul",
-                categoryNames: targetEvent.categories.map(
-                    (category) => category.name
+                collectionNames: targetEvent.collections.map(
+                    (collection) => collection.name
                 ),
                 participantIds: getDefaultParticipantIds({
                     event: targetEvent,
@@ -763,7 +858,7 @@ export function EventForm({
         (
             sourceEvent: CalendarEvent,
             values: EventFormValues,
-            categorySource = eventCategories
+            collectionSource = eventCollections
         ): CalendarEventPatch => {
             const normalizedTitle =
                 values.title && values.title.trim() !== "" ? values.title : ""
@@ -801,17 +896,17 @@ export function EventForm({
                 patch.timezone = values.timezone
             }
 
-            const categoryPatch = buildEventCategoriesAssignmentPatch(
+            const collectionPatch = buildEventCollectionsAssignmentPatch(
                 sourceEvent,
-                values.categoryNames,
-                categorySource,
-                getDraftCategoryColor,
+                values.collectionNames,
+                collectionSource,
+                getDraftCollectionColor,
                 activeCalendar?.id ?? ""
             )
 
-            if (categoryPatch) {
-                patch.categories = categoryPatch.categories
-                patch.category = categoryPatch.category
+            if (collectionPatch) {
+                patch.collections = collectionPatch.collections
+                patch.primaryCollection = collectionPatch.primaryCollection
             }
 
             const nextParticipantIds = normalizeIds(values.participantIds)
@@ -904,67 +999,67 @@ export function EventForm({
         },
         [
             activeCalendar?.id,
-            eventCategories,
-            getDraftCategoryColor,
+            eventCollections,
+            getDraftCollectionColor,
             memberDirectory,
             user,
         ]
     )
 
-    const ensureEventCategories = useCallback(
-        async (categoryNames: string[]) => {
+    const ensureEventCollections = useCallback(
+        async (collectionNames: string[]) => {
             if (
                 !activeCalendar?.id ||
                 activeCalendar.id === "demo" ||
                 disabled ||
-                categoryNames.length === 0
+                collectionNames.length === 0
             ) {
-                return eventCategories
+                return eventCollections
             }
 
             const supabase = createBrowserSupabase()
-            const categoryMap = new Map(
-                eventCategories.map((category) => [
-                    normalizeCategoryName(category.name),
-                    category,
+            const collectionMap = new Map(
+                eventCollections.map((collection) => [
+                    normalizeCollectionName(collection.name),
+                    collection,
                 ])
             )
 
-            for (const categoryName of categoryNames) {
-                const categoryKey = normalizeCategoryName(categoryName)
+            for (const name of collectionNames) {
+                const collectionKey = normalizeCollectionName(name)
 
-                if (!categoryKey || categoryMap.has(categoryKey)) {
+                if (!collectionKey || collectionMap.has(collectionKey)) {
                     continue
                 }
 
-                const createdCategory = await createCalendarEventCategory(
+                const createdCollection = await createCalendarEventCollection(
                     supabase,
                     activeCalendar.id,
                     {
-                        name: categoryName,
+                        name,
                         options: {
                             visibleByDefault: true,
-                            color: getDraftCategoryColor(categoryName),
+                            color: getDraftCollectionColor(name),
                         },
                     }
                 )
 
-                if (!createdCategory) {
+                if (!createdCollection) {
                     continue
                 }
 
-                categoryMap.set(categoryKey, createdCategory)
-                upsertEventCategorySnapshot(createdCategory)
+                collectionMap.set(collectionKey, createdCollection)
+                upsertEventCollectionSnapshot(createdCollection)
             }
 
-            return Array.from(categoryMap.values())
+            return Array.from(collectionMap.values())
         },
         [
             activeCalendar?.id,
             disabled,
-            eventCategories,
-            getDraftCategoryColor,
-            upsertEventCategorySnapshot,
+            eventCollections,
+            getDraftCollectionColor,
+            upsertEventCollectionSnapshot,
         ]
     )
 
@@ -1006,21 +1101,21 @@ export function EventForm({
                 }
             }
 
-            const nextCategoryNames = normalizeNames(
-                normalizedValues.categoryNames
+            const nextCollectionNames = normalizeNames(
+                normalizedValues.collectionNames
             )
-            const sourceCategoryNames = normalizeNames(
-                event.categories.map((category) => category.name)
+            const sourceCollectionNames = normalizeNames(
+                event.collections.map((collection) => collection.name)
             )
-            const resolvedCategories =
-                JSON.stringify(sourceCategoryNames) ===
-                JSON.stringify(nextCategoryNames)
-                    ? eventCategories
-                    : await ensureEventCategories(nextCategoryNames)
+            const resolvedCollections =
+                JSON.stringify(sourceCollectionNames) ===
+                JSON.stringify(nextCollectionNames)
+                    ? eventCollections
+                    : await ensureEventCollections(nextCollectionNames)
             const patch = buildPatchFromValues(
                 event,
                 normalizedValues,
-                resolvedCategories
+                resolvedCollections
             )
 
             if (Object.keys(patch).length === 0) {
@@ -1035,9 +1130,9 @@ export function EventForm({
             activeCalendar?.id,
             buildPatchFromValues,
             disabled,
-            ensureEventCategories,
+            ensureEventCollections,
             event,
-            eventCategories,
+            eventCollections,
             form,
             onChange,
         ]
@@ -1416,57 +1511,54 @@ export function EventForm({
     }, [activeCalendar?.id])
 
     useEffect(() => {
-        if (!event || event.categoryIds.length === 0) {
+        if (!event || event.collectionIds.length === 0) {
             return
         }
 
-        const nextCategoryNames = event.categoryIds
+        const nextCollectionNames = event.collectionIds
             .map(
-                (categoryId) =>
-                    eventCategories.find(
-                        (category) => category.id === categoryId
-                    )?.name ??
-                    event.categories.find(
-                        (category) => category.id === categoryId
-                    )?.name ??
+                (collectionId) =>
+                    eventCollections.find((c) => c.id === collectionId)?.name ??
+                    event.collections.find((c) => c.id === collectionId)
+                        ?.name ??
                     null
             )
             .filter((name): name is string => Boolean(name))
-        const currentCategoryNames = normalizeNames(
-            form.getValues("categoryNames") ?? []
+        const currentCollectionNames = normalizeNames(
+            form.getValues("collectionNames") ?? []
         )
-        const currentCategoryIds = currentCategoryNames
+        const currentCollectionIds = currentCollectionNames
             .map(
-                (categoryName) =>
-                    eventCategories.find(
-                        (category) =>
-                            normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(categoryName)
+                (name) =>
+                    eventCollections.find(
+                        (c) =>
+                            normalizeCollectionName(c.name) ===
+                            normalizeCollectionName(name)
                     )?.id ??
-                    event.categories.find(
-                        (category) =>
-                            normalizeCategoryName(category.name) ===
-                            normalizeCategoryName(categoryName)
+                    event.collections.find(
+                        (c) =>
+                            normalizeCollectionName(c.name) ===
+                            normalizeCollectionName(name)
                     )?.id ??
                     null
             )
-            .filter((categoryId): categoryId is string => Boolean(categoryId))
+            .filter((id): id is string => Boolean(id))
 
         if (
-            nextCategoryNames.length !== event.categoryIds.length ||
-            JSON.stringify(currentCategoryIds.sort()) !==
-                JSON.stringify([...event.categoryIds].sort()) ||
-            JSON.stringify(currentCategoryNames) ===
-                JSON.stringify(normalizeNames(nextCategoryNames))
+            nextCollectionNames.length !== event.collectionIds.length ||
+            JSON.stringify(currentCollectionIds.sort()) !==
+                JSON.stringify([...event.collectionIds].sort()) ||
+            JSON.stringify(currentCollectionNames) ===
+                JSON.stringify(normalizeNames(nextCollectionNames))
         ) {
             return
         }
 
-        form.setValue("categoryNames", normalizeNames(nextCategoryNames), {
+        form.setValue("collectionNames", normalizeNames(nextCollectionNames), {
             shouldDirty: false,
             shouldTouch: false,
         })
-    }, [event, eventCategories, form])
+    }, [event, eventCollections, form])
 
     useEffect(() => {
         return () => {
@@ -1621,20 +1713,36 @@ export function EventForm({
                 ),
         [eventFieldSettings]
     )
-    const displayOrderedFields = useMemo(() => {
-        if ((watchedExceptions ?? []).length > 0) {
+    const visiblePropertyFields = useMemo(() => {
+        if (!isSystemSubscriptionEventForm) {
             return orderedFields
         }
 
-        return orderedFields.filter((field) => field.id !== "exceptions")
-    }, [orderedFields, watchedExceptions])
+        const systemSubscriptionVisibleFieldIds = new Set([
+            "schedule",
+            "collections",
+        ])
+
+        return orderedFields.filter((field) =>
+            systemSubscriptionVisibleFieldIds.has(field.id)
+        )
+    }, [isSystemSubscriptionEventForm, orderedFields])
+    const displayOrderedFields = useMemo(() => {
+        if ((watchedExceptions ?? []).length > 0) {
+            return visiblePropertyFields
+        }
+
+        return visiblePropertyFields.filter(
+            (field) => field.id !== "exceptions"
+        )
+    }, [visiblePropertyFields, watchedExceptions])
     const hiddenFieldCount = useMemo(
         () =>
-            orderedFields.filter(
+            visiblePropertyFields.filter(
                 (field) =>
                     !isCalendarEventFieldVisible(eventFieldSettings, field.id)
             ).length,
-        [eventFieldSettings, orderedFields]
+        [eventFieldSettings, visiblePropertyFields]
     )
     const resolvedWatchedTimezone =
         watchedTimezone || calendarTimezone || "Asia/Seoul"
@@ -1650,17 +1758,18 @@ export function EventForm({
             timezone
         )
 
-        const filteredMeridiemOptions = meridiemOptions.filter((option) =>
-            isWheelTimeAllowed({
-                boundary: activeScheduleBoundary,
-                candidate: {
-                    ...activeBoundaryTime,
-                    meridiem: option.value,
-                },
-                start,
-                end,
-                timezone,
-            })
+        const filteredMeridiemOptions = localizedMeridiemOptions.filter(
+            (option) =>
+                isWheelTimeAllowed({
+                    boundary: activeScheduleBoundary,
+                    candidate: {
+                        ...activeBoundaryTime,
+                        meridiem: option.value,
+                    },
+                    start,
+                    end,
+                    timezone,
+                })
         )
         const filteredHourOptions = hourOptions.filter((option) =>
             isWheelTimeAllowed({
@@ -1697,7 +1806,7 @@ export function EventForm({
             filteredMeridiemOptions:
                 filteredMeridiemOptions.length > 0
                     ? filteredMeridiemOptions
-                    : meridiemOptions,
+                    : localizedMeridiemOptions,
             filteredHourOptions:
                 filteredHourOptions.length > 0
                     ? filteredHourOptions
@@ -1710,6 +1819,7 @@ export function EventForm({
     }, [
         activeScheduleBoundary,
         form,
+        localizedMeridiemOptions,
         resolvedWatchedTimezone,
         scheduleAllDay,
         scheduleEnd,
@@ -1756,15 +1866,15 @@ export function EventForm({
             fieldId: (typeof orderedFields)[number]["id"]
         ): EventFormPropertyMenuItem[] => {
             switch (fieldId) {
-                case "categories":
+                case "collections":
                     return [
                         {
                             type: "panel",
-                            key: "edit-category-property",
-                            label: "속성 편집",
+                            key: "edit-collection-property",
+                            label: tForm("editProperty"),
                             icon: Settings2Icon,
                             content: (
-                                <EventCategorySettingsPanel
+                                <EventCollectionSettingsPanel
                                     disabled={disabled}
                                 />
                             ),
@@ -1849,6 +1959,7 @@ export function EventForm({
                                     end,
                                     allDay,
                                     timezone,
+                                    locale,
                                 })}
                             </Button>
                         </PopoverTrigger>
@@ -1880,7 +1991,13 @@ export function EventForm({
                                                         )
                                                     }
                                                 >
-                                                    {`시작일 ${dayjs(start).tz(timezone).format("YYYY.MM.DD")}`}
+                                                    {tForm("startDateValue", {
+                                                        date: formatEventFormDateLabel(
+                                                            start,
+                                                            timezone,
+                                                            locale
+                                                        ),
+                                                    })}
                                                 </Button>
                                             </div>
                                         ) : (
@@ -1914,13 +2031,11 @@ export function EventForm({
                                                                     )
                                                                 }
                                                             >
-                                                                {dayjs(value)
-                                                                    .tz(
-                                                                        timezone
-                                                                    )
-                                                                    .format(
-                                                                        "YYYY.MM.DD"
-                                                                    )}
+                                                                {formatEventFormDateLabel(
+                                                                    value,
+                                                                    timezone,
+                                                                    locale
+                                                                )}
                                                             </Button>
                                                             <Separator
                                                                 orientation="vertical"
@@ -1940,21 +2055,11 @@ export function EventForm({
                                                                     )
                                                                 }
                                                             >
-                                                                {dayjs(value)
-                                                                    .tz(
-                                                                        timezone
-                                                                    )
-                                                                    .format(
-                                                                        "A h:mm"
-                                                                    )
-                                                                    .replace(
-                                                                        "AM",
-                                                                        "오전"
-                                                                    )
-                                                                    .replace(
-                                                                        "PM",
-                                                                        "오후"
-                                                                    )}
+                                                                {formatEventFormTimeLabel(
+                                                                    value,
+                                                                    timezone,
+                                                                    locale
+                                                                )}
                                                             </Button>
                                                         </div>
                                                     )
@@ -1993,6 +2098,9 @@ export function EventForm({
                                         ) : (
                                             <div className="py-1.5">
                                                 <CalendarPicker
+                                                    locale={getDayPickerLocale(
+                                                        locale
+                                                    )}
                                                     className="mx-auto w-full max-w-full p-0 dark:bg-muted"
                                                     mode="range"
                                                     month={schedulePickerMonth}
@@ -2018,12 +2126,14 @@ export function EventForm({
                                             <SidebarMenu>
                                                 <SidebarMenuButton asChild>
                                                     <label className="flex cursor-pointer items-center justify-between">
-                                                        하루종일
+                                                        {tForm("allDay")}
                                                         <Switch
                                                             size="sm"
                                                             checked={allDay}
                                                             disabled={disabled}
-                                                            aria-label="하루종일 일정"
+                                                            aria-label={tForm(
+                                                                "allDayAria"
+                                                            )}
                                                             onCheckedChange={
                                                                 handleAllDayToggle
                                                             }
@@ -2064,7 +2174,7 @@ export function EventForm({
                                         disabled={disabled}
                                         options={participantOptions}
                                         value={normalizeIds(field.value ?? [])}
-                                        emptyText="표시할 멤버가 없습니다."
+                                        emptyText={tForm("noVisibleMembers")}
                                         onValueChange={(values) => {
                                             const nextParticipantIds =
                                                 normalizeIds(values)
@@ -2077,7 +2187,7 @@ export function EventForm({
                                             })
                                         }}
                                         invalid={fieldState.invalid}
-                                        placeholder="멤버 선택"
+                                        placeholder={tForm("selectMember")}
                                         chipClassName="px-1.5 h-6.5 text-sm leading-[normal] gap-1 pr-0"
                                         renderChipContent={(participant) => (
                                             <HoverCard
@@ -2095,7 +2205,9 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ??
-                                                                "참가자"
+                                                                tCommonLabels(
+                                                                    "participant"
+                                                                )
                                                             }
                                                         />
                                                         <AvatarFallback className="text-xs">
@@ -2121,7 +2233,9 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ||
-                                                                "사용자"
+                                                                tCommonLabels(
+                                                                    "user"
+                                                                )
                                                             }
                                                         />
                                                         <AvatarFallback className="text-sm">
@@ -2144,7 +2258,9 @@ export function EventForm({
                                                                     variant="outline"
                                                                     className="shrink-0 px-1.75 leading-[normal]"
                                                                 >
-                                                                    나
+                                                                    {tCommonLabels(
+                                                                        "me"
+                                                                    )}
                                                                 </Badge>
                                                             ) : null}
                                                         </div>
@@ -2170,7 +2286,10 @@ export function EventForm({
                                                         }
                                                         alt={
                                                             participant.data
-                                                                ?.name ?? "멤버"
+                                                                ?.name ??
+                                                            tCommonLabels(
+                                                                "member"
+                                                            )
                                                         }
                                                     />
                                                     <AvatarFallback className="text-xs">
@@ -2182,7 +2301,9 @@ export function EventForm({
                                                     <div className="truncate">
                                                         {participant.data
                                                             ?.name ??
-                                                            "이름 없음"}
+                                                            tCommonLabels(
+                                                                "noName"
+                                                            )}
                                                     </div>
                                                     <div className="truncate text-xs text-muted-foreground">
                                                         {participant.data
@@ -2204,11 +2325,11 @@ export function EventForm({
             )
         }
 
-        if (propertyField.id === "categories") {
+        if (propertyField.id === "collections") {
             return (
                 <Controller
                     key={propertyField.id}
-                    name="categoryNames"
+                    name="collectionNames"
                     control={form.control}
                     render={({ field, fieldState }) => (
                         <div data-invalid={fieldState.invalid}>
@@ -2222,20 +2343,21 @@ export function EventForm({
                                 propertyMenuItems={propertyMenuItems}
                                 propertyMenuItemsPlacement="before-common"
                             >
-                                <EventFormCategoryChipsField
+                                <EventFormCollectionChipsField
                                     portalContainer={portalContainer}
                                     disabled={disabled}
                                     invalid={fieldState.invalid}
                                     value={field.value ?? []}
-                                    eventCategories={eventCategories}
-                                    getDraftCategoryColor={
-                                        getDraftCategoryColor
+                                    eventCollections={eventCollections}
+                                    getDraftCollectionColor={
+                                        getDraftCollectionColor
                                     }
-                                    onChange={(nextCategoryNames) => {
-                                        field.onChange(nextCategoryNames)
+                                    onChange={(nextCollectionNames) => {
+                                        field.onChange(nextCollectionNames)
                                         void saveNow({
                                             ...form.getValues(),
-                                            categoryNames: nextCategoryNames,
+                                            collectionNames:
+                                                nextCollectionNames,
                                         })
                                     }}
                                     errors={
@@ -2335,14 +2457,24 @@ export function EventForm({
                                         >
                                             {formatExceptionDateTagLabel(
                                                 exception,
-                                                watchedTimezone
+                                                watchedTimezone,
+                                                locale
                                             )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 disabled={disabled}
                                                 className="group/button dark:not[data-selected=true]:hover:bg-muted/50 hover:not[data-selected=true]:text-foreground -ml-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-[min(var(--radius-md),10px)] border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap opacity-50 transition-all outline-none select-none hover:bg-muted hover:opacity-100 disabled:pointer-events-none disabled:cursor-default disabled:opacity-50 in-data-[slot=button-group]:rounded-lg has-[svg]:leading-[normal] aria-expanded:bg-muted aria-expanded:text-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3"
-                                                aria-label={`${formatExceptionDateTagLabel(exception, watchedTimezone)} 제외 삭제`}
+                                                aria-label={tForm(
+                                                    "removeExceptionAria",
+                                                    {
+                                                        label: formatExceptionDateTagLabel(
+                                                            exception,
+                                                            watchedTimezone,
+                                                            locale
+                                                        ),
+                                                    }
+                                                )}
                                                 onClick={() => {
                                                     const nextExceptions = (
                                                         field.value ?? []
@@ -2367,7 +2499,7 @@ export function EventForm({
                                     ))
                                 ) : (
                                     <span className="text-sm text-muted-foreground">
-                                        설정된 제외 날짜가 없습니다.
+                                        {tForm("noExceptionDates")}
                                     </span>
                                 )}
                             </div>
@@ -2505,7 +2637,7 @@ export function EventForm({
                             {/* <FieldLabel>제목</FieldLabel> */}
                             <input
                                 {...field}
-                                placeholder="새 일정"
+                                placeholder={tForm("titlePlaceholder")}
                                 autoFocus
                                 onChange={(e) => {
                                     if (disabled) {
@@ -2521,7 +2653,7 @@ export function EventForm({
                             {/* <Input
                                 {...field}
                                 autoFocus={true}
-                                placeholder="새 일정"
+                                placeholder={tForm("titlePlaceholder")}
                                 className="h-auto border-0 p-0 font-bold not-focus:hover:bg-muted/60 md:text-4xl"
                                 onChange={(e) => {
                                     field.onChange(e)
@@ -2534,6 +2666,13 @@ export function EventForm({
                         </Field>
                     )}
                 />
+
+                {event?.subscription ? (
+                    <EventSubscriptionCard
+                        subscription={event.subscription}
+                        className="-my-1"
+                    />
+                ) : null}
 
                 <Collapsible
                     open={areHiddenFieldsOpen}
@@ -2570,15 +2709,17 @@ export function EventForm({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                                className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:min-w-32.5"
                             >
                                 <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
-                                속성 {hiddenFieldCount}개{" "}
+                                {tForm("hiddenProperties", {
+                                    count: hiddenFieldCount,
+                                })}{" "}
                                 <span className="group-data-[state=open]:hidden">
-                                    더 보기
+                                    {tForm("showMore")}
                                 </span>
                                 <span className="hidden group-data-[state=open]:inline">
-                                    숨기기
+                                    {tForm("hide")}
                                 </span>
                             </Button>
                         </CollapsibleTrigger>

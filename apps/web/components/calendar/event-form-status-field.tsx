@@ -1,26 +1,29 @@
 "use client"
 
 import {
-    getCalendarCategoryDotClassName,
-    getCalendarCategoryLabelClassName,
-} from "@/lib/calendar/category-color"
+    getCalendarCollectionDotClassName,
+    getCalendarCollectionLabelClassName,
+} from "@/lib/calendar/collection-color"
 import {
     eventStatus,
-    eventStatusLabel,
+    eventStatusTranslationKey,
     type CalendarEventStatus,
 } from "@/store/calendar-store.types"
 import { ContextMenuItem } from "@workspace/ui/components/context-menu"
 import { cn } from "@workspace/ui/lib/utils"
 import { CheckIcon } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { EventChipsCombobox } from "./event-chips-combobox"
 
-/** 일정 상태 선택지 (값 + 한글 라벨). EventForm·퀵 편집 공통. */
-export const eventFormStatusItems = eventStatus.map((status) => ({
-    value: status,
-    label: eventStatusLabel[status],
-}))
+export function useEventFormStatusItems() {
+    const t = useDebugTranslations("event.status")
+    return eventStatus.map((status) => ({
+        value: status,
+        label: t(eventStatusTranslationKey[status]),
+    }))
+}
 
-export type EventFormStatusItem = (typeof eventFormStatusItems)[number]
+export type EventFormStatusItem = ReturnType<typeof useEventFormStatusItems>[number]
 
 export const eventFormStatusLabelClassNameMap: Record<
     EventFormStatusItem["value"],
@@ -28,15 +31,15 @@ export const eventFormStatusLabelClassNameMap: Record<
 > = {
     scheduled:
         "bg-muted text-muted-foreground [&_button]:hidden border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
+    in_progress: getCalendarCollectionLabelClassName(
         "blue",
         "[&_button]:hidden border-0"
     ),
-    completed: getCalendarCategoryLabelClassName(
+    completed: getCalendarCollectionLabelClassName(
         "green",
         "[&_button]:hidden border-0"
     ),
-    cancelled: getCalendarCategoryLabelClassName(
+    cancelled: getCalendarCollectionLabelClassName(
         "red",
         "[&_button]:hidden border-0"
     ),
@@ -48,15 +51,15 @@ export const eventFormStatusItemClassNameMap: Record<
 > = {
     scheduled:
         "inline-flex rounded-full bg-muted px-2 py-0.5 text-sm text-muted-foreground border-0 dark:bg-input/50",
-    in_progress: getCalendarCategoryLabelClassName(
+    in_progress: getCalendarCollectionLabelClassName(
         "blue",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
-    completed: getCalendarCategoryLabelClassName(
+    completed: getCalendarCollectionLabelClassName(
         "green",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
-    cancelled: getCalendarCategoryLabelClassName(
+    cancelled: getCalendarCollectionLabelClassName(
         "red",
         "inline-flex rounded-full px-2 py-0.5 text-sm border-0"
     ),
@@ -67,9 +70,9 @@ export const eventFormStatusDotClassNameMap: Record<
     string
 > = {
     scheduled: "bg-muted-foreground/70",
-    in_progress: getCalendarCategoryDotClassName("blue"),
-    completed: getCalendarCategoryDotClassName("green"),
-    cancelled: getCalendarCategoryDotClassName("red"),
+    in_progress: getCalendarCollectionDotClassName("blue"),
+    completed: getCalendarCollectionDotClassName("green"),
+    cancelled: getCalendarCollectionDotClassName("red"),
 }
 
 type EventFormStatusChipsFieldProps = {
@@ -86,6 +89,7 @@ export function EventFormStatusChipsField({
     disabled = false,
     portalContainer,
 }: EventFormStatusChipsFieldProps) {
+    const eventFormStatusItems = useEventFormStatusItems()
     const statusValue = value ? [value] : []
 
     return (
@@ -173,6 +177,7 @@ export function EventFormStatusCheckListField({
     disabled = false,
     className,
 }: EventFormStatusCheckListFieldProps) {
+    const eventFormStatusItems = useEventFormStatusItems()
     return (
         <div
             className={cn("flex flex-col gap-0.5 p-0.5", className)}
@@ -211,6 +216,7 @@ export function EventStatusItem({
     value: CalendarEventStatus
     size?: "sm" | "default"
 }) {
+    const eventFormStatusItems = useEventFormStatusItems()
     const status = eventFormStatusItems.find((e) => e.value === value)
     return (
         <span

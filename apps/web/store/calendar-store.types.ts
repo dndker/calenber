@@ -1,4 +1,4 @@
-import type { CalendarCategoryColor } from "@/lib/calendar/category-color"
+import type { CalendarCollectionColor } from "@/lib/calendar/collection-color"
 import type {
     CalendarMembership,
     CalendarSummary,
@@ -55,13 +55,13 @@ export type CalendarEventRecurrenceInstance = {
     occurrenceEnd: number
 }
 
-export type CalendarEventCategory = {
+export type CalendarEventCollection = {
     id: string
     calendarId: string
     name: string
     options: {
         visibleByDefault: boolean
-        color?: CalendarCategoryColor
+        color?: CalendarCollectionColor
     }
     createdById: string | null
     createdAt: number
@@ -71,7 +71,7 @@ export type CalendarEventCategory = {
 export const calendarEventFieldIds = [
     "schedule",
     "participants",
-    "categories",
+    "collections",
     "status",
     "recurrence",
     "exceptions",
@@ -90,12 +90,12 @@ export type CalendarEventFieldSettings = {
     }[]
 }
 
-export const eventStatusLabel = {
-    scheduled: "시작 전",
-    in_progress: "진행 중",
-    completed: "완료",
-    cancelled: "취소",
-}
+export const eventStatusTranslationKey = {
+    scheduled: "scheduled",
+    in_progress: "inProgress",
+    completed: "done",
+    cancelled: "cancelled",
+} as const
 
 export const eventStatus = [
     "scheduled",
@@ -108,7 +108,58 @@ export type CalendarEventStatus = (typeof eventStatus)[number]
 
 export type CalendarEventFilterState = {
     excludedStatuses: CalendarEventStatus[]
-    excludedCategoryIds: string[]
+    excludedCollectionIds: string[]
+    excludedWithoutCollection: boolean
+}
+
+export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
+export type CalendarSubscriptionSourceType =
+    | "system_holiday"
+    | "shared_collection"
+    | "custom"
+
+export type CalendarSubscriptionCalendarInfo = {
+    id: string | null
+    name: string | null
+    avatarUrl: string | null
+}
+
+export type CalendarSubscriptionDefinition = {
+    id: string
+    slug?: string
+    name: string
+    description: string
+    authority: CalendarSubscriptionAuthority
+    ownerName: string
+    verified: boolean
+    tags: string[]
+    collectionColor?: CalendarCollectionColor
+    sourceType?: CalendarSubscriptionSourceType
+    status?: "active" | "source_deleted" | "archived"
+    sourceDeletedAt?: string | null
+    sourceDeletedReason?: string | null
+    providerName?: string | null
+    calendar?: CalendarSubscriptionCalendarInfo | null
+    config?: Record<string, unknown>
+    /** 구독 공개 범위. shared_collection 타입에서만 의미 있음. */
+    visibility?: "public" | "unlisted" | null
+}
+
+export type CalendarSubscriptionState = {
+    installedSubscriptionIds: string[]
+    hiddenSubscriptionIds: string[]
+}
+
+export type CalendarSubscriptionCatalogItem = CalendarSubscriptionDefinition
+
+export type EventSubscriptionItem = {
+    id: string
+    slug?: string
+    name: string
+    sourceType?: CalendarSubscriptionSourceType
+    authority?: CalendarSubscriptionAuthority
+    providerName?: string | null
+    calendar?: CalendarSubscriptionCalendarInfo | null
 }
 
 export type CalendarEvent = {
@@ -119,10 +170,10 @@ export type CalendarEvent = {
     end: number
     allDay?: boolean
     timezone: string
-    categoryIds: string[]
-    categories: CalendarEventCategory[]
-    categoryId: string | null
-    category: CalendarEventCategory | null
+    collectionIds: string[]
+    collections: CalendarEventCollection[]
+    primaryCollectionId: string | null
+    primaryCollection: CalendarEventCollection | null
     recurrence?: CalendarEventRecurrence
     recurrenceInstance?: CalendarEventRecurrenceInstance
     exceptions?: string[]
@@ -134,6 +185,7 @@ export type CalendarEvent = {
     author: CalendarEventAuthor | null
     updatedById: string | null
     updatedBy: CalendarEventAuthor | null
+    subscription?: EventSubscriptionItem
     isLocked: boolean
     createdAt: number
     updatedAt: number
@@ -226,8 +278,10 @@ export type CalendarStoreState = {
     isWorkspacePresenceLoading: boolean
     workspaceCursor: CalendarWorkspaceCursor | null
     workspacePresence: CalendarWorkspacePresenceMember[]
-    eventCategories: CalendarEventCategory[]
+    eventCollections: CalendarEventCollection[]
     eventFilters: CalendarEventFilterState
+    subscriptionCatalogs: CalendarSubscriptionCatalogItem[]
+    subscriptionState: CalendarSubscriptionState
     hoveredSeriesEventId: string | null
     setMyCalendars: (calendars: MyCalendarItem[]) => void
     setActiveCalendar: (calendar: CalendarSummary | null) => void
@@ -242,15 +296,23 @@ export type CalendarStoreState = {
     setIsWorkspacePresenceLoading: (isLoading: boolean) => void
     setWorkspaceCursor: (cursor: CalendarWorkspaceCursor | null) => void
     setWorkspacePresence: (members: CalendarWorkspacePresenceMember[]) => void
-    setEventCategories: (categories: CalendarEventCategory[]) => void
+    setEventCollections: (collections: CalendarEventCollection[]) => void
     toggleEventStatusFilter: (status: CalendarEventStatus) => void
-    toggleEventCategoryFilter: (categoryId: string) => void
+    toggleEventCollectionFilter: (collectionId: string) => void
+    setExcludedWithoutCollectionFilter: (excluded: boolean) => void
+    setSubscriptionState: (state: CalendarSubscriptionState) => void
+    setSubscriptionCatalogs: (
+        catalogs: CalendarSubscriptionCatalogItem[]
+    ) => void
+    installSubscription: (subscriptionId: string) => void
+    uninstallSubscription: (subscriptionId: string) => void
+    toggleSubscriptionVisibility: (subscriptionId: string) => void
     resetEventFilters: () => void
     setHoveredSeriesEventId: (eventId: string | null) => void
-    upsertEventCategorySnapshot: (category: CalendarEventCategory) => void
-    removeEventCategorySnapshot: (categoryId: string) => void
-    setEventCategoryDefaultVisibility: (
-        categoryId: string,
+    upsertEventCollectionSnapshot: (collection: CalendarEventCollection) => void
+    removeEventCollectionSnapshot: (collectionId: string) => void
+    setEventCollectionDefaultVisibility: (
+        collectionId: string,
         visibleByDefault: boolean
     ) => void
     setIsCalendarLoading: (value: boolean) => void

@@ -1,15 +1,17 @@
 "use client"
 
+import type { Locale } from "@/lib/i18n/config"
 import {
     EventStatusItem,
-    eventFormStatusItems,
+    type EventFormStatusItem,
 } from "@/components/calendar/event-form-status-field"
 import type { DataTableColumnMeta } from "@/components/settings/shared/data-table"
-import { getCalendarCategoryLabelClassName } from "@/lib/calendar/category-color"
+import { getCalendarCollectionLabelClassName } from "@/lib/calendar/collection-color"
 import { formatCalendarEventRecurrenceOrDateLabel } from "@/lib/calendar/event-date-format"
+import { eventStatus } from "@/store/calendar-store.types"
 import type {
     CalendarEvent,
-    CalendarEventCategory,
+    CalendarEventCollection,
     CalendarEventStatus,
 } from "@/store/calendar-store.types"
 import type { ColumnDef } from "@tanstack/react-table"
@@ -48,42 +50,61 @@ export type CalendarDataRow = Pick<
     | "timezone"
     | "status"
     | "author"
-    | "categoryIds"
-    | "categories"
+    | "collectionIds"
+    | "collections"
     | "recurrence"
     | "recurrenceInstance"
 > & {
     canManage: boolean
 }
 
-export const editableStatuses: CalendarEventStatus[] = eventFormStatusItems.map(
-    (item) => item.value
-)
+export const editableStatuses = [...eventStatus]
 
-function renderCategoryBadges(categories: CalendarEventCategory[]) {
-    if (categories.length === 0) {
+type CalendarDataColumnLabels = {
+    selectAllAria: string
+    selectRowAria: string
+    eventHeader: string
+    newEvent: string
+    authorHeader: string
+    unknownUser: string
+    dateHeader: string
+    statusHeader: string
+    statusPlaceholder: string
+    statusLabel: string
+    collectionHeader: string
+    collectionPlaceholder: string
+    collectionLabel: string
+    noCollection: string
+    deleteEvent: string
+}
+
+function renderCollectionBadges(
+    collections: CalendarEventCollection[],
+    labels: Pick<CalendarDataColumnLabels, "noCollection">
+) {
+    if (collections.length === 0) {
         return (
             <Badge variant="outline" className="text-muted-foreground">
-                카테고리 없음
+                {labels.noCollection}
             </Badge>
         )
     }
 
-    const visibleCategories = categories.slice(0, 2)
-    const hiddenCount = categories.length - visibleCategories.length
+    const visibleCollections = collections.slice(0, 2)
+    const hiddenCount = collections.length - visibleCollections.length
 
     return (
         <div className="flex flex-wrap items-center gap-1">
-            {visibleCategories.map((category) => (
+            {visibleCollections.map((collection) => (
                 <Badge
-                    key={category.id}
+                    key={collection.id}
                     variant="outline"
-                    className={getCalendarCategoryLabelClassName(
-                        category.options.color,
+                    className={getCalendarCollectionLabelClassName(
+                        collection.options.color,
                         "border-transparent"
                     )}
                 >
-                    {category.name}
+                    {collection.name}
                 </Badge>
             ))}
             {hiddenCount > 0 ? (
@@ -97,26 +118,32 @@ function renderCategoryBadges(categories: CalendarEventCategory[]) {
 
 export function getCalendarDataColumns({
     canManageEvents,
-    categoryOptions,
+    collectionOptions,
+    eventFormStatusItems,
     onStatusChange,
-    onCategoryChange,
+    onCollectionChange,
     onDeleteEvent,
+    locale,
+    labels,
 }: {
     canManageEvents: boolean
-    categoryOptions: {
+    collectionOptions: {
         id: string
         label: string
-        color: CalendarEventCategory["options"]["color"]
+        color: CalendarEventCollection["options"]["color"]
     }[]
+    eventFormStatusItems: EventFormStatusItem[]
     onStatusChange: (
         eventId: string,
         nextStatus: CalendarEventStatus
     ) => void | Promise<void>
-    onCategoryChange: (
+    onCollectionChange: (
         eventId: string,
-        nextCategoryId: string | null
+        nextCollectionId: string | null
     ) => void | Promise<void>
     onDeleteEvent: (eventId: string) => void | Promise<void>
+    locale: Locale
+    labels: CalendarDataColumnLabels
 }): ColumnDef<CalendarDataRow>[] {
     return [
         ...(canManageEvents
@@ -139,7 +166,7 @@ export function getCalendarDataColumns({
                               onCheckedChange={(value) =>
                                   table.toggleAllPageRowsSelected(!!value)
                               }
-                              aria-label="전체 선택"
+                              aria-label={labels.selectAllAria}
                           />
                       ),
                       cell: ({ row }) => (
@@ -149,7 +176,7 @@ export function getCalendarDataColumns({
                                   row.toggleSelected(!!value)
                               }
                               disabled={!row.original.canManage}
-                              aria-label="행 선택"
+                              aria-label={labels.selectRowAria}
                           />
                       ),
                   } satisfies ColumnDef<CalendarDataRow>,
@@ -165,13 +192,13 @@ export function getCalendarDataColumns({
                 [row.title, row.author?.name, row.author?.email]
                     .filter(Boolean)
                     .join(" "),
-            header: "일정 이름",
+            header: labels.eventHeader,
             filterFn: (row, columnId, value) => {
                 const rawValue = String(row.getValue(columnId)).toLowerCase()
                 return rawValue.includes(String(value).toLowerCase())
             },
             cell: ({ row }) =>
-                row.original.title === "" ? "새 일정" : row.original.title,
+                row.original.title === "" ? labels.newEvent : row.original.title,
         },
         {
             accessorKey: "author",
@@ -179,7 +206,7 @@ export function getCalendarDataColumns({
                 headClassName: "min-w-36",
                 cellClassName: "min-w-36",
             } satisfies DataTableColumnMeta,
-            header: "작성자",
+            header: labels.authorHeader,
             cell: ({ row }) => {
                 return (
                     <div className="flex items-center gap-2">
@@ -201,7 +228,7 @@ export function getCalendarDataColumns({
                         </Avatar>
 
                         <span className="truncate">
-                            {row.original.author?.name ?? "알 수 없는 사용자"}
+                            {row.original.author?.name ?? labels.unknownUser}
                         </span>
                     </div>
                 )
@@ -213,9 +240,13 @@ export function getCalendarDataColumns({
                 headClassName: "min-w-36",
                 cellClassName: "min-w-36",
             } satisfies DataTableColumnMeta,
-            accessorFn: (row) => formatCalendarEventRecurrenceOrDateLabel(row),
-            header: "날짜",
-            cell: ({ row }) => formatCalendarEventRecurrenceOrDateLabel(row.original),
+            accessorFn: (row) =>
+                formatCalendarEventRecurrenceOrDateLabel(row, { locale }),
+            header: labels.dateHeader,
+            cell: ({ row }) =>
+                formatCalendarEventRecurrenceOrDateLabel(row.original, {
+                    locale,
+                }),
         },
         {
             accessorKey: "status",
@@ -223,7 +254,7 @@ export function getCalendarDataColumns({
                 headClassName: "w-20",
                 cellClassName: "w-20",
             } satisfies DataTableColumnMeta,
-            header: "상태",
+            header: labels.statusHeader,
             cell: ({ row }) => {
                 const event = row.original
 
@@ -248,11 +279,15 @@ export function getCalendarDataColumns({
                             disabled={!event.canManage}
                         >
                             <SelectTrigger className="-ml-2 w-25 border-0 px-2 shadow-none hover:bg-muted">
-                                <SelectValue placeholder="상태 선택" />
+                                <SelectValue
+                                    placeholder={labels.statusPlaceholder}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>상태</SelectLabel>
+                                    <SelectLabel>
+                                        {labels.statusLabel}
+                                    </SelectLabel>
                                     {eventFormStatusItems.map((status) => (
                                         <SelectItem
                                             key={status.value}
@@ -272,62 +307,70 @@ export function getCalendarDataColumns({
             },
         },
         {
-            accessorKey: "categories",
+            accessorKey: "collections",
             meta: {
                 headClassName: "min-w-40",
                 cellClassName: "min-w-40",
             } satisfies DataTableColumnMeta,
             accessorFn: (row) =>
-                row.categories.map((category) => category.name).join(" "),
-            header: "카테고리",
+                row.collections.map((collection) => collection.name).join(" "),
+            header: labels.collectionHeader,
             cell: ({ row }) => {
                 const event = row.original
-                const selectedCategoryId = event.categoryIds[0] ?? "__none__"
+                const selectedCollectionId =
+                    event.collectionIds[0] ?? "__none__"
 
-                if (!categoryOptions.length || !canManageEvents) {
-                    return renderCategoryBadges(event.categories)
+                if (!collectionOptions.length || !canManageEvents) {
+                    return renderCollectionBadges(event.collections, labels)
                 }
 
                 return (
                     <div className="w-full max-w-48">
                         <Select
-                            value={selectedCategoryId}
+                            value={selectedCollectionId}
                             onValueChange={(value) => {
-                                const nextCategoryId =
+                                const nextCollectionId =
                                     value === "__none__" ? null : value
 
                                 if (
-                                    nextCategoryId ===
-                                    (event.categoryIds[0] ?? null)
+                                    nextCollectionId ===
+                                    (event.collectionIds[0] ?? null)
                                 ) {
                                     return
                                 }
 
-                                void onCategoryChange(event.id, nextCategoryId)
+                                void onCollectionChange(
+                                    event.id,
+                                    nextCollectionId
+                                )
                             }}
                             disabled={!event.canManage}
                         >
                             <SelectTrigger className="-ml-2 w-32 border-0 px-2 shadow-none hover:bg-muted">
-                                <SelectValue placeholder="카테고리 선택" />
+                                <SelectValue
+                                    placeholder={labels.collectionPlaceholder}
+                                />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
-                                    <SelectLabel>카테고리</SelectLabel>
+                                    <SelectLabel>
+                                        {labels.collectionLabel}
+                                    </SelectLabel>
                                     <SelectItem value="__none__">
-                                        카테고리 없음
+                                        {labels.noCollection}
                                     </SelectItem>
-                                    {categoryOptions.map((category) => (
+                                    {collectionOptions.map((option) => (
                                         <SelectItem
-                                            key={category.id}
-                                            value={category.id}
+                                            key={option.id}
+                                            value={option.id}
                                         >
                                             <span
-                                                className={getCalendarCategoryLabelClassName(
-                                                    category.color,
+                                                className={getCalendarCollectionLabelClassName(
+                                                    option.color,
                                                     "inline-flex h-6 items-center rounded-md px-1.5 leading-[normal]"
                                                 )}
                                             >
-                                                {category.label}
+                                                {option.label}
                                             </span>
                                         </SelectItem>
                                     ))}
@@ -373,7 +416,7 @@ export function getCalendarDataColumns({
                                                   void onDeleteEvent(event.id)
                                               }}
                                           >
-                                              일정 삭제
+                                              {labels.deleteEvent}
                                           </DropdownMenuItem>
                                       </DropdownMenuContent>
                                   </DropdownMenu>

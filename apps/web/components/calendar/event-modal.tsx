@@ -34,6 +34,7 @@ import { Drawer, DrawerContent } from "@workspace/ui/components/drawer"
 import { EventPage } from "@/components/calendar/event-page"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { EventHeader } from "./event-header"
 
 export const EventModal = React.memo(function EventModal({
@@ -41,6 +42,9 @@ export const EventModal = React.memo(function EventModal({
 }: {
     initialEvent?: CalendarEvent | null
 }) {
+    const tDialog = useDebugTranslations("event.dialog")
+    const tActions = useDebugTranslations("event.actions")
+    const tCommon = useDebugTranslations("common.actions")
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const isDesktop = useMediaQuery("(min-width: 768px)")
@@ -184,7 +188,7 @@ export const EventModal = React.memo(function EventModal({
                     >
                         <DialogHeader>
                             <VisuallyHidden>
-                                <DialogTitle>일정</DialogTitle>
+                                <DialogTitle>{tDialog("title")}</DialogTitle>
                             </VisuallyHidden>
                             {event ? (
                                 <EventHeader
@@ -212,15 +216,16 @@ export const EventModal = React.memo(function EventModal({
                     <AlertDialogContent size="sm">
                         <AlertDialogHeader>
                             <AlertDialogTitle>
-                                반복 일정을 삭제할까요?
+                                {tDialog("recurringDeleteTitle")}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                                반복 일정은 현재 선택한 일정만 삭제하거나, 반복
-                                일정 전체를 삭제할 수 있습니다.
+                                {tDialog("recurringDeleteDescription")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogCancel>
+                                {tCommon("cancel")}
+                            </AlertDialogCancel>
                             <AlertDialogAction
                                 disabled={!canDeleteSingleOccurrence}
                                 onClick={(dialogEvent) => {
@@ -228,7 +233,7 @@ export const EventModal = React.memo(function EventModal({
                                     void confirmDeleteOnlyThis()
                                 }}
                             >
-                                이 일정만 삭제
+                                {tActions("deleteThis")}
                             </AlertDialogAction>
                             <AlertDialogAction
                                 variant="destructive"
@@ -237,7 +242,7 @@ export const EventModal = React.memo(function EventModal({
                                     void confirmDeleteSeries()
                                 }}
                             >
-                                전체 반복 일정 삭제
+                                {tActions("deleteAll")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -262,16 +267,19 @@ export const EventModal = React.memo(function EventModal({
                     }
                 }}
             >
-                <AlertDialogContent size="sm">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>반복 일정을 삭제할까요?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            반복 일정은 현재 선택한 일정만 삭제하거나, 반복 일정
-                            전체를 삭제할 수 있습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogContent size="sm">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                {tDialog("recurringDeleteTitle")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {tDialog("recurringDeleteDescription")}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>
+                                {tCommon("cancel")}
+                            </AlertDialogCancel>
                         <AlertDialogAction
                             disabled={!canDeleteSingleOccurrence}
                             onClick={(dialogEvent) => {
@@ -279,7 +287,7 @@ export const EventModal = React.memo(function EventModal({
                                 void confirmDeleteOnlyThis()
                             }}
                         >
-                            이 일정만 삭제
+                            {tActions("deleteThis")}
                         </AlertDialogAction>
                         <AlertDialogAction
                             variant="destructive"
@@ -288,7 +296,7 @@ export const EventModal = React.memo(function EventModal({
                                 void confirmDeleteSeries()
                             }}
                         >
-                            전체 반복 일정 삭제
+                            {tActions("deleteAll")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

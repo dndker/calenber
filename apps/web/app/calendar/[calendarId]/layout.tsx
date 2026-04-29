@@ -1,16 +1,19 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import { parseSidebarCollapseStateCookie } from "@/lib/calendar/sidebar-collapse-cookie"
+import { SidebarCollapseProvider } from "@/hooks/use-sidebar-collapse-state"
 import { CalendarLayoutContent } from "@/components/calendar/calendar-layout-content"
 import { SettingsModalProvider } from "@/components/settings/settings-modal-provider"
 import {
     getServerCalendarInitialData,
     getServerMyCalendars,
 } from "@/lib/calendar/server-queries"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 import {
     buildCalendarMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
 import dayjs from "@/lib/dayjs"
-import { generateMockEvents, getDemoEventCategories } from "@/lib/mock-event"
+import { generateMockEvents, getDemoEventCollections } from "@/lib/mock-event"
 import { CalendarStoreProvider } from "@/store/useCalendarStore"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 import type { Metadata } from "next"
@@ -22,7 +25,8 @@ export async function generateMetadata({
 }: {
     params: Promise<{ calendarId: string }>
 }): Promise<Metadata> {
-    const { calendarId } = await params
+    const { calendarId: rawCalendarId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
 
     if (calendarId === "demo") {
         return buildCalendarMetadata({
@@ -46,12 +50,16 @@ export default async function CalendarLayout({
     children: React.ReactNode
     params: Promise<{ calendarId: string }>
 }) {
-    const { calendarId } = await params
+    const { calendarId: rawCalendarId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const cookieStore = await cookies()
     const calendarTimezone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
+    const sidebarCollapseState = parseSidebarCollapseStateCookie(
+        cookieStore.get("sidebar-collapse-state")?.value
+    )
     const isDemo = calendarId === "demo"
-    const demoEventCategories = isDemo ? getDemoEventCategories() : []
+    const demoEventCollections = isDemo ? getDemoEventCollections() : []
     const [initialData, myCalendars] = await Promise.all([
         isDemo ? Promise.resolve(null) : getServerCalendarInitialData(calendarId),
         isDemo ? getServerMyCalendars() : Promise.resolve([]),
@@ -71,11 +79,11 @@ export default async function CalendarLayout({
               status: null,
           }
     const events = isDemo
-        ? generateMockEvents(calendarTimezone, demoEventCategories)
+        ? generateMockEvents(calendarTimezone, demoEventCollections)
         : initialData?.events ?? []
-    const eventCategories = isDemo
-        ? demoEventCategories
-        : initialData?.eventCategories ?? []
+    const eventCollections = isDemo
+        ? demoEventCollections
+        : initialData?.eventCollections ?? []
     const resolvedMyCalendars = isDemo ? myCalendars : initialData?.myCalendars ?? []
 
     if (!isDemo && !activeCalendar) {
@@ -86,14 +94,22 @@ export default async function CalendarLayout({
     const selectedDate = now.startOf("day").valueOf()
     const viewport = now.startOf("month").add(12, "hour").valueOf()
     const viewportMini = viewport
-    const initialExcludedCategoryIds = eventCategories
-        .filter((category) => category.options.visibleByDefault === false)
-        .map((category) => category.id)
-    const favoriteEventMap = Object.fromEntries(
-        events
-            .filter((event) => event.isFavorite)
-            .map((event) => [event.id, event.favoritedAt ?? event.updatedAt])
-    )
+    const initialExcludedCollectionIds = eventCollections
+        .filter((collection) => collection.options.visibleByDefault === false)
+        .map((collection) => collection.id)
+    const favoriteEventMap = {
+        ...Object.fromEntries(
+            events
+                .filter((event) => event.isFavorite)
+                .map((event) => [event.id, event.favoritedAt ?? event.updatedAt])
+        ),
+        ...Object.fromEntries(
+            (initialData?.subscriptionFavoriteEventIds ?? []).map((favorite) => [
+                favorite.eventId,
+                favorite.favoritedAt,
+            ])
+        ),
+    }
 
     return (
         <CalendarStoreProvider
@@ -103,32 +119,40 @@ export default async function CalendarLayout({
                 activeCalendarMembership,
                 favoriteEventMap,
                 events,
-                eventCategories: eventCategories.map((category) => ({
-                    ...category,
-                    createdAt: new Date(category.createdAt).valueOf(),
-                    updatedAt: new Date(category.updatedAt).valueOf(),
+                eventCollections: eventCollections.map((collection) => ({
+                    ...collection,
+                    createdAt: new Date(collection.createdAt).valueOf(),
+                    updatedAt: new Date(collection.updatedAt).valueOf(),
                 })),
                 eventLayout: activeCalendar?.eventLayout ?? "compact",
                 calendarTimezone,
                 eventFilters: {
                     excludedStatuses: ["completed", "cancelled"],
-                    excludedCategoryIds: initialExcludedCategoryIds,
+                    excludedCollectionIds: initialExcludedCollectionIds,
+                    excludedWithoutCollection: false,
+                },
+                subscriptionCatalogs: initialData?.subscriptionCatalogs ?? [],
+                subscriptionState: initialData?.subscriptionState ?? {
+                    installedSubscriptionIds: [],
+                    hiddenSubscriptionIds: [],
                 },
                 selectedDate,
                 viewport,
                 viewportMini,
             }}
         >
-            <SidebarProvider className="h-screen overflow-hidden">
-                <SettingsModalProvider>
-                    <AppSidebar />
-                    <SidebarInset className="h-screen overflow-hidden">
-                        <CalendarLayoutContent>
-                            {children}
-                        </CalendarLayoutContent>
-                    </SidebarInset>
-                </SettingsModalProvider>
-            </SidebarProvider>
+            <SidebarCollapseProvider initialState={sidebarCollapseState}>
+                <SidebarProvider className="h-screen overflow-hidden">
+                    <SettingsModalProvider>
+                        <AppSidebar />
+                        <SidebarInset className="h-screen overflow-hidden">
+                            <CalendarLayoutContent>
+                                {children}
+                            </CalendarLayoutContent>
+                        </SidebarInset>
+                    </SettingsModalProvider>
+                </SidebarProvider>
+            </SidebarCollapseProvider>
         </CalendarStoreProvider>
     )
 }

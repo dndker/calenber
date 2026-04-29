@@ -1,3 +1,8 @@
+import {
+    filterCalendarWeekVisibleDays,
+    normalizeCalendarLayoutOptions,
+} from "@/lib/calendar/layout-options"
+import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import clsx from "clsx"
@@ -22,8 +27,28 @@ export const WeekRow = memo(
         weekDate: Date
         currentMonthKey: string
     }) => {
-        const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
-        const week = getWeek(weekDate, calendarTimezone)
+        const {
+            calendarTimezone,
+            weekStartsOn,
+            hideWeekendColumns,
+        } = useCalendarStore(
+            (s) => {
+                const layout = normalizeCalendarLayoutOptions(
+                    s.activeCalendar?.layoutOptions
+                )
+                return {
+                    calendarTimezone: s.calendarTimezone,
+                    weekStartsOn: layout.weekStartsOn,
+                    hideWeekendColumns: layout.hideWeekendColumns,
+                }
+            },
+            shallow
+        )
+        const week = getWeek(weekDate, calendarTimezone, weekStartsOn)
+        const visibleWeek = filterCalendarWeekVisibleDays(
+            week,
+            hideWeekendColumns
+        )
 
         return (
             <div
@@ -39,11 +64,15 @@ export const WeekRow = memo(
                           }
                         : {}
                 }
-                className={clsx("relative grid snap-start grid-cols-7 gap-px", {
+                className={clsx(
+                    "relative grid snap-start gap-px",
+                    hideWeekendColumns ? "grid-cols-5" : "grid-cols-7",
+                    {
                     "h-1/5": skeleton,
-                })}
+                    }
+                )}
             >
-                {week.map((day) => (
+                {visibleWeek.map((day) => (
                     <DayCell
                         key={day.toISOString()}
                         day={day}
@@ -56,13 +85,20 @@ export const WeekRow = memo(
 
                 <EventRow
                     events={events}
-                    week={week}
+                    week={visibleWeek}
                     size={size}
                     assumeWeekScoped
                 />
             </div>
         )
-    }
+    },
+    (prev, next) =>
+        prev.events === next.events &&
+        prev.start === next.start &&
+        prev.size === next.size &&
+        prev.skeleton === next.skeleton &&
+        prev.currentMonthKey === next.currentMonthKey &&
+        prev.weekDate.getTime() === next.weekDate.getTime()
 )
 
 WeekRow.displayName = "WeekRow"

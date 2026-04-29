@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     Combobox,
     ComboboxChip,
@@ -90,6 +91,7 @@ export function EventChipsCombobox<TData = unknown>({
     inputClassName,
     listVariant = "popover",
 }: EventChipsComboboxProps<TData>) {
+    const t = useDebugTranslations("common.combobox")
     const anchor = useComboboxAnchor()
     const inputRef = useRef<HTMLInputElement | null>(null)
     const isComposingRef = useRef(false)
@@ -238,7 +240,7 @@ export function EventChipsCombobox<TData = unknown>({
 
     const listContent = (
         <>
-            <ContextMenuLabel>옵션 선택 또는 생성</ContextMenuLabel>
+            <ContextMenuLabel>{t("selectOrCreate")}</ContextMenuLabel>
             {filteredOptions.length === 0 ? (
                 <div className="px-2 py-2 text-sm text-muted-foreground">
                     {emptyText}
@@ -251,8 +253,8 @@ export function EventChipsCombobox<TData = unknown>({
                             onMouseDown={(event) => {
                                 event.preventDefault()
                             }}
-                            onClick={(e) => {
-                                e.preventDefault()
+                            onSelect={(event) => {
+                                event.preventDefault()
                                 toggleOption(option.value)
                             }}
                         >
@@ -304,11 +306,12 @@ export function EventChipsCombobox<TData = unknown>({
                         <>
                             {selectedOptions.map((option) => (
                                 <ComboboxChip
-                                    className={
+                                    className={cn(
                                         typeof chipClassName === "function"
                                             ? chipClassName(option)
-                                            : chipClassName
-                                    }
+                                            : chipClassName,
+                                        disabled && "pr-1.5! [&>button]:hidden"
+                                    )}
                                     key={option.value}
                                     showRemove={showRemove}
                                 >

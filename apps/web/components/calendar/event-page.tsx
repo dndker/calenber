@@ -1,6 +1,7 @@
 "use client"
 
 import { useCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
+import { isSubscriptionStyleEventId } from "@/lib/calendar/event-id"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { canEditCalendarEvent } from "@/lib/calendar/permissions"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
@@ -12,6 +13,7 @@ import { APP_NAME } from "@/lib/app-config"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -39,6 +41,9 @@ export function EventPage({
     occurrenceStart?: number
     initialEvent?: CalendarEvent | null
 }) {
+    const tDialog = useDebugTranslations("event.dialog")
+    const tActions = useDebugTranslations("event.actions")
+    const tCommon = useDebugTranslations("common.actions")
     const router = useRouter()
     const pathname = usePathname()
     const basePath = getCalendarBasePath(pathname)
@@ -117,7 +122,7 @@ export function EventPage({
     if (isMissing) {
         return (
             <div className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                일정을 찾을 수 없습니다.
+                {tDialog("notFound")}
             </div>
         )
     }
@@ -125,8 +130,9 @@ export function EventPage({
     if (!event) return null
 
     const canEdit =
-        activeCalendar?.id === "demo" ||
-        canEditCalendarEvent(event, activeCalendarMembership, user?.id)
+        !isSubscriptionStyleEventId(event.id) &&
+        (activeCalendar?.id === "demo" ||
+            canEditCalendarEvent(event, activeCalendarMembership, user?.id))
 
     return (
         <>
@@ -165,14 +171,17 @@ export function EventPage({
             >
                 <AlertDialogContent size="sm">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>반복 일정을 삭제할까요?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            {tDialog("recurringDeleteTitle")}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            반복 일정은 현재 선택한 일정만 삭제하거나, 반복 일정
-                            전체를 삭제할 수 있습니다.
+                            {tDialog("recurringDeleteDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogCancel>
+                            {tCommon("cancel")}
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             disabled={!canDeleteSingleOccurrence}
                             onClick={(dialogEvent) => {
@@ -180,7 +189,7 @@ export function EventPage({
                                 void confirmDeleteOnlyThis()
                             }}
                         >
-                            이 일정만 삭제
+                            {tActions("deleteThis")}
                         </AlertDialogAction>
                         <AlertDialogAction
                             variant="destructive"
@@ -189,7 +198,7 @@ export function EventPage({
                                 void confirmDeleteSeries()
                             }}
                         >
-                            전체 반복 일정 삭제
+                            {tActions("deleteAll")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

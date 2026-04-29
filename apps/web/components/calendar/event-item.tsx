@@ -1,14 +1,17 @@
-import { EventFormCategoryChipsField } from "@/components/calendar/event-form-category-field"
+import { EventFormCollectionChipsField } from "@/components/calendar/event-form-collection-field"
 import { EventFormStatusCheckListField } from "@/components/calendar/event-form-status-field"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useEventMembers } from "@/hooks/use-calendar-event-member"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useEventQuickPropertySave } from "@/hooks/use-event-quick-property-save"
 import { lockCalendarBodyCursor } from "@/lib/calendar/body-cursor-lock"
 import {
-    getCalendarCategoryEventClassName,
-    getCalendarCategoryEventHoverClassName,
-} from "@/lib/calendar/category-color"
+    getCalendarCollectionDotClassName,
+    getCalendarCollectionEventClassName,
+    getCalendarCollectionEventHoverClassName,
+} from "@/lib/calendar/collection-color"
 import { normalizeNames } from "@/lib/calendar/event-form-names"
+import { isSubscriptionStyleEventId } from "@/lib/calendar/event-id"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import {
@@ -22,6 +25,7 @@ import {
 } from "@/lib/calendar/recurrence"
 import dayjs from "@/lib/dayjs"
 import type { CalendarEvent } from "@/store/calendar-store.types"
+import { shallow } from "@/store/createSSRStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useDraggable } from "@dnd-kit/core"
@@ -63,6 +67,10 @@ import {
 import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import {
+    CALENDAR_EVENT_ITEM_HEIGHT_PX,
+    CALENDAR_EVENT_ITEM_STRIDE_PX,
+} from "./event-item-layout.constants"
 
 /**
  * 리사이즈로 `startIndex`/`endIndex`가 바뀌면 `EventRow`의 key가 달라져 `EventItem`이 언마운트된다.
@@ -99,22 +107,24 @@ function areStringArraysEqual(a: string[], b: string[]) {
 export function getEventPosition(
     startIndex: number,
     endIndex: number,
+    columnCount = 7,
     continuesFromPrevWeek = false,
     continuesToNextWeek = false
 ) {
     // 주 칸 인덱스는 항상 정수. 부동소수/미세 오차로 calc(%) 좌·너비가 따로 반올림되며 끝이 흔들릴 수 있음
-    const safeStart = Math.max(0, Math.min(6, Math.floor(startIndex)))
-    const safeEnd = Math.max(0, Math.min(6, Math.floor(endIndex)))
+    const maxIndex = Math.max(0, columnCount - 1)
+    const safeStart = Math.max(0, Math.min(maxIndex, Math.floor(startIndex)))
+    const safeEnd = Math.max(0, Math.min(maxIndex, Math.floor(endIndex)))
     const s = Math.min(safeStart, safeEnd)
     const e = Math.max(safeStart, safeEnd)
     const span = e - s + 1
 
     const GAP = 4
     const COLUMN_GAP = 1
-    const TOTAL_COLUMN_GAPS = COLUMN_GAP * 6
+    const TOTAL_COLUMN_GAPS = COLUMN_GAP * Math.max(0, columnCount - 1)
     const leftGap = continuesFromPrevWeek ? 0 : GAP
     const rightGap = continuesToNextWeek ? 0 : GAP
-    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / 7`
+    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / ${Math.max(1, columnCount)}`
     const left = s
         ? `calc(${s} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
         : `${leftGap}px`
@@ -132,6 +142,7 @@ export const EventItem = memo(
         top,
         startIndex,
         endIndex,
+        columnCount = 7,
         continuesFromPrevWeek = false,
         continuesToNextWeek = false,
         dragOffsetStart = 0,
@@ -148,6 +159,7 @@ export const EventItem = memo(
         top: number
         startIndex: number
         endIndex: number
+        columnCount?: number
         continuesFromPrevWeek?: boolean
         continuesToNextWeek?: boolean
         dragOffsetStart?: number
@@ -161,33 +173,49 @@ export const EventItem = memo(
         /** 월 그리드 한 주의 시작일(`EventRow`의 `weekStart`). 리사이즈 레인 고정·핸들 활성 표시에 사용 */
         layoutWeekStart?: number
     }) {
+        const tActions = useDebugTranslations("event.actions")
+        const tDialog = useDebugTranslations("event.dialog")
+        const tHeader = useDebugTranslations("event.header")
+        const tSidebar = useDebugTranslations("calendar.sidebarEvents")
+        const tLabels = useDebugTranslations("common.labels")
         const pathname = usePathname()
         const sourceEventId = getCalendarEventSourceId(event)
 
         const user = useAuthStore((s) => s.user)
-        const activeCalendar = useCalendarStore((s) => s.activeCalendar)
-        const activeCalendarMembership = useCalendarStore(
-            (s) => s.activeCalendarMembership
+        const {
+            activeCalendar,
+            activeCalendarMembership,
+            favoriteMeta,
+            eventLayout,
+            calendarTz,
+            setActiveEventId,
+            setViewEvent,
+            toggleEventFavorite,
+            isSeriesHover,
+            setHoveredSeriesEventId,
+            startDrag,
+            moveDrag,
+            endDrag,
+        } = useCalendarStore(
+            (s) => ({
+                activeCalendar: s.activeCalendar,
+                activeCalendarMembership: s.activeCalendarMembership,
+                favoriteMeta: sourceEventId
+                    ? (s.favoriteEventMap[sourceEventId] ?? null)
+                    : null,
+                eventLayout: s.eventLayout,
+                calendarTz: s.calendarTimezone,
+                setActiveEventId: s.setActiveEventId,
+                setViewEvent: s.setViewEvent,
+                toggleEventFavorite: s.toggleEventFavorite,
+                isSeriesHover: s.hoveredSeriesEventId === sourceEventId,
+                setHoveredSeriesEventId: s.setHoveredSeriesEventId,
+                startDrag: s.startDrag,
+                moveDrag: s.moveDrag,
+                endDrag: s.endDrag,
+            }),
+            shallow
         )
-        const favoriteMeta = useCalendarStore((s) =>
-            sourceEventId ? (s.favoriteEventMap[sourceEventId] ?? null) : null
-        )
-        const eventLayout = useCalendarStore((s) => s.eventLayout)
-        const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-        const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
-        const setViewEvent = useCalendarStore((s) => s.setViewEvent)
-        const toggleEventFavorite = useCalendarStore(
-            (s) => s.toggleEventFavorite
-        )
-        const isSeriesHover = useCalendarStore(
-            (s) => s.hoveredSeriesEventId === sourceEventId
-        )
-        const setHoveredSeriesEventId = useCalendarStore(
-            (s) => s.setHoveredSeriesEventId
-        )
-        const startDrag = useCalendarStore((s) => s.startDrag)
-        const moveDrag = useCalendarStore((s) => s.moveDrag)
-        const endDrag = useCalendarStore((s) => s.endDrag)
         const dragIndexRef = useRef(0)
         const resizeFrameRef = useRef<number | null>(null)
         const lastResizeDateRef = useRef<string | null>(null)
@@ -199,46 +227,47 @@ export const EventItem = memo(
         const resolvedSourceEvent = toCalendarEventSource(event)
 
         const thisRenderId = getCalendarEventRenderId(event)
-        const isResizeTarget = useCalendarStore((s) => {
+        const isGeneratedSubscriptionEvent =
+            isSubscriptionStyleEventId(sourceEventId)
+        const { isResizeTarget, activeResizeEdge } = useCalendarStore((s) => {
             const mode = s.drag.mode
             if (mode !== "resize-start" && mode !== "resize-end") {
-                return false
-            }
-            return s.drag.renderId === thisRenderId
-        }, Object.is)
-        const isResizingThis = !inline && !overlay && isResizeTarget
-
-        const activeResizeEdge = useCalendarStore((s) => {
-            const mode = s.drag.mode
-            if (mode !== "resize-start" && mode !== "resize-end") {
-                return null
+                return { isResizeTarget: false, activeResizeEdge: null }
             }
             if (s.drag.renderId !== thisRenderId) {
-                return null
+                return { isResizeTarget: false, activeResizeEdge: null }
             }
-            return s.drag.resizeActiveEdge
-        }, Object.is)
+            return {
+                isResizeTarget: true,
+                activeResizeEdge: s.drag.resizeActiveEdge,
+            }
+        }, shallow)
+        const isResizingThis = !inline && !overlay && isResizeTarget
 
         const pos = getEventPosition(
             startIndex,
             endIndex,
+            columnCount,
             continuesFromPrevWeek,
             continuesToNextWeek
         )
-        const canEdit =
-            activeCalendar?.id === "demo" ||
-            canEditCalendarEvent(
-                resolvedSourceEvent,
-                activeCalendarMembership,
-                user?.id
-            )
-        const canDelete =
-            activeCalendar?.id === "demo" ||
-            canDeleteCalendarEvent(
-                resolvedSourceEvent,
-                activeCalendarMembership,
-                user?.id
-            )
+        const canEdit = isGeneratedSubscriptionEvent
+            ? false
+            : activeCalendar?.id === "demo" ||
+              canEditCalendarEvent(
+                  resolvedSourceEvent,
+                  activeCalendarMembership,
+                  user?.id
+              )
+        const canDelete = isGeneratedSubscriptionEvent
+            ? false
+            : activeCalendar?.id === "demo" ||
+              canDeleteCalendarEvent(
+                  resolvedSourceEvent,
+                  activeCalendarMembership,
+                  user?.id
+              )
+        const canDragResize = canEdit && !resolvedSourceEvent.isLocked
         const {
             handleDeleteEvent,
             isRecurringDeleteDialogOpen,
@@ -254,9 +283,9 @@ export const EventItem = memo(
         /**
          * 루트 컨텍스트 메뉴 전체 표시 모드.
          * `main`: 즐겨찾기·속성 편집(2depth 서브에 상태/카테고리)·삭제
-         * `status` | `category`: 1depth 전체가 해당 설정 폼만 (노션식 전환)
+         * `status` | `collection`: 1depth 전체가 해당 설정 폼만 (노션식 전환)
          */
-        type EventCtxRootView = "main" | "status" | "category"
+        type EventCtxRootView = "main" | "status" | "collection"
         const [ctxRootView, setCtxRootView] = useState<EventCtxRootView>("main")
         const [isCtxOpen, setIsCtxOpen] = useState(false)
         const [isFavoritePending, setIsFavoritePending] = useState(false)
@@ -277,31 +306,44 @@ export const EventItem = memo(
 
         const {
             saveStatus,
-            saveCategoryNames,
-            getDraftCategoryColor,
-            eventCategories,
+            saveCollectionNames,
+            getDraftCollectionColor,
+            eventCollections,
         } = useEventQuickPropertySave({
             sourceEventId,
             disabled: !canEdit,
         })
-        const propertyCategoryNames = useMemo(
+        const propertyCollectionNames = useMemo(
             () =>
                 normalizeNames(
-                    resolvedSourceEvent.categories.map(
-                        (category) => category.name
+                    resolvedSourceEvent.collections.map(
+                        (collection) => collection.name
                     )
                 ),
-            [resolvedSourceEvent.categories]
+            [resolvedSourceEvent.collections]
         )
-        const [categoryDraft, setCategoryDraft] = useState<string[]>(
-            propertyCategoryNames
+        const [collectionDraft, setCollectionDraft] = useState<string[]>(
+            propertyCollectionNames
         )
 
+        /**
+         * 카테고리 토글 저장 직후 store 동기화가 여러 번 들어오면
+         * 로컬 draft를 다시 덮어쓰며 칩이 한 프레임 사라졌다가 복구되는 깜빡임이 생긴다.
+         * 편집 중에는 로컬 draft를 유지하고, 카테고리 뷰 진입 시점/대상 이벤트 변경 시에만 초기화한다.
+         */
         useEffect(() => {
-            if (ctxRootView === "category") {
-                setCategoryDraft(propertyCategoryNames)
+            if (ctxRootView === "collection") {
+                setCollectionDraft(propertyCollectionNames)
             }
-        }, [ctxRootView, propertyCategoryNames])
+            // intentionally exclude propertyCollectionNames to keep inline editor stable while toggling
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [ctxRootView])
+
+        useEffect(() => {
+            setCollectionDraft(propertyCollectionNames)
+            // source event changed (different item/occurrence) when id changes.
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [sourceEventId])
 
         const handleFavoriteToggle = useCallback(async () => {
             if (isFavoritePending || !canToggleFavorite) {
@@ -320,8 +362,8 @@ export const EventItem = memo(
                 if (ok) {
                     toast.success(
                         nextIsFavorite
-                            ? "즐겨찾기에 추가했습니다."
-                            : "즐겨찾기에서 삭제되었습니다."
+                            ? tHeader("favoriteAdded")
+                            : tHeader("favoriteRemoved")
                     )
                 }
             } finally {
@@ -336,7 +378,7 @@ export const EventItem = memo(
         ])
 
         const handleMoveStart = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
 
@@ -356,14 +398,14 @@ export const EventItem = memo(
         }
 
         const handleResizeStart = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
             beginResize(e, "resize-start")
         }
 
         const handleResizeEnd = (e: React.PointerEvent) => {
-            if (!canEdit) {
+            if (!canDragResize) {
                 return
             }
             beginResize(e, "resize-end")
@@ -492,7 +534,7 @@ export const EventItem = memo(
 
         useEffect(() => {
             if (!isDragging) return
-            if (!canEdit) return
+            if (!canDragResize) return
             if (overlay) return
 
             const releaseMoveCursor = lockCalendarBodyCursor(
@@ -509,10 +551,10 @@ export const EventItem = memo(
             }
 
             // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [isDragging, canEdit, overlay, thisRenderId])
+        }, [isDragging, canDragResize, overlay, thisRenderId])
 
         const mergedListeners =
-            interactive && canEdit
+            interactive && canDragResize
                 ? {
                       ...listeners,
                       onPointerDown: handleMoveStart,
@@ -524,21 +566,54 @@ export const EventItem = memo(
             !overlay && eventLayout === "split" && resolvedDisplayLaneCount > 0
         const itemTop = useSplitLayout
             ? `calc(${(top / resolvedDisplayLaneCount) * 100}% + 2px)`
-            : `${top * 32}px`
+            : `${top * CALENDAR_EVENT_ITEM_STRIDE_PX}px`
         const itemHeight = useSplitLayout
             ? `calc(${100 / resolvedDisplayLaneCount}% - 4px)`
-            : "30px"
+            : `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`
 
         const eventMembers = useEventMembers(sourceEventId, user?.id)
         const isCompleted = event.status === "completed"
         const isCancelled = event.status === "cancelled"
-        const primaryCategoryColor =
-            event.categories[0]?.options.color ?? event.category?.options.color
+        const primaryCollectionColor =
+            event.collections[0]?.options.color ??
+            event.primaryCollection?.options.color
+        const displayPrimaryCollectionColor = useMemo(() => {
+            // 컨텍스트 메뉴 컬렉션 편집 중에는 로컬 draft 기준 색을 우선 사용해
+            // 실시간/낙관적 동기화 중간 프레임의 배경색 깜빡임을 줄인다.
+            if (ctxRootView !== "collection" || !isCtxOpen) {
+                return primaryCollectionColor
+            }
+
+            const firstCollectionName = normalizeNames(collectionDraft)[0]
+
+            if (!firstCollectionName) {
+                return undefined
+            }
+
+            const matchedCollection =
+                eventCollections.find(
+                    (collection) =>
+                        normalizeNames([collection.name])[0] ===
+                        normalizeNames([firstCollectionName])[0]
+                ) ?? null
+
+            return (
+                matchedCollection?.options.color ??
+                getDraftCollectionColor(firstCollectionName)
+            )
+        }, [
+            collectionDraft,
+            ctxRootView,
+            eventCollections,
+            getDraftCollectionColor,
+            isCtxOpen,
+            primaryCollectionColor,
+        ])
         const resolvedSeriesHoverClassName =
-            isSeriesHover && !isDragging
-                ? primaryCategoryColor
-                    ? getCalendarCategoryEventHoverClassName(
-                          primaryCategoryColor
+            isSeriesHover && !isDragging && event.allDay
+                ? displayPrimaryCollectionColor
+                    ? getCalendarCollectionEventHoverClassName(
+                          displayPrimaryCollectionColor
                       )
                     : "bg-muted text-foreground dark:bg-input/50"
                 : undefined
@@ -553,7 +628,7 @@ export const EventItem = memo(
             ? {
                   position: "relative" as const,
                   width: "100%",
-                  height: "30px",
+                  height: `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`,
                   zIndex: isDragging ? 10 : 1,
               }
             : {
@@ -598,16 +673,17 @@ export const EventItem = memo(
                             />
                         )}
                         <Button
-                            ref={!canEdit ? null : setNodeRef}
+                            ref={!canDragResize ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 pl-1.75 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1.5 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [&>span]:leading-normal [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                !event.allDay && "pl-1.75",
                                 !interactive && "pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
-                                    : "py-1",
+                                    : "",
                                 inline &&
-                                    canEdit &&
+                                    canDragResize &&
                                     "cursor-grab active:cursor-grabbing",
                                 eventLayout === "split" &&
                                     "items-center justify-center text-center",
@@ -615,16 +691,19 @@ export const EventItem = memo(
                                     "text-muted-foreground line-through",
                                 eventMembers.length > 0 && "shadow-lg/7",
                                 eventRadiusClass,
-                                // primaryCategoryColor && "pl-2.25",
-                                primaryCategoryColor &&
-                                    getCalendarCategoryEventClassName(
-                                        primaryCategoryColor
+                                // primaryCollectionColor && "pl-2.25",
+                                displayPrimaryCollectionColor &&
+                                    event.allDay &&
+                                    getCalendarCollectionEventClassName(
+                                        displayPrimaryCollectionColor
                                     ),
                                 resolvedSeriesHoverClassName,
                                 (isResizingThis || isCtxOpen) && "bg-muted",
                                 (isResizingThis || isCtxOpen) &&
-                                    getCalendarCategoryEventHoverClassName(
-                                        primaryCategoryColor
+                                    event.allDay &&
+                                    displayPrimaryCollectionColor &&
+                                    getCalendarCollectionEventHoverClassName(
+                                        displayPrimaryCollectionColor
                                     )
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
@@ -661,18 +740,45 @@ export const EventItem = memo(
                                 )
                             }}
                         >
-                            {event.isLocked && !isCompleted && !isCancelled && (
-                                <LockIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                            )}
+                            {/* {event.subscription && (
+                                <BadgeCheckIcon className="ml-0.5 size-3.5 shrink-0" />
+                            )} */}
+                            {event.isLocked &&
+                                !isCompleted &&
+                                !isCancelled &&
+                                !event.subscription && (
+                                    <LockIcon className="ml-0.5 size-3.5 shrink-0" />
+                                )}
                             {isCompleted && (
                                 <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
                             {isCancelled && (
                                 <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             )}
+
+                            {displayPrimaryCollectionColor &&
+                                !event.allDay &&
+                                !continuesFromPrevWeek && (
+                                    <span
+                                        className={cn(
+                                            "absolute top-1/2 -left-1.25 inline-block h-[calc(100%-2.5px)] w-0.5 -translate-y-1/2 rounded-lg",
+                                            getCalendarCollectionDotClassName(
+                                                displayPrimaryCollectionColor
+                                            )
+                                        )}
+                                    ></span>
+                                )}
                             <span className="flex-initial truncate overflow-hidden">
-                                {event.title === "" ? "새 일정" : event.title}
+                                {event.title === ""
+                                    ? tLabels("newEvent")
+                                    : event.title}
                             </span>
+
+                            {event.subscription && (
+                                <span className="ml-px text-xs tracking-tight opacity-40 [word-spacing:-1px]">
+                                    {event.subscription.name}
+                                </span>
+                            )}
                         </Button>
                         {!inline && !continuesToNextWeek && (
                             <div
@@ -714,12 +820,14 @@ export const EventItem = memo(
                                     ) : (
                                         <StarIcon />
                                     )}
-                                    {isFavorite ? "즐겨찾기 해제" : "즐겨찾기"}
+                                    {isFavorite
+                                        ? tActions("removeFavorite")
+                                        : tActions("addFavorite")}
                                 </ContextMenuItem>
                                 <ContextMenuSub>
                                     <ContextMenuSubTrigger disabled={!canEdit}>
                                         <ListIcon />
-                                        속성 편집
+                                        {tHeader("editProperties")}
                                     </ContextMenuSubTrigger>
                                     <ContextMenuSubContent
                                         className="p-0 duration-0 data-[state=closed]:animate-none data-[state=open]:animate-none"
@@ -734,17 +842,17 @@ export const EventItem = memo(
                                                 }}
                                             >
                                                 <CircleCheckBigIcon />
-                                                상태
+                                                {tSidebar("status")}
                                             </ContextMenuItem>
                                             <ContextMenuItem
                                                 disabled={!canEdit}
                                                 onSelect={(event) => {
                                                     event.preventDefault()
-                                                    setCtxRootView("category")
+                                                    setCtxRootView("collection")
                                                 }}
                                             >
                                                 <TagsIcon />
-                                                카테고리
+                                                {tSidebar("collection")}
                                             </ContextMenuItem>
                                         </ContextMenuGroup>
                                     </ContextMenuSubContent>
@@ -760,7 +868,7 @@ export const EventItem = memo(
                                     }}
                                 >
                                     <TrashIcon />
-                                    일정 삭제
+                                    {tActions("delete")}
                                 </ContextMenuItem>
                             </ContextMenuGroup>
                         </>
@@ -780,16 +888,18 @@ export const EventItem = memo(
                         </div>
                     ) : null}
 
-                    {ctxRootView === "category" ? (
+                    {ctxRootView === "collection" ? (
                         <ContextMenuGroup className="p-1">
-                            <EventFormCategoryChipsField
-                                value={categoryDraft}
+                            <EventFormCollectionChipsField
+                                value={collectionDraft}
                                 onChange={(next) => {
-                                    setCategoryDraft(next)
-                                    void saveCategoryNames(next)
+                                    setCollectionDraft(next)
+                                    void saveCollectionNames(next)
                                 }}
-                                eventCategories={eventCategories}
-                                getDraftCategoryColor={getDraftCategoryColor}
+                                eventCollections={eventCollections}
+                                getDraftCollectionColor={
+                                    getDraftCollectionColor
+                                }
                                 listVariant="inline"
                                 disabled={!canEdit}
                             />
@@ -814,11 +924,10 @@ export const EventItem = memo(
                         </AlertDialogCancel>
                         <AlertDialogHeader>
                             <AlertDialogTitle>
-                                반복 일정을 삭제할까요?
+                                {tDialog("recurringDeleteTitle")}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                                현재 선택한 일정만 삭제하거나,
-                                <br /> 반복 일정 전체를 삭제할 수 있습니다.
+                                {tDialog("recurringDeleteDescription")}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -829,7 +938,7 @@ export const EventItem = memo(
                                     void confirmDeleteOnlyThis()
                                 }}
                             >
-                                이 일정만 삭제
+                                {tActions("deleteThis")}
                             </AlertDialogAction>
                             <AlertDialogAction
                                 variant="destructive"
@@ -838,7 +947,7 @@ export const EventItem = memo(
                                     void confirmDeleteSeries()
                                 }}
                             >
-                                전체 반복 일정 삭제
+                                {tActions("deleteAll")}
                             </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
@@ -852,10 +961,10 @@ export const EventItem = memo(
             prev.event.start === next.event.start &&
             prev.event.end === next.event.end &&
             prev.event.title === next.event.title &&
-            prev.event.categories[0]?.options.color ===
-                next.event.categories[0]?.options.color &&
-            prev.event.category?.options.color ===
-                next.event.category?.options.color &&
+            prev.event.collections[0]?.options.color ===
+                next.event.collections[0]?.options.color &&
+            prev.event.primaryCollection?.options.color ===
+                next.event.primaryCollection?.options.color &&
             prev.event.recurrenceInstance?.key ===
                 next.event.recurrenceInstance?.key &&
             prev.event.recurrenceInstance?.sourceStart ===
@@ -863,13 +972,14 @@ export const EventItem = memo(
             prev.event.recurrenceInstance?.sourceEnd ===
                 next.event.recurrenceInstance?.sourceEnd &&
             areStringArraysEqual(
-                prev.event.categoryIds,
-                next.event.categoryIds
+                prev.event.collectionIds,
+                next.event.collectionIds
             ) &&
             prev.event.status === next.event.status &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&
             prev.endIndex === next.endIndex &&
+            prev.columnCount === next.columnCount &&
             prev.continuesFromPrevWeek === next.continuesFromPrevWeek &&
             prev.continuesToNextWeek === next.continuesToNextWeek &&
             prev.dragOffsetStart === next.dragOffsetStart &&

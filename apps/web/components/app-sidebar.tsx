@@ -6,9 +6,11 @@ import { CalendarFilter } from "@/components/calendar-filter"
 import { DatePicker } from "@/components/date-picker"
 import { NavUser } from "@/components/nav-user"
 import { useSettingsModal } from "@/components/settings/settings-modal-provider"
-import { eventStatus, eventStatusLabel } from "@/store/calendar-store.types"
+import {
+    eventStatus,
+    eventStatusTranslationKey,
+} from "@/store/calendar-store.types"
 import { shallow } from "@/store/createSSRStore"
-import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import {
     Sidebar,
@@ -22,100 +24,106 @@ import {
     SidebarSeparator,
 } from "@workspace/ui/components/sidebar"
 import { Settings } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { CalendarSubscriptionManager } from "./calendar-subscription-manager"
 import { CalendarSidebarEvents } from "./calendar-sidebar-events"
 
-const fallbackUser = {
-    user: {
-        id: "1",
-        name: "woong",
-        email: "example@gmail.com",
-        avatarUrl: "/icons/square/ios/144.png",
-    },
-}
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-    const user = useAuthStore((s) => s.user)
+    const tFilter = useDebugTranslations("calendar.filterSidebar")
+    const tStatus = useDebugTranslations("event.status")
+    const tCollection = useDebugTranslations("calendar.collection")
+    const tSettings = useDebugTranslations("settings")
     const { openSettings } = useSettingsModal()
     const activeCalendarMembership = useCalendarStore(
         (s) => s.activeCalendarMembership
     )
-    const eventCategories = useCalendarStore((s) => s.eventCategories)
+    const eventCollections = useCalendarStore((s) => s.eventCollections)
     const eventFilters = useCalendarStore((s) => s.eventFilters, shallow)
     const toggleEventStatusFilter = useCalendarStore(
         (s) => s.toggleEventStatusFilter
     )
-    const toggleEventCategoryFilter = useCalendarStore(
-        (s) => s.toggleEventCategoryFilter
+    const toggleEventCollectionFilter = useCalendarStore(
+        (s) => s.toggleEventCollectionFilter
+    )
+    const setExcludedWithoutCollectionFilter = useCalendarStore(
+        (s) => s.setExcludedWithoutCollectionFilter
     )
 
     const excludedStatusSet = React.useMemo(
         () => new Set(eventFilters.excludedStatuses),
         [eventFilters.excludedStatuses]
     )
-    const excludedCategoryIdSet = React.useMemo(
-        () => new Set(eventFilters.excludedCategoryIds),
-        [eventFilters.excludedCategoryIds]
+    const excludedCollectionIdSet = React.useMemo(
+        () => new Set(eventFilters.excludedCollectionIds),
+        [eventFilters.excludedCollectionIds]
     )
 
     const filterGroups = React.useMemo(
         () => [
             {
                 id: "status",
-                name: "상태",
+                name: tFilter("statusGroup"),
                 items: eventStatus.map((status) => ({
                     id: status,
-                    label: eventStatusLabel[status],
+                    label: tStatus(eventStatusTranslationKey[status]),
                     checked: !excludedStatusSet.has(status),
                 })),
             },
             {
-                id: "category",
-                name: "카테고리",
-                items:
-                    eventCategories.length > 0
-                        ? eventCategories.map((category) => ({
-                              id: category.id,
-                              label: category.name,
-                              color: category.options.color,
-                              checked: !excludedCategoryIdSet.has(category.id),
-                          }))
-                        : [
-                              //   {
-                              //       id: "empty-category",
-                              //       label: "등록된 카테고리가 없습니다.",
-                              //       checked: false,
-                              //       disabled: false,
-                              //   },
-                          ],
+                id: "collection",
+                name: tFilter("collectionGroup"),
+                items: [
+                    {
+                        id: "__without_collection__",
+                        label: tCollection("noCollection"),
+                        checked: !eventFilters.excludedWithoutCollection,
+                    },
+                    ...eventCollections.map((collection) => ({
+                        id: collection.id,
+                        label: collection.name,
+                        color: collection.options.color,
+                        checked: !excludedCollectionIdSet.has(collection.id),
+                    })),
+                ],
             },
         ],
-        [eventCategories, excludedCategoryIdSet, excludedStatusSet]
+        [
+            eventCollections,
+            eventFilters.excludedWithoutCollection,
+            excludedCollectionIdSet,
+            excludedStatusSet,
+            tCollection,
+            tFilter,
+            tStatus,
+        ]
     )
 
     const handleFilterItemCheckedChange = React.useCallback(
-        (groupId: string, itemId: string) => {
+        (groupId: string, itemId: string, checked: boolean) => {
             if (groupId === "status") {
                 toggleEventStatusFilter(itemId as (typeof eventStatus)[number])
                 return
             }
 
-            if (groupId === "category") {
-                toggleEventCategoryFilter(itemId)
+            if (groupId === "collection") {
+                if (itemId === "__without_collection__") {
+                    setExcludedWithoutCollectionFilter(!checked)
+                    return
+                }
+                toggleEventCollectionFilter(itemId)
             }
         },
-        [toggleEventCategoryFilter, toggleEventStatusFilter]
+        [
+            setExcludedWithoutCollectionFilter,
+            toggleEventCollectionFilter,
+            toggleEventStatusFilter,
+        ]
     )
 
     return (
         <Sidebar {...props}>
             <SidebarHeader className="h-16 border-b border-sidebar-border">
-                <NavUser
-                    user={
-                        user
-                            ? { ...fallbackUser.user, ...user }
-                            : fallbackUser.user
-                    }
-                />
+                <NavUser />
             </SidebarHeader>
             <SidebarContent>
                 <DatePicker />
@@ -127,6 +135,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     groups={filterGroups}
                     onItemCheckedChange={handleFilterItemCheckedChange}
                 />
+                <CalendarSubscriptionManager />
             </SidebarContent>
             <SidebarFooter>
                 <SidebarMenu>
@@ -143,7 +152,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     }
                                 >
                                     <Settings />
-                                    <span>설정</span>
+                                    <span>{tSettings("title")}</span>
                                 </SidebarMenuButton>
                             </>
                         ) : null}

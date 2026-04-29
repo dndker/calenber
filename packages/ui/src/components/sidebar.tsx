@@ -141,13 +141,13 @@ function SidebarProvider({
                 data-slot="sidebar-wrapper"
                 style={
                     {
-                        "--sidebar-width": SIDEBAR_WIDTH,
                         "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
                         ...style,
                     } as React.CSSProperties
                 }
                 className={cn(
                     "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+                    `[--sidebar-width:13.5rem] lg:[--sidebar-width:14.5rem] xl:[--sidebar-width:16rem]`,
                     className
                 )}
                 {...props}

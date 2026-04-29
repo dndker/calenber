@@ -1,6 +1,5 @@
 "use client"
 
-import { APP_NAME } from "@/lib/app-config"
 import { useEmailAuth } from "@/hooks/use-email-auth"
 import { useRouteToPostAuthCalendar } from "@/hooks/use-route-to-post-auth-calendar"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -14,33 +13,36 @@ import {
 } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import Link from "next/link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
 import { AuthFormShell } from "./auth-form-shell"
 import { GoogleButton } from "./google-sign-in-button"
 
-const signUpSchema = z
-    .object({
-        name: z
-            .string()
-            .min(2, "이름은 2자 이상이어야 합니다.")
-            .max(40, "이름은 40자 이하여야 합니다."),
-        email: z.string().email("올바른 이메일 주소를 입력해 주세요."),
-        password: z.string().min(8, "비밀번호는 8자 이상이어야 합니다."),
-        confirmPassword: z.string().min(8, "비밀번호 확인을 입력해 주세요."),
-    })
-    .refine((data) => data.password === data.confirmPassword, {
-        message: "비밀번호가 일치하지 않습니다.",
-        path: ["confirmPassword"],
-    })
-
-type SignUpValues = z.infer<typeof signUpSchema>
-
 export function SignUpForm() {
+    const t = useDebugTranslations("auth.signUp")
+    const tValidation = useDebugTranslations("auth.validation")
     const router = useRouter()
     const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signUpWithEmail } = useEmailAuth()
+    const signUpSchema = z
+        .object({
+            name: z
+                .string()
+                .min(2, tValidation("nameMin"))
+                .max(40, tValidation("nameMax")),
+            email: z.string().email(tValidation("invalidEmail")),
+            password: z.string().min(8, tValidation("passwordMin")),
+            confirmPassword: z
+                .string()
+                .min(8, tValidation("confirmPasswordMin")),
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+            message: tValidation("passwordMismatch"),
+            path: ["confirmPassword"],
+        })
+    type SignUpValues = z.infer<typeof signUpSchema>
     const form = useForm<SignUpValues>({
         resolver: zodResolver(signUpSchema),
         defaultValues: {
@@ -76,10 +78,11 @@ export function SignUpForm() {
 
     return (
         <AuthFormShell
-            title={`${APP_NAME} 계정을 만들어 보세요.`}
+            title={t("title")}
             description={
                 <>
-                    이미 계정이 있으신가요? <Link href="/signin">로그인</Link>
+                    {t("description")}{" "}
+                    <Link href="/signin">{t("signInLink")}</Link>
                 </>
             }
         >
@@ -93,11 +96,13 @@ export function SignUpForm() {
                     control={form.control}
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="signup-name">이름</FieldLabel>
+                            <FieldLabel htmlFor="signup-name">
+                                {t("nameLabel")}
+                            </FieldLabel>
                             <Input
                                 {...field}
                                 id="signup-name"
-                                placeholder="홍길동"
+                                placeholder={t("namePlaceholder")}
                                 autoComplete="name"
                                 aria-invalid={fieldState.invalid}
                             />
@@ -114,18 +119,18 @@ export function SignUpForm() {
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
                             <FieldLabel htmlFor="signup-email">
-                                이메일
+                                {t("emailLabel")}
                             </FieldLabel>
                             <Input
                                 {...field}
                                 id="signup-email"
                                 type="email"
-                                placeholder="m@example.com"
+                                placeholder={t("emailPlaceholder")}
                                 autoComplete="email"
                                 aria-invalid={fieldState.invalid}
                             />
                             <FieldDescription>
-                                인증 메일을 받을 수 있는 주소를 사용해 주세요.
+                                {t("emailDescription")}
                             </FieldDescription>
                             {fieldState.invalid && (
                                 <FieldError errors={[fieldState.error]} />
@@ -140,13 +145,13 @@ export function SignUpForm() {
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
                             <FieldLabel htmlFor="signup-password">
-                                비밀번호
+                                {t("passwordLabel")}
                             </FieldLabel>
                             <Input
                                 {...field}
                                 id="signup-password"
                                 type="password"
-                                placeholder="8자 이상 입력해 주세요"
+                                placeholder={t("passwordPlaceholder")}
                                 autoComplete="new-password"
                                 aria-invalid={fieldState.invalid}
                             />
@@ -163,13 +168,13 @@ export function SignUpForm() {
                     render={({ field, fieldState }) => (
                         <Field data-invalid={fieldState.invalid}>
                             <FieldLabel htmlFor="signup-confirm-password">
-                                비밀번호 확인
+                                {t("confirmPasswordLabel")}
                             </FieldLabel>
                             <Input
                                 {...field}
                                 id="signup-confirm-password"
                                 type="password"
-                                placeholder="비밀번호를 다시 입력해 주세요"
+                                placeholder={t("confirmPasswordPlaceholder")}
                                 autoComplete="new-password"
                                 aria-invalid={fieldState.invalid}
                             />
@@ -186,11 +191,11 @@ export function SignUpForm() {
                     className="font-bold"
                     loading={loading}
                 >
-                    이메일로 회원가입
+                    {t("submit")}
                 </Button>
             </form>
 
-            <FieldSeparator>또는</FieldSeparator>
+            <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
                 onComplete={(result) => {

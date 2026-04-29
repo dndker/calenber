@@ -8,6 +8,10 @@ import {
     buildEventMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
+import {
+    resolveCalendarIdFromPathParam,
+} from "@/lib/calendar/routes"
+import { parseShortCalendarEventToken } from "@/lib/calendar/short-link"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -17,22 +21,32 @@ export async function generateMetadata({
     params: Promise<{ calendarId: string }>
     searchParams: Promise<{ e?: string }>
 }): Promise<Metadata> {
-    const [{ calendarId }, { e }] = await Promise.all([params, searchParams])
+    const [{ calendarId: rawCalendarId }, { e }] = await Promise.all([
+        params,
+        searchParams,
+    ])
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
+    const resolvedEventId =
+        e ? (parseShortCalendarEventToken(e)?.eventId ?? e) : undefined
 
-    if (e) {
+    if (resolvedEventId) {
         const { calendar, event } =
             calendarId === "demo"
                 ? {
                       calendar: demoCalendarSummary,
                       event: null,
                   }
-                : await getServerEventMetadataByCalendarId(calendarId, e, true)
+                : await getServerEventMetadataByCalendarId(
+                      calendarId,
+                      resolvedEventId,
+                      true
+                  )
 
         return buildEventMetadata({
             calendar,
             calendarId,
             event,
-            eventId: e,
+            eventId: resolvedEventId,
             modal: true,
         })
     }

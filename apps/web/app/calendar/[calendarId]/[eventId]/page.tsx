@@ -6,6 +6,7 @@ import {
     buildEventMetadata,
     demoCalendarSummary,
 } from "@/lib/calendar/share-metadata"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
@@ -13,7 +14,8 @@ export async function generateMetadata({
 }: {
     params: Promise<{ calendarId: string; eventId: string }>
 }): Promise<Metadata> {
-    const { calendarId, eventId } = await params
+    const { calendarId: rawCalendarId, eventId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const { calendar, event } =
         calendarId === "demo"
             ? {
@@ -35,7 +37,8 @@ export default async function Page({
 }: {
     params: Promise<{ calendarId: string; eventId: string }>
 }) {
-    const { calendarId, eventId } = await params
+    const { calendarId: rawCalendarId, eventId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const { event } =
         calendarId === "demo"
             ? {

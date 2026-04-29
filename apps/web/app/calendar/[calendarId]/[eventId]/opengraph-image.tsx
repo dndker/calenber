@@ -10,6 +10,7 @@ import {
     demoCalendarSummary,
     getEventOgImageData,
 } from "@/lib/calendar/share-metadata"
+import { resolveCalendarIdFromPathParam } from "@/lib/calendar/routes"
 
 export const size = ogImageSize
 export const contentType = ogImageContentType
@@ -19,7 +20,8 @@ export default async function OpenGraphImage({
 }: {
     params: Promise<{ calendarId: string; eventId: string }>
 }) {
-    const { calendarId, eventId } = await params
+    const { calendarId: rawCalendarId, eventId } = await params
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
     const { calendar, event } =
         calendarId === "demo"
             ? {

@@ -2,6 +2,8 @@ import { EventCollaboratorsHoverCard } from "@/components/calendar/event-collabo
 import { EventHistoryDrawer } from "@/components/calendar/event-history-drawer"
 import { useAdjacentEvents } from "@/hooks/use-adjacent-events"
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
 import {
     getCachedCalendarEventHistory,
     loadCalendarEventHistory,
@@ -15,6 +17,7 @@ import {
     canToggleCalendarEventLock,
 } from "@/lib/calendar/permissions"
 import {
+    resolveCalendarIdFromPathParam,
     getCalendarBasePath,
     getCalendarEventPagePath,
 } from "@/lib/calendar/routes"
@@ -72,6 +75,9 @@ export const EventHeader = memo(function EventHeader({
     onDeleteEvent,
     portalContainer,
 }: EventHeaderProps) {
+    const tHeader = useDebugTranslations("event.header")
+    const tActions = useDebugTranslations("event.actions")
+    const tSubscription = useDebugTranslations("event.subscription")
     const router = useRouter()
     const pathname = usePathname()
     const basePath = getCalendarBasePath(pathname)
@@ -91,7 +97,9 @@ export const EventHeader = memo(function EventHeader({
         (s) => s.activeCalendarMembership
     )
 
-    const calendarId = activeCalendar?.id || basePath.split("/")[2]
+    const calendarId =
+        activeCalendar?.id ||
+        resolveCalendarIdFromPathParam(basePath.split("/")[2] ?? "demo")
 
     const eventId = id ? id : (activeEventId ?? undefined)
     const storeEvent = useCalendarStore((s) =>
@@ -115,9 +123,10 @@ export const EventHeader = memo(function EventHeader({
 
     const tooltipSide = modal ? "top" : "bottom"
 
-    const { prevEvent, nextEvent, hasPrev, hasNext } = useAdjacentEvents(
-        eventId!
-    )
+    const { prevEvent, nextEvent, hasPrev, hasNext } = useAdjacentEvents({
+        eventId: eventId!,
+        eventStart: event?.start,
+    })
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     const prefetchedHistory =
@@ -231,6 +240,7 @@ export const EventHeader = memo(function EventHeader({
 
     if (!eventId || !event) return null
 
+    const isGeneratedSubscriptionEvent = isGeneratedSubscriptionEventId(event.id)
     const isFavorite =
         favoriteMeta !== null ? true : (event.isFavorite ?? false)
 
@@ -239,12 +249,12 @@ export const EventHeader = memo(function EventHeader({
         setIsDropdownOpen(false)
     }
 
-    const canDelete =
-        activeCalendar?.id === "demo" ||
-        canDeleteCalendarEvent(event, activeCalendarMembership, user?.id)
-    const canToggleLock =
-        activeCalendar?.id === "demo" ||
-        canToggleCalendarEventLock(event, activeCalendarMembership, user?.id)
+    const canDelete = !isGeneratedSubscriptionEvent &&
+        (activeCalendar?.id === "demo" ||
+            canDeleteCalendarEvent(event, activeCalendarMembership, user?.id))
+    const canToggleLock = !isGeneratedSubscriptionEvent &&
+        (activeCalendar?.id === "demo" ||
+            canToggleCalendarEventLock(event, activeCalendarMembership, user?.id))
 
     const handleEventControls = (eventId?: string) => {
         if (!calendarId || !eventId) return false
@@ -258,7 +268,9 @@ export const EventHeader = memo(function EventHeader({
                       : null
 
             setActiveEventId(eventId)
-            setViewEvent(targetEvent)
+            if (targetEvent) {
+                setViewEvent(targetEvent)
+            }
             navigateCalendarModal(
                 getCalendarModalOpenPath({
                     pathname: basePath,
@@ -329,8 +341,8 @@ export const EventHeader = memo(function EventHeader({
                     <TooltipContent side={tooltipSide}>
                         <p className="text-sm font-medium">
                             {modal
-                                ? "전체 페이지로 열기"
-                                : "캘린더 페이지로 열기"}
+                                ? tHeader("openFullPage")
+                                : tHeader("openCalendarPage")}
                         </p>
                     </TooltipContent>
                 </Tooltip>
@@ -352,7 +364,9 @@ export const EventHeader = memo(function EventHeader({
                         </Button>
                     </TooltipTrigger>
                     <TooltipContent side={tooltipSide}>
-                        <p className="text-sm font-medium">이전 일정</p>
+                        <p className="text-sm font-medium">
+                            {tHeader("previousEvent")}
+                        </p>
                     </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -369,7 +383,9 @@ export const EventHeader = memo(function EventHeader({
                         </Button>
                     </TooltipTrigger>
                     <TooltipContent side={tooltipSide}>
-                        <p className="text-sm font-medium">다음 일정</p>
+                        <p className="text-sm font-medium">
+                            {tHeader("nextEvent")}
+                        </p>
                     </TooltipContent>
                 </Tooltip>
             </div>
@@ -411,8 +427,8 @@ export const EventHeader = memo(function EventHeader({
                                         if (ok) {
                                             toast.success(
                                                 nextIsFavorite
-                                                    ? "즐겨찾기에 추가했습니다."
-                                                    : "즐겨찾기에서 삭제되었습니다."
+                                                    ? tHeader("favoriteAdded")
+                                                    : tHeader("favoriteRemoved")
                                             )
                                         }
                                     } finally {
@@ -432,7 +448,9 @@ export const EventHeader = memo(function EventHeader({
                         </TooltipTrigger>
                         <TooltipContent side={tooltipSide}>
                             <p className="text-sm font-medium">
-                                {isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+                                {isFavorite
+                                    ? tActions("removeFavorite")
+                                    : tActions("addFavorite")}
                             </p>
                         </TooltipContent>
                     </Tooltip>
@@ -454,7 +472,7 @@ export const EventHeader = memo(function EventHeader({
                             </TooltipTrigger>
                             <TooltipContent side={tooltipSide}>
                                 <p className="text-sm font-medium">
-                                    이 일정은 수정할 수 없습니다.
+                                    {tHeader("lockedReadOnly")}
                                 </p>
                             </TooltipContent>
                         </Tooltip>
@@ -497,12 +515,12 @@ export const EventHeader = memo(function EventHeader({
                                 }}
                             >
                                 <LinkIcon />
-                                링크 복사
+                                {tHeader("copyLink")}
                             </DropdownMenuItem>
                             {activeCalendarMembership.isMember && (
                                 <DropdownMenuItem>
                                     <ShareIcon />
-                                    공유
+                                    {tHeader("share")}
                                 </DropdownMenuItem>
                             )}
                             {canToggleLock && (
@@ -524,17 +542,18 @@ export const EventHeader = memo(function EventHeader({
                                             <LockOpenIcon />
                                         )}
                                         <div className="flex min-w-0 flex-1 flex-col">
-                                            일정 잠금
+                                            {tHeader("lockEvent")}
                                         </div>
                                     </div>
                                     <Switch
                                         size="sm"
                                         checked={event.isLocked}
-                                        aria-label="일정 수정 잠금"
+                                        aria-label={tHeader("lockEventAria")}
                                     />
                                 </DropdownMenuItem>
                             )}
-                            {activeCalendarMembership.isMember && (
+                            {activeCalendarMembership.isMember &&
+                                !isGeneratedSubscriptionEvent && (
                                 <DropdownMenuItem
                                     onPointerEnter={() => {
                                         warmCalendarEventHistory(event.id)
@@ -550,7 +569,7 @@ export const EventHeader = memo(function EventHeader({
                                     }}
                                 >
                                     <HistoryIcon />
-                                    일정 기록
+                                    {tHeader("history")}
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuGroup>
@@ -565,7 +584,7 @@ export const EventHeader = memo(function EventHeader({
                                         }}
                                     >
                                         <TrashIcon />
-                                        일정 삭제
+                                        {tActions("delete")}
                                     </DropdownMenuItem>
                                 </DropdownMenuGroup>
                             </>

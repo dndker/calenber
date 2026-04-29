@@ -15,64 +15,80 @@ function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number) {
     return nextItems
 }
 
-export const calendarEventFieldDefinitions: {
+export type CalendarEventFieldDefinition = {
     id: CalendarEventFieldId
     label: string
     description: string
-}[] = [
+}
+
+const fieldDefinitionKeyMap: Array<{
+    id: CalendarEventFieldId
+    labelKey: string
+    descriptionKey: string
+}> = [
     {
         id: "schedule",
-        label: "일정",
-        description: "시작일과 종료일",
+        labelKey: "scheduleLabel",
+        descriptionKey: "scheduleDescription",
     },
     {
-        id: "categories",
-        label: "카테고리",
-        description: "분류와 필터 기준",
+        id: "collections",
+        labelKey: "collectionsLabel",
+        descriptionKey: "collectionsDescription",
     },
     {
         id: "status",
-        label: "상태",
-        description: "진행 상태",
+        labelKey: "statusLabel",
+        descriptionKey: "statusDescription",
     },
     {
         id: "participants",
-        label: "참가자",
-        description: "함께 보는 멤버",
+        labelKey: "participantsLabel",
+        descriptionKey: "participantsDescription",
     },
     {
         id: "recurrence",
-        label: "반복",
-        description: "반복 규칙",
+        labelKey: "recurrenceLabel",
+        descriptionKey: "recurrenceDescription",
     },
     {
         id: "exceptions",
-        label: "제외",
-        description: "반복 제외 날짜",
+        labelKey: "exceptionsLabel",
+        descriptionKey: "exceptionsDescription",
     },
     {
         id: "timezone",
-        label: "타임존",
-        description: "기준 시간대",
+        labelKey: "timezoneLabel",
+        descriptionKey: "timezoneDescription",
     },
     {
         id: "place",
-        label: "장소",
-        description: "장소 설정",
+        labelKey: "placeLabel",
+        descriptionKey: "placeDescription",
     },
     {
         id: "notification",
-        label: "알람",
-        description: "알람 설정",
+        labelKey: "notificationLabel",
+        descriptionKey: "notificationDescription",
     },
-] as const
+]
+
+export function getCalendarEventFieldDefinitions(
+    t: (key: string) => string
+): CalendarEventFieldDefinition[] {
+    return fieldDefinitionKeyMap.map((field) => ({
+        id: field.id,
+        label: t(field.labelKey),
+        description: t(field.descriptionKey),
+    }))
+}
 
 const defaultVisibleFieldIds = new Set<CalendarEventFieldId>([
     "schedule",
-    "categories",
+    "collections",
 ])
 
-const defaultItems = calendarEventFieldDefinitions.map((field) => ({
+const defaultItems = fieldDefinitionKeyMap.map((field) => ({
     id: field.id,
     visible: defaultVisibleFieldIds.has(field.id),
 }))
@@ -96,7 +112,7 @@ export function normalizeCalendarEventFieldSettings(
     const candidate = input as Partial<CalendarEventFieldSettings>
     const inputItems = Array.isArray(candidate.items) ? candidate.items : []
     const validFieldIds = new Set(
-        calendarEventFieldDefinitions.map((field) => field.id)
+        fieldDefinitionKeyMap.map((field) => field.id)
     )
     const inputMap = new Map(
         inputItems.flatMap((item) => {
@@ -142,7 +158,7 @@ export function normalizeCalendarEventFieldSettings(
                 },
             ]
         }),
-        ...calendarEventFieldDefinitions
+        ...fieldDefinitionKeyMap
             .filter((field) => !inputMap.has(field.id))
             .map((field) => ({
                 id: field.id,

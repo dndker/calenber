@@ -1,5 +1,5 @@
-export const APP_NAME = "캘린버"
-export const APP_DESCRIPTION = "일정, 그 이상을 기억하다."
+export const APP_NAME = "Calenber"
+export const APP_DESCRIPTION = "Remember more than just events."
 export const APP_DEFAULT_TITLE = APP_NAME
 export const APP_TITLE_TEMPLATE = `%s - ${APP_NAME}`
 

@@ -1,8 +1,10 @@
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { toast } from "sonner"
 
 export function useDeleteEvent() {
     const deleteEvent = useCalendarStore((s) => s.deleteEvent)
+    const t = useDebugTranslations("event.toast")
 
     return async (id: string) => {
         try {
@@ -12,11 +14,11 @@ export function useDeleteEvent() {
                 return false
             }
 
-            toast.success("일정이 삭제되었습니다.")
+            toast.success(t("deleted"))
 
             return true
         } catch {
-            toast.error("일정 삭제 실패")
+            toast.error(t("deleteFailed"))
             return false
         }
     }

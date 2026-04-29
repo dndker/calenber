@@ -7,9 +7,18 @@ const ACCEPTED_AVATAR_MIME_TYPES = [
     "image/webp",
 ] as const
 
-export function validateAvatarImage(file: File) {
-    if (!ACCEPTED_AVATAR_MIME_TYPES.includes(file.type as (typeof ACCEPTED_AVATAR_MIME_TYPES)[number])) {
-        return "JPG, PNG, WEBP 이미지 파일만 업로드할 수 있습니다."
+/** UI에서 next-intl 등으로 메시지 매핑할 때 사용 */
+export type AvatarImageValidationErrorCode = "invalidType"
+
+export function validateAvatarImage(
+    file: File
+): AvatarImageValidationErrorCode | null {
+    if (
+        !ACCEPTED_AVATAR_MIME_TYPES.includes(
+            file.type as (typeof ACCEPTED_AVATAR_MIME_TYPES)[number]
+        )
+    ) {
+        return "invalidType"
     }
 
     return null
@@ -23,7 +32,7 @@ export async function compressAvatarImage(file: File) {
             const nextImage = new Image()
             nextImage.onload = () => resolve(nextImage)
             nextImage.onerror = () =>
-                reject(new Error("이미지를 불러오지 못했습니다."))
+                reject(new Error("Failed to load the image."))
             nextImage.src = imageUrl
         })
 
@@ -41,7 +50,7 @@ export async function compressAvatarImage(file: File) {
         const context = canvas.getContext("2d")
 
         if (!context) {
-            throw new Error("이미지 압축을 준비하지 못했습니다.")
+            throw new Error("Could not prepare image compression.")
         }
 
         context.drawImage(image, 0, 0, width, height)
@@ -62,7 +71,7 @@ export async function compressAvatarImage(file: File) {
         }
 
         if (!output) {
-            throw new Error("이미지 압축에 실패했습니다.")
+            throw new Error("Image compression failed.")
         }
 
         return new File([output], "avatar.webp", { type: "image/webp" })

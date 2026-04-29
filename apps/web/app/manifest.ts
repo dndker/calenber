@@ -4,8 +4,11 @@ import {
     APP_NAME,
 } from "@/lib/app-config"
 import type { MetadataRoute } from "next"
+import { getLocale, getTranslations } from "next-intl/server"
 
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+    const locale = await getLocale()
+    const t = await getTranslations("manifest")
     const env = process.env.VERCEL_ENV ?? "development"
     const isDev = env === "preview"
     const isProd = env === "production"
@@ -32,7 +35,7 @@ export default function manifest(): MetadataRoute.Manifest {
         start_url: "/",
         scope: "/",
 
-        lang: "ko",
+        lang: locale,
         dir: "ltr",
 
         display: "standalone",
@@ -106,9 +109,9 @@ export default function manifest(): MetadataRoute.Manifest {
 
         shortcuts: [
             {
-                name: "새 일정 만들기",
-                short_name: "새 일정",
-                description: "빠르게 새 일정을 생성",
+                name: t("createEventName"),
+                short_name: t("createEventShortName"),
+                description: t("createEventDescription"),
                 url: "/",
                 icons: [
                     {
@@ -119,9 +122,9 @@ export default function manifest(): MetadataRoute.Manifest {
                 ],
             },
             {
-                name: "내 일정 보기",
-                short_name: "내 일정",
-                description: "내 일정 확인하기",
+                name: t("myEventsName"),
+                short_name: t("myEventsShortName"),
+                description: t("myEventsDescription"),
                 url: "/",
                 icons: [
                     {

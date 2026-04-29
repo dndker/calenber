@@ -1,6 +1,7 @@
 "use client"
 
 import { GlobeIcon } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useMemo } from "react"
 
 import {
@@ -39,6 +40,7 @@ export function CountrySelect({
     portalContainer,
     disabled = false,
 }: Props) {
+    const t = useDebugTranslations("settings.profileGeneral")
     const selected = useMemo(
         () => COUNTRIES.find((tz) => tz.value === value),
         [value]
@@ -57,7 +59,7 @@ export function CountrySelect({
             }}
         >
             <ComboboxInput
-                placeholder="언어 선택"
+                placeholder={t("languageLabel")}
                 className={cn("w-44", className)}
                 disabled={disabled}
             >

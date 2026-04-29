@@ -22,6 +22,7 @@ import * as React from "react"
 
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { Button } from "@workspace/ui/components/button"
 import {
     Popover,
@@ -105,6 +106,7 @@ const data = [
 ]
 
 export function NavActions() {
+    const t = useDebugTranslations("auth.signUp")
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setCalendarTimezone = useCalendarStore((s) => s.setCalendarTimezone)
 
@@ -139,7 +141,7 @@ export function NavActions() {
                     asChild
                     size="sm"
                 >
-                    <Link href="/signin">로그인</Link>
+                    <Link href="/signin">{t("signInLink")}</Link>
                 </Button>
             )}
 

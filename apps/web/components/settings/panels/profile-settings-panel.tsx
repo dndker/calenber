@@ -4,6 +4,7 @@ import { useSettingsModal } from "@/components/settings/settings-modal-provider"
 import { AvatarUploadControl } from "@/components/settings/shared/avatar-upload-control"
 import { NameInputControl } from "@/components/settings/shared/name-input-control"
 import { compressAvatarImage, validateAvatarImage } from "@/lib/avatar-image"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { deleteCurrentUserAccount } from "@/lib/calendar/mutations"
 import { MAX_USER_NAME_LENGTH, MIN_DISPLAY_NAME_LENGTH } from "@/lib/validation"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -40,6 +41,8 @@ import { ChangeEvent, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
+    const tVal = useDebugTranslations("common.validation")
+    const t = useDebugTranslations("settings.profilePanel")
     const setUser = useAuthStore((s) => s.setUser)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const [name, setName] = useState(user.name ?? "")
@@ -87,7 +90,7 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
                 setUser(mapUser(data.user))
             } catch (error) {
                 console.error("Failed to update profile name:", error)
-                toast.error("이름을 저장하지 못했습니다.")
+                toast.error(t("nameSaveFailed"))
             } finally {
                 setIsSavingName(false)
             }
@@ -108,7 +111,7 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
         }
 
         if (!authUser) {
-            throw new Error("로그인 정보를 확인하지 못했습니다.")
+            throw new Error(t("authUserMissing"))
         }
 
         return {
@@ -124,10 +127,10 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
             return
         }
 
-        const validationMessage = validateAvatarImage(file)
+        const validationCode = validateAvatarImage(file)
 
-        if (validationMessage) {
-            toast.error(validationMessage)
+        if (validationCode === "invalidType") {
+            toast.error(tVal("invalidAvatarFileType"))
             event.target.value = ""
             return
         }
@@ -179,10 +182,10 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
             }
 
             setUser(mapUser(data.user))
-            toast.success("프로필 이미지가 업데이트되었습니다.")
+            toast.success(t("avatarUpdated"))
         } catch (error) {
             console.error("Avatar upload failed:", error)
-            toast.error("프로필 이미지 업로드에 실패했습니다.")
+            toast.error(t("avatarUploadFailed"))
         } finally {
             setIsUploadingAvatar(false)
             event.target.value = ""
@@ -220,10 +223,10 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
             }
 
             setUser(mapUser(data.user))
-            toast.success("프로필 이미지가 삭제되었습니다.")
+            toast.success(t("avatarRemoved"))
         } catch (error) {
             console.error("Avatar remove failed:", error)
-            toast.error("프로필 이미지 삭제에 실패했습니다.")
+            toast.error(t("avatarRemoveFailed"))
         } finally {
             setIsRemovingAvatar(false)
         }
@@ -245,7 +248,7 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
             <div className="flex flex-col gap-2">
                 <NameInputControl
                     value={name}
-                    placeholder="이름 입력.."
+                    placeholder={t("namePlaceholder")}
                     onChange={setName}
                     invalid={hasNameLengthError}
                     isSaving={isSavingName}
@@ -256,8 +259,10 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
                 />
                 {hasNameLengthError && (
                     <p className="text-xs text-destructive">
-                        {MIN_DISPLAY_NAME_LENGTH}자 이상 {MAX_USER_NAME_LENGTH}자
-                        이하로 입력해 주세요.
+                        {tVal("requiredLengthRange", {
+                            min: MIN_DISPLAY_NAME_LENGTH,
+                            max: MAX_USER_NAME_LENGTH,
+                        })}
                     </p>
                 )}
             </div>
@@ -266,6 +271,8 @@ function ProfileSettingsAccountIdentity({ user }: { user: AppUser }) {
 }
 
 export function ProfileSettingsPanel() {
+    const t = useDebugTranslations("settings.profilePanel")
+    const tCommon = useDebugTranslations("common.actions")
     const router = useRouter()
     const { closeSettings } = useSettingsModal()
     const user = useAuthStore((s) => s.user)
@@ -280,7 +287,7 @@ export function ProfileSettingsPanel() {
 
     if (!user) return null
 
-    const deleteConfirmationTarget = user.email ?? "계정 삭제"
+    const deleteConfirmationTarget = user.email ?? t("deleteAccountFallback")
     const isDeleteConfirmationMatched =
         deleteConfirmation.trim() === deleteConfirmationTarget
 
@@ -296,7 +303,7 @@ export function ProfileSettingsPanel() {
         }
 
         if (!authUser) {
-            throw new Error("로그인 정보를 확인하지 못했습니다.")
+            throw new Error(t("authUserMissing"))
         }
 
         return {
@@ -360,7 +367,7 @@ export function ProfileSettingsPanel() {
             const ok = await deleteCurrentUserAccount(supabase)
 
             if (!ok) {
-                toast.error("계정을 삭제하지 못했습니다.")
+                toast.error(t("deleteAccountFailed"))
                 return
             }
 
@@ -371,12 +378,12 @@ export function ProfileSettingsPanel() {
             closeSettings()
             setDeleteConfirmation("")
             setIsDeleteDialogOpen(false)
-            toast.success("계정이 삭제되었습니다.")
+            toast.success(t("deleteAccountSuccess"))
             router.replace("/signin")
             router.refresh()
         } catch (error) {
             console.error("Failed to delete account:", error)
-            toast.error("계정을 삭제하지 못했습니다.")
+            toast.error(t("deleteAccountFailed"))
         } finally {
             setIsDeletingAccount(false)
         }
@@ -387,7 +394,7 @@ export function ProfileSettingsPanel() {
             <FieldGroup>
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
-                        계정
+                        {t("accountSection")}
                     </FieldLegend>
                     {/* <FieldDescription>
                         All transactions are secure and encrypted
@@ -417,7 +424,7 @@ export function ProfileSettingsPanel() {
                 <FieldSeparator />
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
-                        계정 보안
+                        {t("securitySection")}
                     </FieldLegend>
                     <FieldGroup>
                         <Field
@@ -426,13 +433,15 @@ export function ProfileSettingsPanel() {
                         >
                             <FieldContent>
                                 <FieldLabel htmlFor="switch-focus-mode">
-                                    이메일
+                                    {t("emailLabel")}
                                 </FieldLabel>
                                 <FieldDescription>
                                     example@gmail.com
                                 </FieldDescription>
                             </FieldContent>
-                            <Button variant="outline">이메일 관리</Button>
+                            <Button variant="outline">
+                                {t("manageEmail")}
+                            </Button>
                         </Field>
                         <Field
                             orientation="horizontal"
@@ -440,13 +449,15 @@ export function ProfileSettingsPanel() {
                         >
                             <FieldContent>
                                 <FieldLabel htmlFor="switch-focus-mode">
-                                    비밀번호
+                                    {t("passwordLabel")}
                                 </FieldLabel>
                                 <FieldDescription>
-                                    계정 비밀번호를 설정하세요.
+                                    {t("passwordDescription")}
                                 </FieldDescription>
                             </FieldContent>
-                            <Button variant="outline">비밀번호 설정</Button>
+                            <Button variant="outline">
+                                {t("setPassword")}
+                            </Button>
                         </Field>
                         <Field
                             orientation="horizontal"
@@ -454,20 +465,22 @@ export function ProfileSettingsPanel() {
                         >
                             <FieldContent>
                                 <FieldLabel htmlFor="switch-focus-mode">
-                                    2단계 인증
+                                    {t("mfaLabel")}
                                 </FieldLabel>
                                 <FieldDescription>
-                                    계정 보안 방식을 추가하세요.
+                                    {t("mfaDescription")}
                                 </FieldDescription>
                             </FieldContent>
-                            <Button variant="outline">인증 방법 추가</Button>
+                            <Button variant="outline">
+                                {t("addAuthMethod")}
+                            </Button>
                         </Field>
                     </FieldGroup>
                 </FieldSet>
                 <FieldSeparator />
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
-                        지원
+                        {t("supportSection")}
                     </FieldLegend>
                     <FieldGroup>
                         <Field
@@ -476,12 +489,10 @@ export function ProfileSettingsPanel() {
                         >
                             <FieldContent>
                                 <FieldLabel htmlFor="switch-focus-mode">
-                                    내 계정 삭제
+                                    {t("deleteAccountLabel")}
                                 </FieldLabel>
                                 <FieldDescription>
-                                    계정을 영구적으로 삭제합니다. 더 이상 내가
-                                    만든 캘린더나 소속된 캘린더에 접근할 수
-                                    없게됩니다.
+                                    {t("deleteAccountDescription")}
                                 </FieldDescription>
                             </FieldContent>
                             <AlertDialog
@@ -499,27 +510,27 @@ export function ProfileSettingsPanel() {
                                         variant="destructive"
                                         disabled={isDeletingAccount}
                                     >
-                                        내 계정 삭제
+                                        {t("deleteAccountLabel")}
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent size="sm">
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                            계정을 삭제하시겠습니까?
+                                            {t("deleteAccountDialogTitle")}
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            프로필, 내가 만든 캘린더, 내가 작성한
-                                            일정과 멤버십이 모두 영구적으로
-                                            삭제되며 되돌릴 수 없습니다.
+                                            {t(
+                                                "deleteAccountDialogDescription"
+                                            )}
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <div className="grid gap-2">
                                         <p className="text-sm text-muted-foreground">
-                                            계속하려면{" "}
+                                            {t("deleteAccountConfirmPrefix")}{" "}
                                             <span className="font-medium text-foreground">
                                                 {deleteConfirmationTarget}
-                                            </span>
-                                            를 입력해 주세요.
+                                            </span>{" "}
+                                            {t("deleteAccountConfirmSuffix")}
                                         </p>
                                         <Input
                                             value={deleteConfirmation}
@@ -529,12 +540,14 @@ export function ProfileSettingsPanel() {
                                                 )
                                             }
                                             placeholder={deleteConfirmationTarget}
-                                            aria-label="계정 삭제 확인"
+                                            aria-label={t(
+                                                "deleteAccountConfirmAria"
+                                            )}
                                         />
                                     </div>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>
-                                            취소
+                                            {tCommon("cancel")}
                                         </AlertDialogCancel>
                                         <AlertDialogAction
                                             variant="destructive"
@@ -547,8 +560,8 @@ export function ProfileSettingsPanel() {
                                             }}
                                         >
                                             {isDeletingAccount
-                                                ? "삭제 중..."
-                                                : "내 계정 삭제"}
+                                                ? t("deleting")
+                                                : t("deleteAccountLabel")}
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>

@@ -1,7 +1,11 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useNow } from "@/hooks/use-now"
 import dayjs from "@/lib/dayjs"
+import { type Locale } from "@/lib/i18n/config"
+import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import {
     CheckIcon,
     ChevronRightIcon,
@@ -69,14 +73,7 @@ import {
     ToggleGroupItem,
 } from "@workspace/ui/components/toggle-group"
 import { cn } from "@workspace/ui/lib/utils"
-
-const recurrenceTypeOptions = [
-    { value: "none", label: "반복 안 함" },
-    { value: "daily", label: "매일" },
-    { value: "weekly", label: "매주" },
-    { value: "monthly", label: "매월" },
-    { value: "yearly", label: "매년" },
-] as const
+import { useLocale } from "next-intl"
 
 type EventFormRecurrenceFieldProps = {
     control: Control<EventFormValues>
@@ -103,10 +100,22 @@ export function EventFormRecurrenceField({
     watchedTimezone,
     onRecurrenceChange,
 }: EventFormRecurrenceFieldProps) {
+    const locale = useLocale() as Locale
+    const tRecurrence = useDebugTranslations("event.recurrence")
+    const tCommon = useDebugTranslations("common.actions")
+    const tWeekday = useDebugTranslations("common.weekdays.short")
+    const tForm = useDebugTranslations("event.form")
     const now = useNow(watchedTimezone)
     const [recurrenceOpen, setRecurrenceOpen] = useState(false)
     const [recurrenceStep, setRecurrenceStep] = useState(0)
     const [endDatePickerOpen, setEndDatePickerOpen] = useState(false)
+    const recurrenceTypeOptions = [
+        { value: "none", label: tRecurrence("none") },
+        { value: "daily", label: tRecurrence("daily") },
+        { value: "weekly", label: tRecurrence("weekly") },
+        { value: "monthly", label: tRecurrence("monthly") },
+        { value: "yearly", label: tRecurrence("yearly") },
+    ] as const
 
     return (
         <Controller
@@ -170,6 +179,7 @@ export function EventFormRecurrenceField({
                                         recurrence: recurrenceValue,
                                         startDate: watchedStart,
                                         timezone: watchedTimezone,
+                                        locale,
                                     })}
                                 </Button>
                             </PopoverTrigger>
@@ -282,6 +292,7 @@ export function EventFormRecurrenceField({
                                                                                                         watchedStart,
                                                                                                     timezone:
                                                                                                         watchedTimezone,
+                                                                                                    locale,
                                                                                                 }
                                                                                             )}
                                                                                         </span>
@@ -309,7 +320,9 @@ export function EventFormRecurrenceField({
                                                 <>
                                                     <SidebarGroup className="border-b">
                                                         <SidebarGroupLabel className="h-auto px-1 py-px">
-                                                            반복 설정
+                                                            {tRecurrence(
+                                                                "settingsTitle"
+                                                            )}
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
@@ -320,7 +333,7 @@ export function EventFormRecurrenceField({
                                                                     )
                                                                 }}
                                                             >
-                                                                뒤로
+                                                                {tCommon("back")}
                                                             </Button>
                                                         </SidebarGroupLabel>
                                                         <SidebarGroupContent className="gap-0">
@@ -341,8 +354,9 @@ export function EventFormRecurrenceField({
                                                                         className="gap-1 px-1 py-1.5 text-[12px]"
                                                                     >
                                                                         <TrashIcon className="size-4!" />
-                                                                        반복
-                                                                        삭제
+                                                                        {tRecurrence(
+                                                                            "deleteAction"
+                                                                        )}
                                                                     </SidebarMenuButton>
                                                                     <SidebarMenuButton
                                                                         onClick={() => {
@@ -353,8 +367,9 @@ export function EventFormRecurrenceField({
                                                                         className="gap-1 px-1 py-1.5 text-[12px]"
                                                                     >
                                                                         <Settings2Icon className="size-4!" />
-                                                                        종료
-                                                                        설정
+                                                                        {tRecurrence(
+                                                                            "endSettings"
+                                                                        )}
                                                                         <span className="text-[12px] text-muted-foreground">
                                                                             {formatRecurrenceEndShortText(
                                                                                 {
@@ -362,6 +377,7 @@ export function EventFormRecurrenceField({
                                                                                         recurrenceValue,
                                                                                     timezone:
                                                                                         watchedTimezone,
+                                                                                    locale,
                                                                                 }
                                                                             )}
                                                                         </span>
@@ -407,13 +423,15 @@ export function EventFormRecurrenceField({
                                                                         />
                                                                         <InputGroupAddon align="inline-end">
                                                                             <InputGroupText className="leading-[normal]">
-                                                                                {
+                                                                                {tRecurrence(
                                                                                     recurrenceIntervalUnitLabelMap[
                                                                                         recurrenceValue
                                                                                             .type
                                                                                     ]
-                                                                                }
-                                                                                마다
+                                                                                )}
+                                                                                {tRecurrence(
+                                                                                    "everySuffix"
+                                                                                )}
                                                                             </InputGroupText>
                                                                         </InputGroupAddon>
                                                                     </InputGroup>
@@ -468,9 +486,7 @@ export function EventFormRecurrenceField({
                                                                                     )}
                                                                                     className="group"
                                                                                 >
-                                                                                    {
-                                                                                        weekday.shortLabel
-                                                                                    }
+                                                                                    {tWeekday(weekday.shortKey)}
                                                                                     {normalizeRecurrenceWeekdays(
                                                                                         recurrenceValue.byWeekday,
                                                                                         startWeekday
@@ -500,7 +516,9 @@ export function EventFormRecurrenceField({
                                             recurrenceValue && (
                                                 <SidebarGroup>
                                                     <SidebarGroupLabel className="h-auto px-1 py-px">
-                                                        종료 설정
+                                                        {tRecurrence(
+                                                            "endSettings"
+                                                        )}
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
@@ -511,7 +529,7 @@ export function EventFormRecurrenceField({
                                                                 )
                                                             }}
                                                         >
-                                                            뒤로
+                                                            {tCommon("back")}
                                                         </Button>
                                                     </SidebarGroupLabel>
                                                     <SidebarGroupContent className="gap-0">
@@ -578,17 +596,19 @@ export function EventFormRecurrenceField({
                                                                     <SelectContent>
                                                                         <SelectGroup>
                                                                             <SelectItem value="never">
-                                                                                종료
-                                                                                안
-                                                                                함
+                                                                                {tRecurrence(
+                                                                                    "endNever"
+                                                                                )}
                                                                             </SelectItem>
                                                                             <SelectItem value="until">
-                                                                                날짜
-                                                                                지정
+                                                                                {tRecurrence(
+                                                                                    "endUntil"
+                                                                                )}
                                                                             </SelectItem>
                                                                             <SelectItem value="count">
-                                                                                횟수
-                                                                                지정
+                                                                                {tRecurrence(
+                                                                                    "endCount"
+                                                                                )}
                                                                             </SelectItem>
                                                                         </SelectGroup>
                                                                     </SelectContent>
@@ -620,15 +640,20 @@ export function EventFormRecurrenceField({
                                                                                         }
                                                                                     >
                                                                                         {selectedUntilDate
-                                                                                            ? dayjs
-                                                                                                  .tz(
-                                                                                                      selectedUntilDate,
-                                                                                                      watchedTimezone
-                                                                                                  )
-                                                                                                  .format(
-                                                                                                      "YYYY.MM.DD"
-                                                                                                  )
-                                                                                            : "반복 종료일 선택"}
+                                                                                            ? formatIntlDate(
+                                                                                                  selectedUntilDate,
+                                                                                                  {
+                                                                                                      locale,
+                                                                                                      timeZone:
+                                                                                                          watchedTimezone,
+                                                                                                      year: "numeric",
+                                                                                                      month: "2-digit",
+                                                                                                      day: "2-digit",
+                                                                                                  }
+                                                                                              )
+                                                                                            : tRecurrence(
+                                                                                                  "pickEndDate"
+                                                                                              )}
                                                                                     </Button>
                                                                                 </PopoverTrigger>
                                                                                 <PopoverContent
@@ -639,6 +664,9 @@ export function EventFormRecurrenceField({
                                                                                     }
                                                                                 >
                                                                                     <CalendarPicker
+                                                                                        locale={getDayPickerLocale(
+                                                                                            locale
+                                                                                        )}
                                                                                         mode="single"
                                                                                         selected={
                                                                                             selectedUntilDate
@@ -668,7 +696,9 @@ export function EventFormRecurrenceField({
                                                                                                 )
                                                                                             ) {
                                                                                                 toast.error(
-                                                                                                    "종료일이 시작일보다 빠를 수 없습니다"
+                                                                                                    tForm(
+                                                                                                        "endDateBeforeStart"
+                                                                                                    )
                                                                                                 )
                                                                                                 return
                                                                                             }
@@ -702,7 +732,9 @@ export function EventFormRecurrenceField({
                                                                             "count" && (
                                                                             <>
                                                                                 <InputGroupInput
-                                                                                    placeholder="반복 종료"
+                                                                                    placeholder={tRecurrence(
+                                                                                        "endDatePlaceholder"
+                                                                                    )}
                                                                                     type="number"
                                                                                     min={
                                                                                         1
@@ -737,7 +769,9 @@ export function EventFormRecurrenceField({
                                                                                 />
                                                                                 <InputGroupAddon align="inline-end">
                                                                                     <InputGroupText className="leading-[normal]">
-                                                                                        회
+                                                                                        {tRecurrence(
+                                                                                            "countSuffix"
+                                                                                        )}
                                                                                     </InputGroupText>
                                                                                 </InputGroupAddon>
                                                                             </>

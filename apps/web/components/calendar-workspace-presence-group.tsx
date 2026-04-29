@@ -6,17 +6,19 @@ import {
     getAvatarGroupBadge,
     getAvatarGroupFallbackLabel,
 } from "@/components/calendar/avatar-group-dropdown"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import dayjs from "@/lib/dayjs"
+import { type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { useLocale } from "next-intl"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
-const KOREAN_LOCALE = "ko"
-
 function getPresenceCursorLabel(
     cursor:
         | {
@@ -28,10 +30,13 @@ function getPresenceCursorLabel(
         | undefined,
     getEventTitle?: (eventId?: string) => string | null,
     selectedDate?: number,
-    calendarTimezone?: string
+    calendarTimezone?: string,
+    locale: Locale = "ko",
+    t?: (key: string, values?: Record<string, string | number>) => string,
+    dateFormats?: { sameYear: string; diffYear: string }
 ) {
     if (!cursor) {
-        return "캘린더 보는 중"
+        return t?.("viewingCalendar") ?? "viewingCalendar"
     }
 
     const cursorDate = calendarTimezone
@@ -44,23 +49,53 @@ function getPresenceCursorLabel(
         : calendarTimezone
           ? dayjs().tz(calendarTimezone)
           : dayjs()
-    const format =
-        myDate.year() === cursorDate.year() ? "M월 D일" : "YY년 M월 D일"
+    const fallbackDateLabel = formatIntlDate(cursorDate.toDate(), {
+        locale,
+        year: myDate.year() === cursorDate.year() ? undefined : "2-digit",
+        month: "numeric",
+        day: "numeric",
+    })
 
     if (cursor.type === "event") {
         const eventTitle = getEventTitle?.(cursor.eventId)
 
         if (eventTitle) {
-            return `${eventTitle} 확인 중`
+            return t?.("viewingEvent", { title: eventTitle }) ?? eventTitle
         }
 
-        return `${cursorDate.format(format)} 일정 확인 중`
+        return (
+            t?.("viewingEventDate", {
+                date:
+                    dateFormats
+                        ? cursorDate.format(
+                              myDate.year() === cursorDate.year()
+                                  ? dateFormats.sameYear
+                                  : dateFormats.diffYear
+                          )
+                        : fallbackDateLabel,
+            }) ?? fallbackDateLabel
+        )
     }
 
-    return `${cursorDate.format(format)} 날짜 보는 중`
+    return (
+        t?.("viewingDate", {
+            date:
+                dateFormats
+                    ? cursorDate.format(
+                          myDate.year() === cursorDate.year()
+                              ? dateFormats.sameYear
+                              : dateFormats.diffYear
+                      )
+                    : fallbackDateLabel,
+        }) ?? fallbackDateLabel
+    )
 }
 
 export function CalendarWorkspacePresenceGroup() {
+    const t = useDebugTranslations("calendar.presence")
+    const tCommon = useDebugTranslations("common.labels")
+    const tCalendar = useDebugTranslations("calendar")
+    const locale = useLocale() as Locale
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -97,19 +132,19 @@ export function CalendarWorkspacePresenceGroup() {
                     return a.cursor?.type === "event" ? -1 : 1
                 }
 
-                return a.displayName.localeCompare(b.displayName, KOREAN_LOCALE)
+                return a.displayName.localeCompare(b.displayName, locale)
             }),
-        [members, myUserId, myId]
+        [locale, members, myUserId, myId]
     )
     const eventTitleMap = useMemo(
         () =>
             new Map(
                 events.map((event) => [
                     event.id,
-                    event.title.trim() || "새 일정",
+                    event.title.trim() || tCommon("newEvent"),
                 ])
             ),
-        [events]
+        [events, tCommon]
     )
     const getEventTitle = useMemo(
         () => (eventId?: string) =>
@@ -128,12 +163,18 @@ export function CalendarWorkspacePresenceGroup() {
                 user.displayName,
                 user.isAnonymous
             ),
-            badge: isMe ? getAvatarGroupBadge("나") : undefined,
+            badge: isMe ? getAvatarGroupBadge(tCommon("me")) : undefined,
             time: getPresenceCursorLabel(
                 user.cursor,
                 getEventTitle,
                 selectedDate,
-                calendarTimezone
+                calendarTimezone,
+                locale,
+                t,
+                {
+                    sameYear: tCalendar("dateFormatMonthDay"),
+                    diffYear: tCalendar("dateFormatYearMonthDay"),
+                }
             ),
             onSelect: isMe
                 ? undefined
@@ -163,14 +204,14 @@ export function CalendarWorkspacePresenceGroup() {
             items={items}
             align="end"
             contentClassName="min-w-47"
-            label={sortedMembers.length > 0 ? "온라인 멤버" : undefined}
+            label={sortedMembers.length > 0 ? t("onlineMembers") : undefined}
             trigger={
                 <div className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
                     {isLoading && members.length === 0 ? (
                         <div className="flex size-8 items-center justify-center text-muted-foreground">
                             <Spinner
                                 className="size-5"
-                                aria-label="온라인 멤버 불러오는 중"
+                                aria-label={t("loadingOnlineMembers")}
                             />
                         </div>
                     ) : (

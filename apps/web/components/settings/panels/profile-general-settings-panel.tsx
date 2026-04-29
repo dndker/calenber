@@ -1,6 +1,6 @@
 "use client"
 
-import { CountrySelect } from "@/components/calendar/country-select"
+import { LanguageSelect } from "@/components/language-select"
 import { TimezoneSelect } from "@/components/calendar/timezone-select"
 import ThemeSelect from "@/components/theme-select"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -15,9 +15,11 @@ import {
     FieldSeparator,
     FieldSet,
 } from "@workspace/ui/components/field"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCallback, useState } from "react"
 
 export function ProfileGeneralSettingsPanel() {
+    const t = useDebugTranslations("settings.profileGeneral")
     const user = useAuthStore((s) => s.user)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const setCalendarTimezone = useCalendarStore((s) => s.setCalendarTimezone)
@@ -39,7 +41,7 @@ export function ProfileGeneralSettingsPanel() {
             <FieldGroup>
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
-                        테마
+                        {t("themeSection")}
                     </FieldLegend>
                     <FieldGroup>
                         <Field
@@ -47,9 +49,9 @@ export function ProfileGeneralSettingsPanel() {
                             className="items-center!"
                         >
                             <FieldContent>
-                                <FieldLabel>테마</FieldLabel>
+                                <FieldLabel>{t("themeLabel")}</FieldLabel>
                                 <FieldDescription>
-                                    이 기기에서 사용할 테마를 선택하세요.
+                                    {t("themeDescription")}
                                 </FieldDescription>
                             </FieldContent>
                             <ThemeSelect />
@@ -59,7 +61,7 @@ export function ProfileGeneralSettingsPanel() {
                 <FieldSeparator />
                 <FieldSet>
                     <FieldLegend className="mb-4 font-semibold">
-                        언어 및 시간
+                        {t("languageTimeSection")}
                     </FieldLegend>
                     <FieldGroup>
                         <Field
@@ -67,20 +69,22 @@ export function ProfileGeneralSettingsPanel() {
                             className="items-center!"
                         >
                             <FieldContent>
-                                <FieldLabel>언어</FieldLabel>
+                                <FieldLabel>{t("languageLabel")}</FieldLabel>
                                 <FieldDescription>
-                                    Calenber에서 사용할 언어를 선택합니다.
+                                    {t("languageDescription")}
                                 </FieldDescription>
                             </FieldContent>
-                            <CountrySelect portalContainer={portalContainer} />
+                            <LanguageSelect />
                         </Field>
                         <Field
                             orientation="horizontal"
                             className="items-center!"
                         >
                             <FieldContent>
-                                <FieldLabel>시간대</FieldLabel>
-                                <FieldDescription>시간대 선택</FieldDescription>
+                                <FieldLabel>{t("timezoneLabel")}</FieldLabel>
+                                <FieldDescription>
+                                    {t("timezoneDescription")}
+                                </FieldDescription>
                             </FieldContent>
                             <TimezoneSelect
                                 portalContainer={portalContainer}

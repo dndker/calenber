@@ -1,4 +1,5 @@
 import type { CalendarRole } from "@/lib/calendar/permissions"
+import { isCalendarEventUuid } from "@/lib/calendar/event-id"
 import { createBrowserSupabase } from "@/lib/supabase/client"
 import type { PostgrestError } from "@supabase/supabase-js"
 
@@ -91,6 +92,10 @@ export async function loadCalendarEventHistory(
         limit?: number
     }
 ) {
+    if (!isCalendarEventUuid(eventId)) {
+        return []
+    }
+
     const limit = options?.limit ?? 50
     const freshCache = !options?.force ? getFreshCache(eventId) : null
 

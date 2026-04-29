@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { getCalendarBasePath } from "@/lib/calendar/routes"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -15,6 +16,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 export const CalendarBreadcrumb = () => {
+    const tCommon = useDebugTranslations("common.labels")
+    const tCalendar = useDebugTranslations("calendar")
     const viewport = useCalendarStore((s) => s.viewport)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
@@ -45,7 +48,7 @@ export const CalendarBreadcrumb = () => {
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
                             <BreadcrumbPage>
-                                {event.title === "" ? "새 일정" : event.title}
+                                {event.title === "" ? tCommon("newEvent") : event.title}
                             </BreadcrumbPage>
                         </BreadcrumbItem>
                     </>
@@ -54,7 +57,7 @@ export const CalendarBreadcrumb = () => {
                         <BreadcrumbPage className="text-base font-medium">
                             {dayjs
                                 .tz(viewport, calendarTimezone)
-                                .format("YYYY년 M월")}
+                                .format(tCalendar("dateFormatYearMonth"))}
                         </BreadcrumbPage>
                     </BreadcrumbItem>
                 )}

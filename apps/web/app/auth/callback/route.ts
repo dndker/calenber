@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr"
+import { getTranslations } from "next-intl/server"
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
@@ -46,6 +47,8 @@ function buildPopupResponse({
 }
 
 export async function GET(req: Request) {
+    const t = await getTranslations("auth.toast")
+    const tError = await getTranslations("auth.errors")
     const requestUrl = new URL(req.url)
     const code = requestUrl.searchParams.get("code")
     const next = requestUrl.searchParams.get("next") ?? "/"
@@ -70,7 +73,7 @@ export async function GET(req: Request) {
             origin: requestUrl.origin,
             next,
             ok: false,
-            error: oauthError ?? "인증 코드가 없습니다.",
+            error: oauthError ?? t("callbackMissingCode"),
         })
     }
 
@@ -107,10 +110,7 @@ export async function GET(req: Request) {
             origin: requestUrl.origin,
             next,
             ok: false,
-            error: getSupabaseAuthErrorMessage(
-                error,
-                "로그인 처리 중 오류가 발생했습니다."
-            ),
+            error: getSupabaseAuthErrorMessage(error, tError, "callbackFailed"),
         })
     }
 

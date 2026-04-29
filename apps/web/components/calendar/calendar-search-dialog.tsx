@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import type { CalendarMemberDirectoryItem } from "@/lib/calendar/queries"
@@ -110,14 +111,16 @@ function HighlightText({
 }
 
 function ResultMeta({ result }: { result: CalendarSearchResult }) {
-    const parts = [formatSearchDateRange(result.start, result.end)]
+    const t = useDebugTranslations("calendar.searchDialog")
+    const tCalendar = useDebugTranslations("calendar")
+    const parts = [formatSearchDateRange(result.start, result.end, tCalendar("dateFormatMonthDay"))]
 
     if (result.author?.name) {
         parts.push(result.author.name)
     }
 
     if (result.matchedFields.includes("content")) {
-        parts.push("본문 일치")
+        parts.push(t("contentMatch"))
     }
 
     return (
@@ -178,6 +181,10 @@ function buildMemberCandidates({
 }
 
 export function CalendarSearchDialog() {
+    const t = useDebugTranslations("calendar.searchDialog")
+    const tCommonLabels = useDebugTranslations("common.labels")
+    const tEventStatus = useDebugTranslations("event.status")
+    const tCalendar = useDebugTranslations("calendar")
     const pathname = usePathname()
     const user = useAuthStore((state) => state.user)
     const activeCalendar = useCalendarStore((state) => state.activeCalendar)
@@ -208,8 +215,18 @@ export function CalendarSearchDialog() {
     const canSearch =
         isDemoCalendar || activeCalendarMembership.isMember === true
     const availableFilters = useMemo(
-        () => getCalendarSearchAvailableFilters(events),
-        [events]
+        () =>
+            getCalendarSearchAvailableFilters(
+                events,
+                tCommonLabels("unknownUser"),
+                {
+                    scheduled: tEventStatus("scheduled"),
+                    in_progress: tEventStatus("inProgress"),
+                    completed: tEventStatus("done"),
+                    cancelled: tEventStatus("cancelled"),
+                }
+            ),
+        [events, tCommonLabels, tEventStatus]
     )
     const authoredMembers = useMemo<CalendarMemberDirectoryItem[]>(() => {
         const authorMap = new Map<string, CalendarMemberDirectoryItem>()
@@ -246,12 +263,12 @@ export function CalendarSearchDialog() {
         ? memberDirectory
         : fallbackMembers
     const eventDocuments = useMemo(
-        () => buildCalendarEventSearchDocuments(events),
-        [events]
+        () => buildCalendarEventSearchDocuments(events, tCommonLabels("newEvent")),
+        [events, tCommonLabels]
     )
     const memberDocuments = useMemo(
-        () => buildCalendarMemberSearchDocuments(memberSource),
-        [memberSource]
+        () => buildCalendarMemberSearchDocuments(memberSource, tCommonLabels("noName")),
+        [memberSource, tCommonLabels]
     )
     const eventResults = useMemo<CalendarSearchResult[]>(() => {
         if (!open || !canSearch) {
@@ -389,7 +406,7 @@ export function CalendarSearchDialog() {
                 )
 
                 if (!response.ok) {
-                    throw new Error("멤버 디렉터리를 불러오지 못했습니다.")
+                    throw new Error(t("memberDirectoryLoadFailed"))
                 }
 
                 const payload =
@@ -417,7 +434,7 @@ export function CalendarSearchDialog() {
                     !isCancelled &&
                     !(error instanceof DOMException && error.name === "AbortError")
                 ) {
-                    setErrorMessage("멤버 목록 동기화에 실패했습니다.")
+                    setErrorMessage(t("memberDirectorySyncFailed"))
                 }
             } finally {
                 if (!isCancelled) {
@@ -466,13 +483,13 @@ export function CalendarSearchDialog() {
     }
 
     const eventGroupHeading = trimmedQuery
-        ? `일정 (${eventResults.length}개)`
-        : `최근 작성 일정 (${eventResults.length}개)`
-    const memberGroupHeading = `멤버 (${memberResults.length}명)`
+        ? t("eventGroup", { count: eventResults.length })
+        : t("recentEventGroup", { count: eventResults.length })
+    const memberGroupHeading = t("memberGroup", { count: memberResults.length })
     const hasEventResults = eventResults.length > 0
     const hasMemberResults = memberResults.length > 0
     const showEmpty = !hasEventResults && !hasMemberResults
-    const emptyMessage = errorMessage ?? "검색 결과가 없습니다."
+    const emptyMessage = errorMessage ?? t("empty")
 
     return (
         <>
@@ -485,7 +502,7 @@ export function CalendarSearchDialog() {
             >
                 <div className="flex items-center gap-2">
                     <SearchIcon className="size-4" />
-                    <span>검색</span>
+                    <span>{t("buttonLabel")}</span>
                 </div>
 
                 <KbdGroup>
@@ -499,7 +516,7 @@ export function CalendarSearchDialog() {
                     <CommandInput
                         value={query}
                         onValueChange={setQuery}
-                        placeholder="일정 제목과 본문, 멤버를 검색하세요"
+                        placeholder={t("placeholder")}
                     />
                     <CommandList className="max-h-90">
                         {showEmpty ? (
@@ -526,7 +543,7 @@ export function CalendarSearchDialog() {
                                                 className="block truncate text-sm font-medium text-foreground"
                                             />
                                             <HighlightText
-                                                text={result.excerpt || "내용 없음"}
+                                                text={result.excerpt || t("noContent")}
                                                 query={trimmedQuery}
                                                 className="mt-1 line-clamp-2 block text-sm text-muted-foreground"
                                             />
@@ -568,8 +585,7 @@ export function CalendarSearchDialog() {
                                             />
                                             <HighlightText
                                                 text={
-                                                    member.email ??
-                                                    "선택 시 작성자 필터 적용"
+                                                    member.email ?? t("applyAuthorFilter")
                                                 }
                                                 query={trimmedQuery}
                                                 className="block truncate text-xs text-muted-foreground"
@@ -583,7 +599,7 @@ export function CalendarSearchDialog() {
                         {!showEmpty &&
                         !trimmedQuery &&
                         availableFilters.authors.length ? (
-                            <CommandGroup heading="확장 예정 필터">
+                            <CommandGroup heading={t("upcomingFilters")}>
                                 {availableFilters.authors
                                     .slice(0, 3)
                                     .map((author) => (
@@ -598,7 +614,7 @@ export function CalendarSearchDialog() {
                                                     {author.name}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    작성자 필터로 확장 가능
+                                                    {t("expandableAuthorFilter")}
                                                 </div>
                                             </div>
                                         </CommandItem>

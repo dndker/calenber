@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import type { CalendarEventFieldId } from "@/store/calendar-store.types"
 import { useSortable } from "@dnd-kit/sortable"
 import { Button } from "@workspace/ui/components/button"
@@ -220,6 +221,7 @@ export function EventFormPropertyRow({
         id: fieldId,
         disabled,
     })
+    const tEventForm = useDebugTranslations("event.form")
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [activePanelKey, setActivePanelKey] = useState<string | null>(null)
     const defaultMenuItems = useMemo<EventFormPropertyMenuItem[]>(
@@ -227,7 +229,7 @@ export function EventFormPropertyRow({
             {
                 type: "submenu",
                 key: "visibility",
-                label: "속성 표시 여부",
+                label: tEventForm("propertyVisibilityLabel"),
                 icon: EyeOffIcon,
                 items: [
                     {
@@ -242,11 +244,11 @@ export function EventFormPropertyRow({
                         items: [
                             {
                                 value: "visible",
-                                label: "항상 표시",
+                                label: tEventForm("propertyAlwaysVisible"),
                             },
                             {
                                 value: "hidden",
-                                label: "항상 숨김",
+                                label: tEventForm("propertyAlwaysHidden"),
                             },
                         ],
                     },
@@ -254,7 +256,7 @@ export function EventFormPropertyRow({
             },
             ...commonMenuItems,
         ],
-        [commonMenuItems, onVisibilityChange, visibility]
+        [commonMenuItems, onVisibilityChange, tEventForm, visibility]
     )
     const menuItems = useMemo<EventFormPropertyMenuItem[]>(
         () =>
@@ -314,7 +316,7 @@ export function EventFormPropertyRow({
                             size="icon-sm"
                             className="hidden h-7 w-4 cursor-grab text-muted-foreground group-hover/property-row:flex active:cursor-grabbing"
                             disabled={disabled}
-                            aria-label={`${label} 속성 순서 변경`}
+                            aria-label={tEventForm("propertyOrderAria", { label })}
                             {...attributes}
                             {...listeners}
                         >

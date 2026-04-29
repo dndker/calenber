@@ -1,12 +1,12 @@
 "use client"
 
 import {
-    calendarCategoryColorLabels,
-    calendarCategoryColors,
-    getCalendarCategoryPaletteClassName,
-    type CalendarCategoryColor,
-} from "@/lib/calendar/category-color"
-import type { CalendarEventCategory } from "@/store/calendar-store.types"
+    calendarCollectionColorLabels,
+    calendarCollectionColors,
+    getCalendarCollectionPaletteClassName,
+    type CalendarCollectionColor,
+} from "@/lib/calendar/collection-color"
+import type { CalendarEventCollection } from "@/store/calendar-store.types"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -34,50 +34,52 @@ import {
 } from "@workspace/ui/components/table"
 import { cn } from "@workspace/ui/lib/utils"
 import { Loader2Icon, MoreHorizontalIcon, PlusIcon } from "lucide-react"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-export type CalendarCategoryTableRow = CalendarEventCategory & {
+export type CalendarCollectionTableRow = CalendarEventCollection & {
     usageCount: number
 }
 
-function CategoryNameInput({
-    category,
+function CollectionNameInput({
+    collection,
     disabled,
     isSaving,
     onRename,
 }: {
-    category: CalendarEventCategory
+    collection: CalendarEventCollection
     disabled: boolean
     isSaving: boolean
-    onRename: (categoryId: string, nextName: string) => Promise<boolean>
+    onRename: (collectionId: string, nextName: string) => Promise<boolean>
 }) {
-    const [draft, setDraft] = useState(category.name)
+    const t = useDebugTranslations("settings.collectionTable")
+    const [draft, setDraft] = useState(collection.name)
     const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
     const flushRename = useCallback(
         async (value: string) => {
             const trimmedValue = value.trim()
-            const trimmedName = category.name.trim()
+            const trimmedName = collection.name.trim()
 
             if (!trimmedValue) {
-                setDraft(category.name)
+                setDraft(collection.name)
                 return
             }
 
             if (trimmedValue === trimmedName) {
-                if (value !== category.name) {
-                    setDraft(category.name)
+                if (value !== collection.name) {
+                    setDraft(collection.name)
                 }
                 return
             }
 
-            const ok = await onRename(category.id, trimmedValue)
+            const ok = await onRename(collection.id, trimmedValue)
 
             if (!ok) {
-                setDraft(category.name)
+                setDraft(collection.name)
             }
         },
-        [category.id, category.name, onRename]
+        [collection.id, collection.name, onRename]
     )
 
     useEffect(() => {
@@ -86,7 +88,7 @@ function CategoryNameInput({
         }
 
         const trimmedDraft = draft.trim()
-        const trimmedName = category.name.trim()
+        const trimmedName = collection.name.trim()
 
         if (!trimmedDraft || trimmedDraft === trimmedName) {
             return
@@ -102,7 +104,7 @@ function CategoryNameInput({
                 debounceRef.current = null
             }
         }
-    }, [category.name, disabled, draft, flushRename, isSaving])
+    }, [collection.name, disabled, draft, flushRename, isSaving])
 
     return (
         <div className="flex items-center gap-2">
@@ -132,11 +134,11 @@ function CategoryNameInput({
                             debounceRef.current = null
                         }
 
-                        setDraft(category.name)
+                        setDraft(collection.name)
                         event.currentTarget.blur()
                     }
                 }}
-                placeholder="카테고리 이름"
+                placeholder={t("namePlaceholder")}
             />
             {isSaving ? (
                 <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
@@ -145,79 +147,86 @@ function CategoryNameInput({
     )
 }
 
-export function CalendarCategoryTable({
+export function CalendarCollectionTable({
     rows,
-    newCategoryName,
+    newCollectionName,
     canManageEvents,
-    isCreatingCategory,
+    isCreatingCollection,
     isDisabled,
-    busyCategoryIds,
-    onNewCategoryNameChange,
-    onCreateCategory,
-    onRenameCategory,
-    onChangeCategoryColor,
-    onChangeCategoryDefaultVisibility,
-    onRemoveCategory,
+    busyCollectionIds,
+    onNewCollectionNameChange,
+    onCreateCollection,
+    onRenameCollection,
+    onChangeCollectionColor,
+    onChangeCollectionDefaultVisibility,
+    onRemoveCollection,
 }: {
-    rows: CalendarCategoryTableRow[]
-    newCategoryName: string
+    rows: CalendarCollectionTableRow[]
+    newCollectionName: string
     canManageEvents: boolean
-    isCreatingCategory: boolean
+    isCreatingCollection: boolean
     isDisabled: boolean
-    busyCategoryIds: string[]
-    onNewCategoryNameChange: (value: string) => void
-    onCreateCategory: () => void
-    onRenameCategory: (categoryId: string, nextName: string) => Promise<boolean>
-    onChangeCategoryColor: (
-        category: CalendarEventCategory,
-        color: CalendarCategoryColor
+    busyCollectionIds: string[]
+    onNewCollectionNameChange: (value: string) => void
+    onCreateCollection: () => void
+    onRenameCollection: (
+        collectionId: string,
+        nextName: string
+    ) => Promise<boolean>
+    onChangeCollectionColor: (
+        collection: CalendarEventCollection,
+        color: CalendarCollectionColor
     ) => void
-    onChangeCategoryDefaultVisibility: (
-        category: CalendarEventCategory,
+    onChangeCollectionDefaultVisibility: (
+        collection: CalendarEventCollection,
         visibleByDefault: boolean
     ) => void
-    onRemoveCategory: (category: CalendarEventCategory) => void
+    onRemoveCollection: (collection: CalendarEventCollection) => void
 }) {
+    const t = useDebugTranslations("settings.collectionTable")
+    const tData = useDebugTranslations("settings.calendarData")
     return (
         <div className="rounded-xl border">
             <div className="flex flex-col gap-3 border-b px-3 py-3 sm:flex-row sm:items-center">
                 <div className="flex-1">
                     <Input
-                        value={newCategoryName}
+                        value={newCollectionName}
                         disabled={
-                            !canManageEvents || isCreatingCategory || isDisabled
+                            !canManageEvents || isCreatingCollection || isDisabled
                         }
                         onChange={(event) => {
-                            onNewCategoryNameChange(event.target.value)
+                            onNewCollectionNameChange(event.target.value)
                         }}
                         onKeyDown={(event) => {
                             if (event.key === "Enter") {
                                 event.preventDefault()
-                                onCreateCategory()
+                                onCreateCollection()
                             }
                         }}
-                        placeholder="새 카테고리 추가"
+                        placeholder={t("newCollectionPlaceholder")}
                         className="h-9"
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <Badge variant="secondary">전체 {rows.length}개</Badge>
+                    <Badge variant="secondary">
+                        {t("totalCount", { count: rows.length })}
+                    </Badge>
                     <Button
                         type="button"
                         size="sm"
                         disabled={
                             !canManageEvents ||
-                            isCreatingCategory ||
-                            !newCategoryName.trim()
+                            isCreatingCollection ||
+                            !newCollectionName.trim()
                         }
-                        onClick={onCreateCategory}
+                        onClick={onCreateCollection}
                     >
-                        {isCreatingCategory ? (
+                        {isCreatingCollection ? (
                             <Loader2Icon className="animate-spin" />
                         ) : (
                             <PlusIcon />
                         )}
-                        추가
+                        {t("add")}
                     </Button>
                 </div>
             </div>
@@ -225,40 +234,46 @@ export function CalendarCategoryTable({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-full pl-3.5">이름</TableHead>
-                        <TableHead className="w-44">색상</TableHead>
-                        <TableHead className="w-34">초기 체크</TableHead>
-                        <TableHead className="w-28">연결 일정</TableHead>
+                        <TableHead className="w-full pl-3.5">
+                            {t("name")}
+                        </TableHead>
+                        <TableHead className="w-44">{t("color")}</TableHead>
+                        <TableHead className="w-34">
+                            {t("defaultChecked")}
+                        </TableHead>
+                        <TableHead className="w-28">
+                            {t("linkedEvents")}
+                        </TableHead>
                         <TableHead className="w-12 text-right" />
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {rows.length ? (
-                        rows.map((category) => {
-                            const isBusy = busyCategoryIds.includes(category.id)
+                        rows.map((row) => {
+                            const isBusy = busyCollectionIds.includes(row.id)
 
                             return (
-                                <TableRow key={category.id}>
+                                <TableRow key={row.id}>
                                     <TableCell className="pl-3.5">
                                         <div className="space-y-1">
-                                            <CategoryNameInput
-                                                key={`${category.id}-${category.updatedAt}`}
-                                                category={category}
+                                            <CollectionNameInput
+                                                key={`${row.id}-${row.updatedAt}`}
+                                                collection={row}
                                                 disabled={
                                                     !canManageEvents || isBusy
                                                 }
                                                 isSaving={isBusy}
-                                                onRename={onRenameCategory}
+                                                onRename={onRenameCollection}
                                             />
                                         </div>
                                     </TableCell>
                                     <TableCell>
                                         <Select
-                                            value={category.options.color}
+                                            value={row.options.color}
                                             onValueChange={(value) => {
-                                                onChangeCategoryColor(
-                                                    category,
-                                                    value as CalendarCategoryColor
+                                                onChangeCollectionColor(
+                                                    row,
+                                                    value as CalendarCollectionColor
                                                 )
                                             }}
                                             disabled={
@@ -269,7 +284,7 @@ export function CalendarCategoryTable({
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {calendarCategoryColors.map(
+                                                {calendarCollectionColors.map(
                                                     (color) => (
                                                         <SelectItem
                                                             key={color}
@@ -279,14 +294,14 @@ export function CalendarCategoryTable({
                                                                 <span
                                                                     className={cn(
                                                                         "inline-flex size-4.5 items-center gap-1.5 rounded-sm",
-                                                                        getCalendarCategoryPaletteClassName(
+                                                                        getCalendarCollectionPaletteClassName(
                                                                             color
                                                                         )
                                                                     )}
                                                                 ></span>
                                                                 <span>
                                                                     {
-                                                                        calendarCategoryColorLabels[
+                                                                        calendarCollectionColorLabels[
                                                                             color
                                                                         ]
                                                                     }
@@ -301,14 +316,14 @@ export function CalendarCategoryTable({
                                     <TableCell>
                                         <Select
                                             value={
-                                                category.options
+                                                row.options
                                                     .visibleByDefault
                                                     ? "visible"
                                                     : "hidden"
                                             }
                                             onValueChange={(value) => {
-                                                onChangeCategoryDefaultVisibility(
-                                                    category,
+                                                onChangeCollectionDefaultVisibility(
+                                                    row,
                                                     value === "visible"
                                                 )
                                             }}
@@ -322,10 +337,10 @@ export function CalendarCategoryTable({
                                             <SelectContent>
                                                 <SelectGroup>
                                                     <SelectItem value="visible">
-                                                        기본 표시
+                                                        {tData("collectionVisibleDefault")}
                                                     </SelectItem>
                                                     <SelectItem value="hidden">
-                                                        기본 숨김
+                                                        {tData("collectionHiddenDefault")}
                                                     </SelectItem>
                                                 </SelectGroup>
                                             </SelectContent>
@@ -336,7 +351,7 @@ export function CalendarCategoryTable({
                                             variant="outline"
                                             className="font-normal"
                                         >
-                                            {category.usageCount}개 일정
+                                            {tData("collectionLinkedEventsCount", { count: row.usageCount })}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -361,12 +376,12 @@ export function CalendarCategoryTable({
                                                 <DropdownMenuItem
                                                     variant="destructive"
                                                     onSelect={() => {
-                                                        onRemoveCategory(
-                                                            category
+                                                        onRemoveCollection(
+                                                            row
                                                         )
                                                     }}
                                                 >
-                                                    카테고리 삭제
+                                                    {tData("collectionDeleteAction")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
@@ -380,7 +395,7 @@ export function CalendarCategoryTable({
                                 colSpan={5}
                                 className="h-24 text-center text-muted-foreground"
                             >
-                                등록된 카테고리가 없습니다.
+                                {tData("collectionEmpty")}
                             </TableCell>
                         </TableRow>
                     )}

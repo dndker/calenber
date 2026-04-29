@@ -2,6 +2,7 @@
 
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -13,6 +14,8 @@ type SignOutResult = {
 export function useSignOut() {
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState<SignOutResult | null>(null)
+    const t = useDebugTranslations("auth.toast")
+    const tError = useDebugTranslations("auth.errors")
 
     const signOut = async () => {
         setLoading(true)
@@ -26,10 +29,7 @@ export function useSignOut() {
                 console.error(error)
                 const nextResult = {
                     ok: false,
-                    error: getSupabaseAuthErrorMessage(
-                        error,
-                        "로그아웃 중 오류가 발생했습니다."
-                    ),
+                    error: getSupabaseAuthErrorMessage(error, tError, "signOutFailed"),
                 }
 
                 setResult(nextResult)
@@ -37,7 +37,7 @@ export function useSignOut() {
                 return nextResult
             }
 
-            toast.success("로그아웃되었습니다.")
+            toast.success(t("signedOut"))
             const nextResult = { ok: true, error: null }
             setResult(nextResult)
             return nextResult
@@ -45,7 +45,7 @@ export function useSignOut() {
             console.error(error)
             const nextResult = {
                 ok: false,
-                error: "로그아웃 중 오류가 발생했습니다.",
+                error: t("signOutUnexpected"),
             }
 
             setResult(nextResult)

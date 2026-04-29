@@ -1,14 +1,29 @@
 import {
     getCalendarBasePath,
-    getCalendarEventModalPath,
+    resolveCalendarIdFromPathParam,
 } from "./routes"
+import {
+    createShortCalendarEventToken,
+    parseShortCalendarEventToken,
+} from "./short-link"
 
 export function getCalendarModalEventId(
     searchParams: Pick<URLSearchParams, "get">
 ) {
-    const eventId = searchParams.get("e")?.trim()
+    const encodedEventId = searchParams.get("e")?.trim()
 
-    return eventId ? eventId : undefined
+    if (!encodedEventId) {
+        return undefined
+    }
+
+    const parsed = parseShortCalendarEventToken(encodedEventId)
+
+    if (parsed?.eventId) {
+        return parsed.eventId
+    }
+
+    // 하위 호환: 기존처럼 raw eventId를 바로 담은 URL도 열리도록 유지
+    return encodedEventId
 }
 
 export function getCalendarModalOccurrenceStart(
@@ -43,8 +58,15 @@ export function getCalendarModalOpenPath({
     occurrenceStart?: number
 }) {
     const calendarBasePath = getCalendarBasePath(pathname)
-    const calendarId = calendarBasePath.split("/")[2] ?? "demo"
-    const basePath = getCalendarEventModalPath(calendarId, eventId)
+    const calendarId = resolveCalendarIdFromPathParam(
+        calendarBasePath.split("/")[2] ?? "demo"
+    )
+    const token = createShortCalendarEventToken({
+        calendarId,
+        eventId,
+        modal: true,
+    })
+    const basePath = `${calendarBasePath}?e=${encodeURIComponent(token)}`
 
     if (occurrenceStart === undefined) {
         return basePath

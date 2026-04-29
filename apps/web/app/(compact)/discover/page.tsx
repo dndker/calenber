@@ -10,9 +10,11 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardHeader } from "@workspace/ui/components/card"
+import { getTranslations } from "next-intl/server"
 import Link from "next/link"
 
 const DiscoverPage = async () => {
+    const t = await getTranslations("discover")
     const supabase = await createServerSupabase()
     const discoverCalendars = (await getAllCalendars(supabase)) || []
 
@@ -20,15 +22,15 @@ const DiscoverPage = async () => {
         <>
             <div className="flex items-center justify-between">
                 <div className="flex flex-1 flex-col gap-1.5">
-                    <h2 className="text-2xl font-bold">Discover</h2>
+                    <h2 className="text-2xl font-bold">{t("title")}</h2>
                     <p className="text-sm font-medium text-muted-foreground">
-                        캘린더 목록을 확인해보세요
+                        {t("description")}
                     </p>
                 </div>
                 <div>
                     <Button asChild>
                         <Link href="/create/calendar">
-                            <CalendarPlusIcon /> 캘린더 만들기
+                            <CalendarPlusIcon /> {t("createCalendar")}
                         </Link>
                     </Button>
                 </div>
@@ -37,12 +39,12 @@ const DiscoverPage = async () => {
                 {discoverCalendars.length === 0 ? (
                     <EmptyBlock
                         icon={CalendarPlusIcon}
-                        title="아직 공개 캘린더가 없어요"
-                        description="가장 먼저 캘린더를 만들어 다른 사람들과 일정을 나눠보세요."
+                        title={t("emptyTitle")}
+                        description={t("emptyDescription")}
                         action={
                             <Button asChild>
                                 <Link href="/create/calendar">
-                                    <CalendarPlusIcon />첫 캘린더 만들기
+                                    <CalendarPlusIcon /> {t("emptyAction")}
                                 </Link>
                             </Button>
                         }
@@ -76,7 +78,7 @@ const DiscoverPage = async () => {
                                     <Button variant="outline" asChild>
                                         <Link href={`/calendar/${calendar.id}`}>
                                             <CompassIcon />
-                                            둘러보기
+                                            {t("browse")}
                                         </Link>
                                     </Button>
                                 </div>

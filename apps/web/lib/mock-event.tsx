@@ -1,30 +1,30 @@
 import dayjs from "@/lib/dayjs"
-import { randomCalendarCategoryColor } from "@/lib/calendar/category-color"
+import { randomCalendarCollectionColor } from "@/lib/calendar/collection-color"
 import {
     type CalendarEvent,
-    type CalendarEventCategory,
+    type CalendarEventCollection,
     defaultContent,
 } from "@/store/calendar-store.types"
 import { nanoid } from "nanoid"
 
-const demoCategoryDefinitions = [
-    { id: "demo-category-team", name: "팀 일정" },
-    { id: "demo-category-meeting", name: "회의" },
-    { id: "demo-category-focus", name: "집중 업무" },
-    { id: "demo-category-personal", name: "개인" },
-    { id: "demo-category-deadline", name: "마감" },
+const demoCollectionDefinitions = [
+    { id: "demo-collection-team", name: "Team" },
+    { id: "demo-collection-meeting", name: "Meeting" },
+    { id: "demo-collection-focus", name: "Focus" },
+    { id: "demo-collection-personal", name: "Personal" },
+    { id: "demo-collection-deadline", name: "Deadline" },
 ] as const
 
-export function getDemoEventCategories(): CalendarEventCategory[] {
+export function getDemoEventCollections(): CalendarEventCollection[] {
     const now = dayjs().valueOf()
 
-    return demoCategoryDefinitions.map((category, index) => ({
-        id: category.id,
+    return demoCollectionDefinitions.map((collection, index) => ({
+        id: collection.id,
         calendarId: "demo",
-        name: category.name,
+        name: collection.name,
         options: {
             visibleByDefault: true,
-            color: randomCalendarCategoryColor(),
+            color: randomCalendarCollectionColor(),
         },
         createdById: null,
         createdAt: now + index,
@@ -34,7 +34,7 @@ export function getDemoEventCategories(): CalendarEventCategory[] {
 
 export function generateMockEvents(
     timezone?: string,
-    categories: CalendarEventCategory[] = getDemoEventCategories()
+    collections: CalendarEventCollection[] = getDemoEventCollections()
 ): CalendarEvent[] {
     const resolvedTimezone = timezone ?? "Asia/Seoul"
 
@@ -64,12 +64,12 @@ export function generateMockEvents(
         const end = isAllDay
             ? start.add(durationDays - 1, "day").endOf("day")
             : start.add(Math.floor(Math.random() * 3) + 1, "hour") // 1~3시간
-        const category =
-            categories[Math.floor(Math.random() * categories.length)] ?? null
+        const collection =
+            collections[Math.floor(Math.random() * collections.length)] ?? null
 
         return {
             id: nanoid(),
-            title: `${durationDays}일 일정 ${i + 1}`,
+            title: `${durationDays}-day event ${i + 1}`,
             content: defaultContent,
 
             start: start.valueOf(),
@@ -78,10 +78,10 @@ export function generateMockEvents(
             allDay: isAllDay,
 
             timezone: resolvedTimezone,
-            categoryIds: category ? [category.id] : [],
-            categories: category ? [category] : [],
-            categoryId: category?.id ?? null,
-            category: category,
+            collectionIds: collection ? [collection.id] : [],
+            collections: collection ? [collection] : [],
+            primaryCollectionId: collection?.id ?? null,
+            primaryCollection: collection,
             participants: [],
             isFavorite: false,
             favoritedAt: null,

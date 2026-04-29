@@ -1,5 +1,6 @@
 "use client"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     type ColumnDef,
     type ColumnFiltersState,
@@ -54,9 +55,9 @@ function getColumnMeta<TData, TValue>(
 export function DataTable<TData, TValue>({
     columns,
     data,
-    emptyMessage = "결과가 없습니다.",
+    emptyMessage,
     filterColumnId,
-    filterPlaceholder = "검색",
+    filterPlaceholder,
     pageSize = 5,
     toolbarActions,
     toolbarContent,
@@ -64,6 +65,7 @@ export function DataTable<TData, TValue>({
     enableRowSelection = true,
     getRowId,
 }: DataTableProps<TData, TValue>) {
+    const t = useDebugTranslations("settings.dataTable")
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
     const [pagination, setPagination] = useState<PaginationState>({
@@ -108,7 +110,9 @@ export function DataTable<TData, TValue>({
                                     .getColumn(filterColumnId)
                                     ?.setFilterValue(event.target.value)
                             }
-                            placeholder={filterPlaceholder}
+                            placeholder={
+                                filterPlaceholder ?? t("filterPlaceholder")
+                            }
                             className="w-full max-w-sm"
                         />
                     ) : (
@@ -184,7 +188,7 @@ export function DataTable<TData, TValue>({
                                     colSpan={columns.length}
                                     className="h-24 text-center text-muted-foreground"
                                 >
-                                    {emptyMessage}
+                                    {emptyMessage ?? t("emptyMessage")}
                                 </TableCell>
                             </TableRow>
                         )}
@@ -194,8 +198,11 @@ export function DataTable<TData, TValue>({
 
             <div className="flex items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
-                    {table.getFilteredSelectedRowModel().rows.length}개 선택 /
-                    전체 {table.getFilteredRowModel().rows.length}개
+                    {t("selectedCount", {
+                        selected: table.getFilteredSelectedRowModel().rows
+                            .length,
+                        total: table.getFilteredRowModel().rows.length,
+                    })}
                 </div>
                 <div className="flex items-center gap-2">
                     <Button
@@ -204,7 +211,7 @@ export function DataTable<TData, TValue>({
                         onClick={() => table.previousPage()}
                         disabled={!table.getCanPreviousPage()}
                     >
-                        이전
+                        {t("previous")}
                     </Button>
                     <div className="text-sm text-muted-foreground">
                         {table.getState().pagination.pageIndex + 1} /{" "}
@@ -216,7 +223,7 @@ export function DataTable<TData, TValue>({
                         onClick={() => table.nextPage()}
                         disabled={!table.getCanNextPage()}
                     >
-                        다음
+                        {t("next")}
                     </Button>
                 </div>
             </div>

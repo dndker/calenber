@@ -4,8 +4,10 @@ import {
     getCalendarMemberColumns,
     type CalendarMemberRow,
 } from "@/components/settings/panels/calendar-members-table-columns"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { DataTable } from "@/components/settings/shared/data-table"
 import { canViewCalendarSettings } from "@/lib/calendar/permissions"
+import { type Locale } from "@/lib/i18n/config"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
@@ -37,6 +39,7 @@ import {
 } from "@workspace/ui/components/field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { UsersIcon } from "lucide-react"
+import { useLocale } from "next-intl"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -52,6 +55,32 @@ type CalendarMemberRecord = {
 }
 
 export function CalendarMembersSettingsPanel() {
+    const t = useDebugTranslations("settings.membersPanel")
+    const tTable = useDebugTranslations("settings.membersTable")
+    const tRoles = useDebugTranslations("common.roles")
+    const tCommon = useDebugTranslations("common.actions")
+    const tLabels = useDebugTranslations("common.labels")
+    const locale = useLocale() as Locale
+    const labels = useMemo(
+        () => ({
+            roles: {
+                viewer: tRoles("viewer"),
+                editor: tRoles("editor"),
+                manager: tRoles("manager"),
+                owner: tRoles("owner"),
+            } satisfies Record<CalendarMemberRow["role"], string>,
+            selectAllAria: tTable("selectAllAria"),
+            selectRowAria: tTable("selectRowAria"),
+            memberHeader: tTable("memberHeader"),
+            meBadge: tTable("meBadge"),
+            joinedAtHeader: tTable("joinedAtHeader"),
+            roleHeader: tTable("roleHeader"),
+            roleSelectPlaceholder: tTable("roleSelectPlaceholder"),
+            roleSelectLabel: tTable("roleSelectLabel"),
+            removeMember: tTable("removeMember"),
+        }),
+        [tRoles, tTable]
+    )
     const user = useAuthStore((s) => s.user)
     const activeCalendar = useCalendarStore((s) => s.activeCalendar)
     const activeCalendarMembership = useCalendarStore(
@@ -130,14 +159,14 @@ export function CalendarMembersSettingsPanel() {
                     throw error
                 }
 
-                toast.success("멤버 권한이 업데이트되었습니다.")
+                toast.success(t("roleUpdated"))
             } catch (error) {
                 console.error("Failed to update calendar member roles:", error)
                 setMembers(previousMembers)
-                toast.error("멤버 권한을 변경하지 못했습니다.")
+                toast.error(t("roleUpdateFailed"))
             }
         },
-        [activeCalendar]
+        [activeCalendar, t]
     )
 
     const handleRemoveMember = useCallback(async () => {
@@ -163,17 +192,17 @@ export function CalendarMembersSettingsPanel() {
                 throw error
             }
 
-            toast.success("멤버를 내보냈습니다.")
+            toast.success(t("memberRemoved"))
             setIsRemoveDialogOpen(false)
             setMemberToRemove(null)
         } catch (error) {
             console.error("Failed to remove calendar member:", error)
             setMembers(previousMembers)
-            toast.error("멤버를 내보내지 못했습니다.")
+            toast.error(t("memberRemoveFailed"))
         } finally {
             setIsRemovingMember(false)
         }
-    }, [activeCalendar, isRemovingMember, memberToRemove])
+    }, [activeCalendar, isRemovingMember, memberToRemove, t])
 
     const columns = useMemo(
         () =>
@@ -187,8 +216,16 @@ export function CalendarMembersSettingsPanel() {
                     setMemberToRemove(member)
                     setIsRemoveDialogOpen(true)
                 },
+                labels,
+                locale,
             }),
-        [canManageMembers, getAssignableRoles, updateMembersRole]
+        [
+            canManageMembers,
+            getAssignableRoles,
+            labels,
+            locale,
+            updateMembersRole,
+        ]
     )
 
     useEffect(() => {
@@ -241,7 +278,7 @@ export function CalendarMembersSettingsPanel() {
                             displayName:
                                 member.name?.trim() ||
                                 (isCurrentUser ? user?.name : null) ||
-                                "이름 없음",
+                                tLabels("noName"),
                             email:
                                 member.email ??
                                 (isCurrentUser ? user?.email : null),
@@ -296,7 +333,7 @@ export function CalendarMembersSettingsPanel() {
     if (!activeCalendar) {
         return (
             <div className="text-sm text-muted-foreground">
-                캘린더를 선택하면 멤버 목록을 확인할 수 있습니다.
+                {t("selectCalendar")}
             </div>
         )
     }
@@ -304,7 +341,7 @@ export function CalendarMembersSettingsPanel() {
     if (!canViewMembers) {
         return (
             <div className="text-sm text-muted-foreground">
-                이 캘린더의 멤버 정보는 멤버만 조회할 수 있습니다.
+                {t("membersOnlyView")}
             </div>
         )
     }
@@ -334,25 +371,24 @@ export function CalendarMembersSettingsPanel() {
                 <AlertDialogContent size="sm">
                     <AlertDialogHeader>
                         <AlertDialogTitle>
-                            멤버를 내보내시겠습니까?
+                            {t("removeDialogTitle")}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             {memberToRemove
                                 ? (
                                       <>
                                           &quot;{memberToRemove.displayName}
-                                          &quot;의
-                                          캘린더 접근 권한을 제거합니다.
+                                          &quot;
+                                          {t("removeDialogNamedSuffix")}
                                           <br />
-                                          이 작업은 이후 다시 초대해서 되돌릴 수
-                                          있습니다.
+                                          {t("removeDialogNamedDescription")}
                                       </>
                                   )
-                                : "선택한 멤버의 캘린더 접근 권한을 제거합니다."}
+                                : t("removeDialogDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
+                        <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             variant="destructive"
                             disabled={!memberToRemove || isRemovingMember}
@@ -360,7 +396,9 @@ export function CalendarMembersSettingsPanel() {
                                 void handleRemoveMember()
                             }}
                         >
-                            {isRemovingMember ? "처리 중..." : "멤버 내보내기"}
+                            {isRemovingMember
+                                ? t("processing")
+                                : tTable("removeMember")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -369,14 +407,13 @@ export function CalendarMembersSettingsPanel() {
                 <FieldGroup>
                     <Field orientation="horizontal" className="items-center!">
                         <FieldContent>
-                            <FieldLabel>링크로 멤버 추가</FieldLabel>
+                            <FieldLabel>{t("inviteByLinkLabel")}</FieldLabel>
                             <FieldDescription>
-                                이 캘린더에 멤버를 초대할 수 있는 권한이 있는
-                                사용자만 이 링크를 볼 수 있습니다.
+                                {t("inviteByLinkDescription")}
                             </FieldDescription>
                         </FieldContent>
                         <Button variant="secondary" disabled={!canManageMembers}>
-                            링크 복사
+                            {tCommon("copy")}
                         </Button>
                     </Field>
                 </FieldGroup>
@@ -385,10 +422,9 @@ export function CalendarMembersSettingsPanel() {
                 <FieldGroup>
                     <Field className="gap-4">
                         <FieldContent>
-                            <FieldLabel>멤버 목록</FieldLabel>
+                            <FieldLabel>{t("memberListLabel")}</FieldLabel>
                             <FieldDescription>
-                                현재 이 캘린더에 접근할 수 있는 멤버와 권한을
-                                확인합니다.
+                                {t("memberListDescription")}
                             </FieldDescription>
                         </FieldContent>
 
@@ -402,9 +438,9 @@ export function CalendarMembersSettingsPanel() {
                             <DataTable
                                 columns={columns}
                                 data={members}
-                                emptyMessage="참여 중인 멤버가 없습니다."
+                                emptyMessage={t("emptyMembers")}
                                 filterColumnId="member"
-                                filterPlaceholder="이름, 이메일 또는 ID로 검색"
+                                filterPlaceholder={t("filterPlaceholder")}
                                 enableRowSelection={(row) =>
                                     row.original.canEditRole
                                 }
@@ -438,7 +474,7 @@ export function CalendarMembersSettingsPanel() {
                                                     size="sm"
                                                 >
                                                     <UsersIcon />
-                                                    선택한 멤버 권한 변경
+                                                    {t("bulkRoleChange")}
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent
@@ -459,14 +495,7 @@ export function CalendarMembersSettingsPanel() {
                                                             table.resetRowSelection()
                                                         }}
                                                     >
-                                                        {role === "viewer"
-                                                            ? "보기 전용"
-                                                            : role === "editor"
-                                                              ? "편집자"
-                                                              : role ===
-                                                                  "manager"
-                                                                ? "관리자"
-                                                                : "소유자"}
+                                                        {labels.roles[role]}
                                                     </DropdownMenuItem>
                                                 ))}
                                             </DropdownMenuContent>

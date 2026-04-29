@@ -1,3 +1,4 @@
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import {
     Avatar,
@@ -24,6 +25,7 @@ export const DayCellMemberHoverCard = memo(function DayCellMemberHoverCard({
     alignOffset?: number
     children: React.ReactNode
 }) {
+    const t = useDebugTranslations("common.labels")
     const isCellMember = useMemo(
         () => cellMembers.length > 0,
         [cellMembers.length]
@@ -46,7 +48,7 @@ export const DayCellMemberHoverCard = memo(function DayCellMemberHoverCard({
                             <Avatar className="size-5">
                                 <AvatarImage
                                     src={member.avatarUrl ?? undefined}
-                                    alt={member.displayName ?? "작성자"}
+                                    alt={member.displayName ?? t("user")}
                                 />
                                 <AvatarFallback className="text-xs">
                                     {member.displayName?.[0]?.toUpperCase() ??

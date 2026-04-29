@@ -1,3 +1,4 @@
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { createReactInlineContentSpec } from "@blocknote/react"
 import {
     Avatar,
@@ -32,6 +33,7 @@ export const Mention = createReactInlineContentSpec(
     },
     {
         render: (props) => {
+            const t = useDebugTranslations("common.labels")
             const { user, email, avatarUrl } = props.inlineContent.props
             const initial = user?.trim()?.[0]?.toUpperCase() ?? "?"
 
@@ -62,7 +64,7 @@ export const Mention = createReactInlineContentSpec(
                                 {user}
                             </span>
                             <div className="truncate text-xs text-muted-foreground">
-                                {email || "이메일 정보 없음"}
+                                {email || t("noEmail")}
                             </div>
                         </div>
                     </HoverCardContent>

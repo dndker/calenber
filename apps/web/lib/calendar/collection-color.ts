@@ -1,22 +1,23 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-export const calendarCategoryColors = [
+export const calendarCollectionColors = [
     "blue",
     "green",
     "sky",
     "purple",
     "red",
+    "orange",
     "yellow",
     "gray",
     "olive",
     "pink",
-    "mauve",
+    "brown",
 ] as const
 
-export type CalendarCategoryColor = (typeof calendarCategoryColors)[number]
+export type CalendarCollectionColor = (typeof calendarCollectionColors)[number]
 
-export const calendarCategoryColorLabels: Record<
-    CalendarCategoryColor,
+export const calendarCollectionColorLabels: Record<
+    CalendarCollectionColor,
     string
 > = {
     blue: "Blue",
@@ -24,36 +25,37 @@ export const calendarCategoryColorLabels: Record<
     sky: "Sky",
     purple: "Purple",
     red: "Red",
+    orange: "Orange",
     yellow: "Yellow",
     gray: "Gray",
     olive: "Olive",
     pink: "Pink",
-    mauve: "Mauve",
+    brown: "Brown",
 }
 
-export function isCalendarCategoryColor(
+export function isCalendarCollectionColor(
     color: string | null | undefined
-): color is CalendarCategoryColor {
-    return calendarCategoryColors.includes(color as CalendarCategoryColor)
+): color is CalendarCollectionColor {
+    return calendarCollectionColors.includes(color as CalendarCollectionColor)
 }
 
-export function normalizeCalendarCategoryColor(
+export function normalizeCalendarCollectionColor(
     color: string | null | undefined
-): CalendarCategoryColor | undefined {
-    return isCalendarCategoryColor(color) ? color : undefined
+): CalendarCollectionColor | undefined {
+    return isCalendarCollectionColor(color) ? color : undefined
 }
 
-export function randomCalendarCategoryColor() {
-    return calendarCategoryColors[
-        Math.floor(Math.random() * calendarCategoryColors.length)
-    ] as CalendarCategoryColor
+export function randomCalendarCollectionColor() {
+    return calendarCollectionColors[
+        Math.floor(Math.random() * calendarCollectionColors.length)
+    ] as CalendarCollectionColor
 }
 
-export function getCalendarCategoryLabelClassName(
+export function getCalendarCollectionLabelClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-label-${normalizedColor}` : undefined,
@@ -61,11 +63,11 @@ export function getCalendarCategoryLabelClassName(
     )
 }
 
-export function getCalendarCategoryPaletteClassName(
+export function getCalendarCollectionPaletteClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-palette-${normalizedColor}` : undefined,
@@ -73,11 +75,11 @@ export function getCalendarCategoryPaletteClassName(
     )
 }
 
-export function getCalendarCategoryDotClassName(
+export function getCalendarCollectionDotClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-dot-${normalizedColor}` : undefined,
@@ -85,11 +87,11 @@ export function getCalendarCategoryDotClassName(
     )
 }
 
-export function getCalendarCategoryEventClassName(
+export function getCalendarCollectionEventClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-event-${normalizedColor}` : undefined,
@@ -97,11 +99,11 @@ export function getCalendarCategoryEventClassName(
     )
 }
 
-export function getCalendarCategoryEventHoverClassName(
+export function getCalendarCollectionEventHoverClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-event-hover-${normalizedColor}` : undefined,
@@ -109,11 +111,11 @@ export function getCalendarCategoryEventHoverClassName(
     )
 }
 
-export function getCalendarCategoryCheckboxClassName(
+export function getCalendarCollectionCheckboxClassName(
     color: string | null | undefined,
     className?: string
 ) {
-    const normalizedColor = normalizeCalendarCategoryColor(color)
+    const normalizedColor = normalizeCalendarCollectionColor(color)
 
     return cn(
         normalizedColor ? `cb-checkbox-${normalizedColor}` : undefined,

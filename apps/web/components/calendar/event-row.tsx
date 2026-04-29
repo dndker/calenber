@@ -1,7 +1,9 @@
 import type { CalendarEventLayout } from "@/lib/calendar/types"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
 import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
+import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -12,6 +14,7 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { memo, useCallback, useMemo, useState } from "react"
 import type { PositionedCalendarEvent } from "./event-positioning"
+import { CALENDAR_EVENT_ITEM_STRIDE_PX } from "./event-item-layout.constants"
 import { EventItem, getEventPosition } from "./event-item"
 
 type PositionedSegment = {
@@ -29,7 +32,7 @@ const EVENT_ROW_TOP_OFFSET = 56
 const EVENT_ROW_BOTTOM_OFFSET = 4
 const EVENT_ROW_HEIGHT = 28
 const EVENT_ROW_GAP = 4
-const EVENT_ROW_STRIDE = EVENT_ROW_HEIGHT + EVENT_ROW_GAP
+const EVENT_ROW_STRIDE = CALENDAR_EVENT_ITEM_STRIDE_PX
 const SPLIT_VISIBLE_EVENT_LIMIT = 3
 const DAY_MS = 1000 * 60 * 60 * 24
 
@@ -44,13 +47,24 @@ export const EventRow = memo(function EventRow({
     size?: number
     assumeWeekScoped?: boolean
 }) {
-    const calendarTz = useCalendarStore((s) => s.calendarTimezone)
-    const eventLayout = useCalendarStore((s) => s.eventLayout)
-    const dragMode = useCalendarStore((s) => s.drag.mode)
-    const dragRenderId = useCalendarStore((s) => s.drag.renderId)
-    const resizePinnedLane = useCalendarStore((s) => s.drag.resizePinnedLane)
-    const resizeLayoutWeekStart = useCalendarStore(
-        (s) => s.drag.resizeLayoutWeekStart
+    const t = useDebugTranslations("event.row")
+    const {
+        calendarTz,
+        eventLayout,
+        dragMode,
+        dragRenderId,
+        resizePinnedLane,
+        resizeLayoutWeekStart,
+    } = useCalendarStore(
+        (s) => ({
+            calendarTz: s.calendarTimezone,
+            eventLayout: s.eventLayout,
+            dragMode: s.drag.mode,
+            dragRenderId: s.drag.renderId,
+            resizePinnedLane: s.drag.resizePinnedLane,
+            resizeLayoutWeekStart: s.drag.resizeLayoutWeekStart,
+        }),
+        shallow
     )
 
     const weekStart = useMemo(
@@ -60,7 +74,7 @@ export const EventRow = memo(function EventRow({
 
     const weekEndExclusive = useMemo(
         () =>
-            dayjs(week[6]!)
+            dayjs(week[week.length - 1]!)
                 .tz(calendarTz)
                 .startOf("day")
                 .add(1, "day")
@@ -272,9 +286,10 @@ export const EventRow = memo(function EventRow({
             : 1
 
     const { visibleSegments, overflowByDay } = useMemo(() => {
+        const dayCount = Math.max(1, week.length)
         const nextVisible: PositionedSegment[] = []
         const nextOverflowByDay = Array.from(
-            { length: 7 },
+            { length: dayCount },
             () => [] as PositionedSegment[]
         )
 
@@ -289,7 +304,9 @@ export const EventRow = memo(function EventRow({
                 dayIndex <= segment.endIndex;
                 dayIndex += 1
             ) {
-                nextOverflowByDay[dayIndex]?.push(segment)
+                if (dayIndex >= 0 && dayIndex < dayCount) {
+                    nextOverflowByDay[dayIndex]?.push(segment)
+                }
             }
         })
 
@@ -297,27 +314,31 @@ export const EventRow = memo(function EventRow({
             visibleSegments: nextVisible,
             overflowByDay: nextOverflowByDay,
         }
-    }, [segments, visibleLaneLimit])
+    }, [segments, visibleLaneLimit, week.length])
 
     return (
         <div className={memoEventRowClass()}>
             {visibleSegments.map(
-                ({
-                    event,
-                    lane,
-                    laneCount,
-                    startIndex,
-                    endIndex,
-                    continuesFromPrevWeek,
-                    continuesToNextWeek,
-                    dragOffsetStart,
-                }) => (
+                (
+                    {
+                        event,
+                        lane,
+                        laneCount,
+                        startIndex,
+                        endIndex,
+                        continuesFromPrevWeek,
+                        continuesToNextWeek,
+                        dragOffsetStart,
+                    },
+                    segmentIndex
+                ) => (
                     <EventItem
-                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
+                        key={`w${weekStart}-s${segmentIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}-L${lane}`}
                         event={event}
                         top={lane}
                         startIndex={startIndex}
                         endIndex={endIndex}
+                        columnCount={week.length}
                         continuesFromPrevWeek={continuesFromPrevWeek}
                         continuesToNextWeek={continuesToNextWeek}
                         dragOffsetStart={dragOffsetStart}
@@ -334,12 +355,14 @@ export const EventRow = memo(function EventRow({
 
                 return (
                     <OverflowButton
-                        key={`overflow-${dayIndex}`}
+                        key={`overflow-${weekStart}-${dayIndex}`}
                         dayIndex={dayIndex}
+                        dayCount={week.length}
                         hiddenSegments={hiddenSegments}
                         eventLayout={eventLayout}
                         topIndex={visibleLaneLimit}
                         splitDisplayLaneCount={splitDisplayLaneCount}
+                        weekStart={weekStart}
                     />
                 )
             })}
@@ -353,19 +376,24 @@ function memoEventRowClass() {
 
 const OverflowButton = memo(function OverflowButton({
     dayIndex,
+    dayCount,
     hiddenSegments,
     eventLayout,
     topIndex,
     splitDisplayLaneCount,
+    weekStart,
 }: {
     dayIndex: number
+    dayCount: number
     hiddenSegments: PositionedSegment[]
     eventLayout: CalendarEventLayout
     topIndex: number
     splitDisplayLaneCount: number
+    weekStart: number
 }) {
+    const t = useDebugTranslations("event.row")
     const [open, setOpen] = useState(false)
-    const pos = getOverflowPosition(dayIndex)
+    const pos = getOverflowPosition(dayIndex, dayCount)
     const handleDragStateChange = useCallback((isDragging: boolean) => {
         if (!isDragging) {
             return
@@ -400,7 +428,7 @@ const OverflowButton = memo(function OverflowButton({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    +{hiddenSegments.length}개
+                    {t("hiddenCount", { count: hiddenSegments.length })}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -409,22 +437,25 @@ const OverflowButton = memo(function OverflowButton({
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
                 <div className="p-1.5 text-xs font-medium text-muted-foreground">
-                    숨겨진 일정 {hiddenSegments.length}개
+                    {t("hiddenEvents", { count: hiddenSegments.length })}
                 </div>
                 <ScrollArea>
                     <div className="max-h-30">
                         <div className="flex flex-col gap-1 p-1.5 pt-0">
                             {hiddenSegments.map(
-                                ({
-                                    event,
-                                    startIndex,
-                                    endIndex,
-                                    continuesFromPrevWeek,
-                                    continuesToNextWeek,
-                                    dragOffsetStart,
-                                }) => (
+                                (
+                                    {
+                                        event,
+                                        startIndex,
+                                        endIndex,
+                                        continuesFromPrevWeek,
+                                        continuesToNextWeek,
+                                        dragOffsetStart,
+                                    },
+                                    hiddenIndex
+                                ) => (
                                     <div
-                                        key={`${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
+                                        key={`w${weekStart}-h${hiddenIndex}-${getCalendarEventRenderId(event)}-${startIndex}-${endIndex}`}
                                         className="relative"
                                     >
                                         <EventItem
@@ -432,6 +463,7 @@ const OverflowButton = memo(function OverflowButton({
                                             top={0}
                                             startIndex={startIndex}
                                             endIndex={endIndex}
+                                            columnCount={dayCount}
                                             continuesFromPrevWeek={
                                                 continuesFromPrevWeek
                                             }
@@ -457,6 +489,6 @@ const OverflowButton = memo(function OverflowButton({
     )
 })
 
-function getOverflowPosition(dayIndex: number) {
-    return getEventPosition(dayIndex, dayIndex)
+function getOverflowPosition(dayIndex: number, dayCount: number) {
+    return getEventPosition(dayIndex, dayIndex, dayCount)
 }

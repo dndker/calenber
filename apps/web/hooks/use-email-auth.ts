@@ -4,6 +4,7 @@ import { encodeConfirmValue } from "@/lib/auth/confirm-value"
 import { getSupabaseAuthErrorMessage } from "@/lib/auth/supabase-error"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -17,6 +18,8 @@ type AuthResult = {
 
 export function useEmailAuth() {
     const [loading, setLoading] = useState(false)
+    const t = useDebugTranslations("auth.toast")
+    const tError = useDebugTranslations("auth.errors")
 
     const getEmailRedirectTo = () =>
         `${window.location.origin}/auth/confirm?next=/signin`
@@ -40,19 +43,21 @@ export function useEmailAuth() {
             if (error) {
                 const message = getSupabaseAuthErrorMessage(
                     error,
-                    "이메일 로그인에 실패했습니다."
+                    tError,
+                    "signInFailed"
                 )
 
                 toast.error(message)
                 return { ok: false, error: message }
             }
 
-            toast.success("로그인되었습니다.")
+            toast.success(t("signedIn"))
             return { ok: true, error: null, user: data.user }
         } catch (error) {
             // console.error(error)
-            toast.error("이메일 로그인 중 오류가 발생했습니다.")
-            return { ok: false, error: "이메일 로그인 중 오류가 발생했습니다." }
+            const message = t("signInUnexpected")
+            toast.error(message)
+            return { ok: false, error: message }
         } finally {
             setLoading(false)
         }
@@ -85,7 +90,8 @@ export function useEmailAuth() {
             if (error) {
                 const message = getSupabaseAuthErrorMessage(
                     error,
-                    "회원가입에 실패했습니다."
+                    tError,
+                    "signUpFailed"
                 )
 
                 toast.error(message)
@@ -93,7 +99,7 @@ export function useEmailAuth() {
             }
 
             if (!data.session) {
-                toast.success("인증 메일을 확인해 주세요.")
+                toast.success(t("signUpNeedsVerification"))
                 return {
                     ok: true,
                     error: null,
@@ -103,7 +109,7 @@ export function useEmailAuth() {
                 }
             }
 
-            toast.success("회원가입이 완료되었습니다.")
+            toast.success(t("signedUp"))
             return {
                 ok: true,
                 error: null,
@@ -112,8 +118,9 @@ export function useEmailAuth() {
             }
         } catch (error) {
             console.error(error)
-            toast.error("회원가입 중 오류가 발생했습니다.")
-            return { ok: false, error: "회원가입 중 오류가 발생했습니다." }
+            const message = t("signUpUnexpected")
+            toast.error(message)
+            return { ok: false, error: message }
         } finally {
             setLoading(false)
         }
@@ -137,17 +144,18 @@ export function useEmailAuth() {
             if (error) {
                 const message = getSupabaseAuthErrorMessage(
                     error,
-                    "인증 메일을 다시 보내지 못했습니다."
+                    tError,
+                    "resendFailed"
                 )
                 toast.error(message)
                 return { ok: false, error: message }
             }
 
-            toast.success("인증 메일을 다시 보냈습니다.")
+            toast.success(t("resent"))
             return { ok: true, error: null }
         } catch (error) {
             console.error(error)
-            const message = "인증 메일 재전송 중 오류가 발생했습니다."
+            const message = t("resendUnexpected")
             toast.error(message)
             return { ok: false, error: message }
         } finally {
