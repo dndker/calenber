@@ -413,36 +413,35 @@ export async function createCalendar(
         return null
     }
 
+    // Holiday subscription install is best-effort — calendar creation succeeds regardless.
     const holidayCatalogId = await resolveSubscriptionCatalogIdForInstall(
         supabase,
         KOREA_HOLIDAY_SUBSCRIPTION_ID
     )
 
     if (!holidayCatalogId) {
-        console.error(
+        console.warn(
             "Missing Korea holiday subscription catalog row; run migrations."
         )
-        return null
-    }
+    } else {
+        const { error: installSubscriptionError } = await supabase
+            .from("calendar_subscription_installs")
+            .upsert(
+                {
+                    calendar_id: calendarId,
+                    subscription_catalog_id: holidayCatalogId,
+                    is_visible: true,
+                    created_by: user.id,
+                },
+                { onConflict: "calendar_id,subscription_catalog_id" }
+            )
 
-    const { error: installSubscriptionError } = await supabase
-        .from("calendar_subscription_installs")
-        .upsert(
-            {
-                calendar_id: calendarId,
-                subscription_catalog_id: holidayCatalogId,
-                is_visible: true,
-                created_by: user.id,
-            },
-            { onConflict: "calendar_id,subscription_catalog_id" }
-        )
-
-    if (installSubscriptionError) {
-        console.error(
-            "Failed to auto install Korea holiday subscription:",
-            installSubscriptionError
-        )
-        return null
+        if (installSubscriptionError) {
+            console.warn(
+                "Failed to auto install Korea holiday subscription:",
+                installSubscriptionError
+            )
+        }
     }
 
     return { id: calendarId }

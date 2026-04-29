@@ -3,6 +3,9 @@
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useNow } from "@/hooks/use-now"
 import dayjs from "@/lib/dayjs"
+import { type Locale } from "@/lib/i18n/config"
+import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import {
     CheckIcon,
     ChevronRightIcon,
@@ -97,7 +100,7 @@ export function EventFormRecurrenceField({
     watchedTimezone,
     onRecurrenceChange,
 }: EventFormRecurrenceFieldProps) {
-    const locale = useLocale() as "ko" | "en"
+    const locale = useLocale() as Locale
     const tRecurrence = useDebugTranslations("event.recurrence")
     const tCommon = useDebugTranslations("common.actions")
     const tWeekday = useDebugTranslations("common.weekdays.short")
@@ -483,20 +486,7 @@ export function EventFormRecurrenceField({
                                                                                     )}
                                                                                     className="group"
                                                                                 >
-                                                                                    {tWeekday(
-                                                                                        weekday.shortLabelKey.split(
-                                                                                            "."
-                                                                                        )[
-                                                                                            3
-                                                                                        ] as
-                                                                                            | "sun"
-                                                                                            | "mon"
-                                                                                            | "tue"
-                                                                                            | "wed"
-                                                                                            | "thu"
-                                                                                            | "fri"
-                                                                                            | "sat"
-                                                                                    )}
+                                                                                    {tWeekday(weekday.shortKey)}
                                                                                     {normalizeRecurrenceWeekdays(
                                                                                         recurrenceValue.byWeekday,
                                                                                         startWeekday
@@ -650,14 +640,17 @@ export function EventFormRecurrenceField({
                                                                                         }
                                                                                     >
                                                                                         {selectedUntilDate
-                                                                                            ? dayjs
-                                                                                                  .tz(
-                                                                                                      selectedUntilDate,
-                                                                                                      watchedTimezone
-                                                                                                  )
-                                                                                                  .format(
-                                                                                                      "YYYY.MM.DD"
-                                                                                                  )
+                                                                                            ? formatIntlDate(
+                                                                                                  selectedUntilDate,
+                                                                                                  {
+                                                                                                      locale,
+                                                                                                      timeZone:
+                                                                                                          watchedTimezone,
+                                                                                                      year: "numeric",
+                                                                                                      month: "2-digit",
+                                                                                                      day: "2-digit",
+                                                                                                  }
+                                                                                              )
                                                                                             : tRecurrence(
                                                                                                   "pickEndDate"
                                                                                               )}
@@ -671,6 +664,9 @@ export function EventFormRecurrenceField({
                                                                                     }
                                                                                 >
                                                                                     <CalendarPicker
+                                                                                        locale={getDayPickerLocale(
+                                                                                            locale
+                                                                                        )}
                                                                                         mode="single"
                                                                                         selected={
                                                                                             selectedUntilDate

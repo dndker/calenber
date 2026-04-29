@@ -193,6 +193,20 @@ calenber/                  ← 모노레포 루트 (Turborepo)
 - 번역 파일: `apps/web/messages/{locale}.json` (현재 `ko.json`, `en.json`)
 - 두 파일의 키 구조는 항상 동일하게 유지한다 — ko.json에 키를 추가하면 en.json에도 동시에 추가한다.
 
+### 번역 문자열 작성 규칙
+
+- `next-intl` 메시지는 ICU 포맷으로 해석된다. placeholder는 반드시 `{name}`, `{count}`처럼 그대로 작성한다.
+- 작은따옴표 `'`는 ICU escape 문자로 동작할 수 있으므로, placeholder 앞뒤를 `'{name}'`처럼 감싸지 않는다. 이렇게 쓰면 치환이 깨질 수 있다.
+- 화면에 작은따옴표를 실제로 표시해야 하면 `''{name}''`처럼 작은따옴표를 두 번 써서 escape한다.
+- 문자열에 `{`, `}`, `'`가 함께 들어가는 경우 번역 추가 후 placeholder가 실제로 치환되는지 확인한다.
+
+```json
+{
+  "bad": "'{name}' 컬렉션을 추가할 캘린더를 선택하세요.",
+  "good": "''{name}'' 컬렉션을 추가할 캘린더를 선택하세요."
+}
+```
+
 ### 사용 패턴
 
 ```typescript

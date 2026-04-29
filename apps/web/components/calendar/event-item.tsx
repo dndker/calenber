@@ -54,7 +54,6 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import clsx from "clsx"
 import {
-    BadgeCheckIcon,
     CheckIcon,
     CircleCheckBigIcon,
     ListIcon,
@@ -230,22 +229,19 @@ export const EventItem = memo(
         const thisRenderId = getCalendarEventRenderId(event)
         const isGeneratedSubscriptionEvent =
             isSubscriptionStyleEventId(sourceEventId)
-        const { isResizeTarget, activeResizeEdge } = useCalendarStore(
-            (s) => {
-                const mode = s.drag.mode
-                if (mode !== "resize-start" && mode !== "resize-end") {
-                    return { isResizeTarget: false, activeResizeEdge: null }
-                }
-                if (s.drag.renderId !== thisRenderId) {
-                    return { isResizeTarget: false, activeResizeEdge: null }
-                }
-                return {
-                    isResizeTarget: true,
-                    activeResizeEdge: s.drag.resizeActiveEdge,
-                }
-            },
-            shallow
-        )
+        const { isResizeTarget, activeResizeEdge } = useCalendarStore((s) => {
+            const mode = s.drag.mode
+            if (mode !== "resize-start" && mode !== "resize-end") {
+                return { isResizeTarget: false, activeResizeEdge: null }
+            }
+            if (s.drag.renderId !== thisRenderId) {
+                return { isResizeTarget: false, activeResizeEdge: null }
+            }
+            return {
+                isResizeTarget: true,
+                activeResizeEdge: s.drag.resizeActiveEdge,
+            }
+        }, shallow)
         const isResizingThis = !inline && !overlay && isResizeTarget
 
         const pos = getEventPosition(
@@ -680,12 +676,12 @@ export const EventItem = memo(
                             ref={!canDragResize ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto relative h-full w-full items-center justify-start gap-0.75 overflow-hidden border px-1 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1.5 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [&>span]:leading-normal [body[data-scroll-locked='1']_&]:pointer-events-none",
                                 !event.allDay && "pl-1.75",
                                 !interactive && "pointer-events-none",
                                 useSplitLayout
                                     ? "items-start py-1.5 text-left"
-                                    : "py-1",
+                                    : "",
                                 inline &&
                                     canDragResize &&
                                     "cursor-grab active:cursor-grabbing",
@@ -744,9 +740,9 @@ export const EventItem = memo(
                                 )
                             }}
                         >
-                            {event.subscription && (
+                            {/* {event.subscription && (
                                 <BadgeCheckIcon className="ml-0.5 size-3.5 shrink-0" />
-                            )}
+                            )} */}
                             {event.isLocked &&
                                 !isCompleted &&
                                 !isCancelled &&
@@ -777,6 +773,12 @@ export const EventItem = memo(
                                     ? tLabels("newEvent")
                                     : event.title}
                             </span>
+
+                            {event.subscription && (
+                                <span className="ml-px text-xs tracking-tight opacity-40 [word-spacing:-1px]">
+                                    {event.subscription.name}
+                                </span>
+                            )}
                         </Button>
                         {!inline && !continuesToNextWeek && (
                             <div
@@ -895,7 +897,9 @@ export const EventItem = memo(
                                     void saveCollectionNames(next)
                                 }}
                                 eventCollections={eventCollections}
-                                getDraftCollectionColor={getDraftCollectionColor}
+                                getDraftCollectionColor={
+                                    getDraftCollectionColor
+                                }
                                 listVariant="inline"
                                 disabled={!canEdit}
                             />
@@ -967,7 +971,10 @@ export const EventItem = memo(
                 next.event.recurrenceInstance?.sourceStart &&
             prev.event.recurrenceInstance?.sourceEnd ===
                 next.event.recurrenceInstance?.sourceEnd &&
-            areStringArraysEqual(prev.event.collectionIds, next.event.collectionIds) &&
+            areStringArraysEqual(
+                prev.event.collectionIds,
+                next.event.collectionIds
+            ) &&
             prev.event.status === next.event.status &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&

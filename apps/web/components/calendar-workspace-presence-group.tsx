@@ -6,18 +6,19 @@ import {
     getAvatarGroupBadge,
     getAvatarGroupFallbackLabel,
 } from "@/components/calendar/avatar-group-dropdown"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import dayjs from "@/lib/dayjs"
+import { type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import type { CalendarWorkspacePresenceMember } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { useLocale } from "next-intl"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useMemo } from "react"
 
 const MAX_VISIBLE_MEMBERS = 4
-const KOREAN_LOCALE = "ko"
-
 function getPresenceCursorLabel(
     cursor:
         | {
@@ -30,6 +31,7 @@ function getPresenceCursorLabel(
     getEventTitle?: (eventId?: string) => string | null,
     selectedDate?: number,
     calendarTimezone?: string,
+    locale: Locale = "ko",
     t?: (key: string, values?: Record<string, string | number>) => string,
     dateFormats?: { sameYear: string; diffYear: string }
 ) {
@@ -47,10 +49,12 @@ function getPresenceCursorLabel(
         : calendarTimezone
           ? dayjs().tz(calendarTimezone)
           : dayjs()
-    const format =
-        myDate.year() === cursorDate.year()
-            ? (dateFormats?.sameYear ?? "M월 D일")
-            : (dateFormats?.diffYear ?? "YY년 M월 D일")
+    const fallbackDateLabel = formatIntlDate(cursorDate.toDate(), {
+        locale,
+        year: myDate.year() === cursorDate.year() ? undefined : "2-digit",
+        month: "numeric",
+        day: "numeric",
+    })
 
     if (cursor.type === "event") {
         const eventTitle = getEventTitle?.(cursor.eventId)
@@ -60,14 +64,30 @@ function getPresenceCursorLabel(
         }
 
         return (
-            t?.("viewingEventDate", { date: cursorDate.format(format) }) ??
-            cursorDate.format(format)
+            t?.("viewingEventDate", {
+                date:
+                    dateFormats
+                        ? cursorDate.format(
+                              myDate.year() === cursorDate.year()
+                                  ? dateFormats.sameYear
+                                  : dateFormats.diffYear
+                          )
+                        : fallbackDateLabel,
+            }) ?? fallbackDateLabel
         )
     }
 
     return (
-        t?.("viewingDate", { date: cursorDate.format(format) }) ??
-        cursorDate.format(format)
+        t?.("viewingDate", {
+            date:
+                dateFormats
+                    ? cursorDate.format(
+                          myDate.year() === cursorDate.year()
+                              ? dateFormats.sameYear
+                              : dateFormats.diffYear
+                      )
+                    : fallbackDateLabel,
+        }) ?? fallbackDateLabel
     )
 }
 
@@ -75,6 +95,7 @@ export function CalendarWorkspacePresenceGroup() {
     const t = useDebugTranslations("calendar.presence")
     const tCommon = useDebugTranslations("common.labels")
     const tCalendar = useDebugTranslations("calendar")
+    const locale = useLocale() as Locale
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
@@ -111,9 +132,9 @@ export function CalendarWorkspacePresenceGroup() {
                     return a.cursor?.type === "event" ? -1 : 1
                 }
 
-                return a.displayName.localeCompare(b.displayName, KOREAN_LOCALE)
+                return a.displayName.localeCompare(b.displayName, locale)
             }),
-        [members, myUserId, myId]
+        [locale, members, myUserId, myId]
     )
     const eventTitleMap = useMemo(
         () =>
@@ -148,6 +169,7 @@ export function CalendarWorkspacePresenceGroup() {
                 getEventTitle,
                 selectedDate,
                 calendarTimezone,
+                locale,
                 t,
                 {
                     sameYear: tCalendar("dateFormatMonthDay"),

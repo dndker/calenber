@@ -2,6 +2,8 @@
 
 import type { DataTableColumnMeta } from "@/components/settings/shared/data-table"
 import dayjs from "@/lib/dayjs"
+import { type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
     Avatar,
@@ -52,6 +54,7 @@ export function getCalendarMemberColumns({
     onRoleChange,
     onRemove,
     labels,
+    locale,
 }: {
     canManageMembers: boolean
     getAssignableRoles: (
@@ -74,6 +77,7 @@ export function getCalendarMemberColumns({
         roleSelectLabel: string
         removeMember: string
     }
+    locale: Locale
 }): ColumnDef<CalendarMemberRow>[] {
     return [
         ...(canManageMembers
@@ -166,7 +170,12 @@ export function getCalendarMemberColumns({
             accessorKey: "createdAt",
             header: labels.joinedAtHeader,
             cell: ({ row }) =>
-                dayjs(row.original.createdAt).format("YYYY.MM.DD"),
+                formatIntlDate(dayjs(row.original.createdAt).toDate(), {
+                    locale,
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                }),
         },
         {
             accessorKey: "role",

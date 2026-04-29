@@ -4,7 +4,8 @@ import {
     APP_NAME,
     APP_URL,
 } from "@/lib/app-config"
-import { defaultLocale, type Locale } from "@/lib/i18n/config"
+import { defaultLocale, ogLocaleMap, type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import { getMessageTranslator } from "@/lib/i18n/messages"
 import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { DEFAULT_CALENDAR_LAYOUT_OPTIONS } from "@/lib/calendar/layout-options"
@@ -39,7 +40,10 @@ function formatDateTime(
     locale: Locale,
     options: Intl.DateTimeFormatOptions
 ) {
-    return new Intl.DateTimeFormat(locale, options).format(date.toDate())
+    return formatIntlDate(date.toDate(), {
+        locale,
+        ...options,
+    })
 }
 
 export function absoluteUrl(path: string) {
@@ -304,12 +308,14 @@ function buildBaseMetadata({
     url,
     imageUrl,
     imageAlt,
+    locale = defaultLocale,
 }: {
     title: string
     description: string
     url: string
     imageUrl: string
     imageAlt?: string
+    locale?: Locale
 }): Metadata {
     const alt = imageAlt ?? APP_DEFAULT_IMAGE_ALT
 
@@ -321,7 +327,7 @@ function buildBaseMetadata({
         },
         openGraph: {
             type: "website",
-            locale: "ko_KR",
+            locale: ogLocaleMap[locale],
             siteName: APP_NAME,
             title,
             description,
@@ -366,6 +372,7 @@ export function buildCalendarMetadata({
         url,
         imageUrl,
         imageAlt: `${title} - ${APP_NAME}`,
+        locale,
     })
 }
 
@@ -407,6 +414,7 @@ export function buildEventMetadata({
         url: shareUrl,
         imageUrl,
         imageAlt: `${title} - ${APP_NAME}`,
+        locale,
     })
 }
 

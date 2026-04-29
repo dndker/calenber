@@ -42,7 +42,7 @@
             "unknownUser": "Unknown user",
             "unknownMember": "Unknown member",
             "unknownCalendar": "Unknown calendar",
-            "untitled": "Untitled",
+            "untitled": "New event",
             "newEvent": "New event",
             "member": "Member",
             "user": "User",
@@ -285,7 +285,12 @@
     "calendar": {
         "meta": {
             "title": "Calendar",
-            "description": "Remember more than just events."
+            "description": "Remember more than just events.",
+            "demoName": "Demo Calendar",
+            "badge": "Calendar",
+            "shareDescription": "Explore upcoming events in Calenber.",
+            "shareDescriptionWithName": "Explore upcoming events in {name} on Calenber.",
+            "calendarEvents": "{name} events"
         },
         "views": {
             "month": "Month",
@@ -363,7 +368,7 @@
             "sourceCalendarError": "This is the calendar currently sharing the collection.",
             "alreadySubscribedError": "This calendar is already subscribed.",
             "catalogMissingError": "Could not find the subscription information.",
-            "subscribedSuccess": "The '{name}' collection has been added to my calendar.",
+            "subscribedSuccess": "The ''{name}'' collection has been added to my calendar.",
             "subscribeFailed": "Something went wrong while subscribing. Please try again.",
             "emptyCalendars": "There are no calendars available for adding this subscription.",
             "selectCalendarLabel": "Select calendar",
@@ -371,7 +376,7 @@
             "selectCalendarPlaceholder": "Select a calendar",
             "submit": "Subscribe",
             "dialogTitle": "Add to my calendar",
-            "dialogDescription": "Choose a calendar to add the '{name}' collection to."
+            "dialogDescription": "Choose a calendar to add the ''{name}'' collection to."
         },
         "create": {
             "title": "Create calendar",
@@ -616,7 +621,7 @@
         "subscription": {
             "readOnly": "Subscription events cannot be edited",
             "source": "Source",
-            "badge": "Subscription event"
+            "badge": "Subscription"
         },
         "toast": {
             "deleted": "Event deleted.",

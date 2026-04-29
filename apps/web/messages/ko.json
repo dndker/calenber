@@ -285,7 +285,12 @@
   "calendar": {
     "meta": {
       "title": "캘린더",
-      "description": "일정, 그 이상을 기억하다."
+      "description": "일정, 그 이상을 기억하다.",
+      "demoName": "데모 캘린더",
+      "badge": "캘린더",
+      "shareDescription": "Calenber에서 예정된 일정을 확인해 보세요.",
+      "shareDescriptionWithName": "Calenber에서 {name}의 예정된 일정을 확인해 보세요.",
+      "calendarEvents": "{name} 일정"
     },
     "views": {
       "month": "월",
@@ -363,7 +368,7 @@
       "sourceCalendarError": "이 컬렉션을 공유 중인 캘린더입니다.",
       "alreadySubscribedError": "이미 구독된 캘린더입니다.",
       "catalogMissingError": "구독 정보를 찾을 수 없습니다.",
-      "subscribedSuccess": "내 캘린더에 '{name}' 컬렉션이 추가되었습니다.",
+      "subscribedSuccess": "내 캘린더에 ''{name}'' 컬렉션이 추가되었습니다.",
       "subscribeFailed": "구독 중 오류가 발생했습니다. 다시 시도해 주세요.",
       "emptyCalendars": "구독을 추가할 수 있는 캘린더가 없습니다.",
       "selectCalendarLabel": "캘린더 선택",
@@ -371,7 +376,7 @@
       "selectCalendarPlaceholder": "캘린더를 선택하세요",
       "submit": "구독하기",
       "dialogTitle": "내 캘린더에 추가",
-      "dialogDescription": "'{name}' 컬렉션을 추가할 캘린더를 선택하세요."
+      "dialogDescription": "''{name}'' 컬렉션을 추가할 캘린더를 선택하세요."
     },
     "create": {
       "title": "캘린더 만들기",

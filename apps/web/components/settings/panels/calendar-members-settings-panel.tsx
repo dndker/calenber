@@ -7,6 +7,7 @@ import {
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { DataTable } from "@/components/settings/shared/data-table"
 import { canViewCalendarSettings } from "@/lib/calendar/permissions"
+import { type Locale } from "@/lib/i18n/config"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
@@ -38,6 +39,7 @@ import {
 } from "@workspace/ui/components/field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { UsersIcon } from "lucide-react"
+import { useLocale } from "next-intl"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -58,6 +60,7 @@ export function CalendarMembersSettingsPanel() {
     const tRoles = useDebugTranslations("common.roles")
     const tCommon = useDebugTranslations("common.actions")
     const tLabels = useDebugTranslations("common.labels")
+    const locale = useLocale() as Locale
     const labels = useMemo(
         () => ({
             roles: {
@@ -214,8 +217,15 @@ export function CalendarMembersSettingsPanel() {
                     setIsRemoveDialogOpen(true)
                 },
                 labels,
+                locale,
             }),
-        [canManageMembers, getAssignableRoles, labels, updateMembersRole]
+        [
+            canManageMembers,
+            getAssignableRoles,
+            labels,
+            locale,
+            updateMembersRole,
+        ]
     )
 
     useEffect(() => {

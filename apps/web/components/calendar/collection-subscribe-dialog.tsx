@@ -13,11 +13,11 @@
  *   - 선택한 캘린더에 해당 컬렉션을 구독 설치
  */
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import {
     ResponsiveModal,
     ResponsiveModalContent,
 } from "@/components/responsive-modal"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import type { MyCalendarItem } from "@/lib/calendar/queries"
 import { resolveSubscriptionCatalogIdForInstall } from "@/lib/calendar/resolve-subscription-catalog-id"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -173,17 +173,21 @@ function CollectionSubscribeForm({
     }, [isLoadingInstalls, firstAvailableId])
 
     // 해당 catalogId가 설치된 calendar_id 목록을 DB에서 조회
+    // catalogId, managedCalendars 는 모달 마운트 시점에 고정 — 재조회 불필요
     React.useEffect(() => {
         if (managedCalendars.length === 0) {
             setIsLoadingInstalls(false)
             return
         }
 
+        let cancelled = false
         const supabase = createBrowserSupabase()
         const calendarIds = managedCalendars.map((c) => c.id)
 
-        resolveSubscriptionCatalogIdForInstall(supabase, catalogId).then(
-            async (catalogUuid) => {
+        resolveSubscriptionCatalogIdForInstall(supabase, catalogId)
+            .then(async (catalogUuid) => {
+                if (cancelled) return
+
                 if (!catalogUuid) {
                     setIsLoadingInstalls(false)
                     return
@@ -195,6 +199,8 @@ function CollectionSubscribeForm({
                     .eq("subscription_catalog_id", catalogUuid)
                     .in("calendar_id", calendarIds)
 
+                if (cancelled) return
+
                 setInstalledCalendarIdSet(
                     new Set(
                         (data ?? []).map(
@@ -203,9 +209,16 @@ function CollectionSubscribeForm({
                     )
                 )
                 setIsLoadingInstalls(false)
-            }
-        )
-        // catalogId, managedCalendars 는 모달 마운트 시점에 고정 — 재조회 불필요
+            })
+            .catch((error) => {
+                if (cancelled) return
+                console.error("Failed to load installed subscriptions:", error)
+                setIsLoadingInstalls(false)
+            })
+
+        return () => {
+            cancelled = true
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 

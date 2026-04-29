@@ -23,6 +23,26 @@ import { ko } from "react-day-picker/locale"
 
 type CalendarPickerMode = "day" | "month" | "year"
 
+function getCalendarPickerUiLocale(locale?: Partial<Locale>) {
+    return locale?.code?.toLowerCase().startsWith("ko") ? "ko" : "en"
+}
+
+function formatCalendarPickerYear(date: Date, locale?: Partial<Locale>) {
+    return new Intl.DateTimeFormat(locale?.code, {
+        year: "numeric",
+    }).format(date)
+}
+
+function formatCalendarPickerMonth(
+    date: Date,
+    locale?: Partial<Locale>,
+    width: "numeric" | "short" | "long" = "short"
+) {
+    return new Intl.DateTimeFormat(locale?.code, {
+        month: width,
+    }).format(date)
+}
+
 function CalendarPicker({
     className,
     classNames,
@@ -182,6 +202,7 @@ function CalendarPicker({
                 Nav: () => (
                     <CalendarPickerNav
                         buttonVariant={buttonVariant}
+                        locale={locale}
                         mode={pickerMode}
                         onModeChange={setPickerMode}
                         showTodayButton={showTodayButton}
@@ -226,6 +247,7 @@ function CalendarPicker({
                 ),
                 MonthCaption: () => (
                     <CalendarPickerMonthCaption
+                        locale={locale}
                         mode={pickerMode}
                         onModeChange={setPickerMode}
                     />
@@ -234,6 +256,7 @@ function CalendarPicker({
                     if (pickerMode === "month") {
                         return (
                             <CalendarPickerMonthGrid
+                                locale={locale}
                                 month={props.month ?? selectedDate}
                                 selectedDate={selectedDate}
                                 onMonthSelected={() => {
@@ -372,14 +395,22 @@ function isTodayExactlySelected(selected: unknown) {
 function CalendarPickerMonthCaption({
     mode,
     onModeChange,
+    locale,
 }: {
     mode: CalendarPickerMode
     onModeChange: React.Dispatch<React.SetStateAction<CalendarPickerMode>>
+    locale?: Partial<Locale>
 }) {
     const { months } = useDayPicker()
     const currentMonth = months[0]?.date ?? new Date()
     const year = dayjs(currentMonth).year()
-    const month = dayjs(currentMonth).format("M월")
+    const uiLocale = getCalendarPickerUiLocale(locale)
+    const yearLabel = formatCalendarPickerYear(currentMonth, locale)
+    const monthLabel = formatCalendarPickerMonth(
+        currentMonth,
+        locale,
+        uiLocale === "ko" ? "numeric" : "short"
+    )
     const baseYear = Math.floor(year / 12) * 12
     const years = Array.from({ length: 12 }, (_, index) => baseYear + index)
 
@@ -393,7 +424,13 @@ function CalendarPickerMonthCaption({
                     "opacity-50": mode === "month",
                 })}
             >
-                {mode === "year" ? `${years[0]}년~${years[11]}년` : `${year}년`}
+                {mode === "year"
+                    ? uiLocale === "ko"
+                        ? `${years[0]}년~${years[11]}년`
+                        : `${years[0]}-${years[11]}`
+                    : uiLocale === "ko"
+                      ? `${yearLabel}년`
+                      : yearLabel}
             </Button>
             <Button
                 variant="ghost"
@@ -403,7 +440,7 @@ function CalendarPickerMonthCaption({
                     "opacity-50": mode === "year",
                 })}
             >
-                {month}
+                {uiLocale === "ko" ? `${monthLabel}월` : monthLabel}
             </Button>
         </div>
     )
@@ -411,12 +448,14 @@ function CalendarPickerMonthCaption({
 
 function CalendarPickerNav({
     buttonVariant,
+    locale,
     mode,
     onModeChange,
     showTodayButton,
     onTodayClick,
 }: {
     buttonVariant: React.ComponentProps<typeof Button>["variant"]
+    locale?: Partial<Locale>
     mode: CalendarPickerMode
     onModeChange: React.Dispatch<React.SetStateAction<CalendarPickerMode>>
     showTodayButton: boolean
@@ -424,6 +463,7 @@ function CalendarPickerNav({
 }) {
     const { goToMonth, months, nextMonth, previousMonth } = useDayPicker()
     const currentMonth = months[0]?.date ?? new Date()
+    const uiLocale = getCalendarPickerUiLocale(locale)
 
     const handleNavigate = (direction: "prev" | "next") => {
         if (mode === "day") {
@@ -464,7 +504,7 @@ function CalendarPickerNav({
                         onModeChange("day")
                     }}
                 >
-                    오늘
+                    {uiLocale === "ko" ? "오늘" : "Today"}
                 </Button>
             ) : null}
             <Button
@@ -533,15 +573,18 @@ function CalendarPickerMonthGrid({
     selectedDate,
     month,
     onMonthSelected,
+    locale,
 }: {
     selectedDate: Date
     month: Date
     onMonthSelected?: () => void
+    locale?: Partial<Locale>
 }) {
     const { goToMonth } = useDayPicker()
     const current = dayjs(month).startOf("month")
     const selectedMonth = dayjs(selectedDate).month()
     const selectedYear = dayjs(selectedDate).year()
+    const uiLocale = getCalendarPickerUiLocale(locale)
 
     return (
         <div className="mb-1 grid grid-cols-4 gap-2.5">
@@ -562,7 +605,12 @@ function CalendarPickerMonthGrid({
                             onMonthSelected?.()
                         }}
                     >
-                        {index + 1}월
+                        {formatCalendarPickerMonth(
+                            current.month(index).toDate(),
+                            locale,
+                            uiLocale === "ko" ? "numeric" : "short"
+                        )}
+                        {uiLocale === "ko" ? "월" : ""}
                     </CalendarPickerGridButton>
                 )
             })}

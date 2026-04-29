@@ -1,4 +1,5 @@
 import { defaultLocale, type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import { getMessageTranslator } from "@/lib/i18n/messages"
 import dayjs from "@/lib/dayjs"
 import type { Dayjs } from "dayjs"
@@ -13,45 +14,52 @@ export const recurrenceTypeLabelMap = {
 } as const
 
 export const recurrenceIntervalUnitLabelMap = {
-    daily: "event.recurrence.intervalDay",
-    weekly: "event.recurrence.intervalWeek",
-    monthly: "event.recurrence.intervalMonth",
-    yearly: "event.recurrence.intervalYear",
+    daily: "intervalDay",
+    weekly: "intervalWeek",
+    monthly: "intervalMonth",
+    yearly: "intervalYear",
 } as const
 
 export const recurrenceWeekdayItems = [
     {
         value: 0,
+        shortKey: "sun",
         shortLabelKey: "common.weekdays.short.sun",
         fullLabelKey: "common.weekdays.long.sun",
     },
     {
         value: 1,
+        shortKey: "mon",
         shortLabelKey: "common.weekdays.short.mon",
         fullLabelKey: "common.weekdays.long.mon",
     },
     {
         value: 2,
+        shortKey: "tue",
         shortLabelKey: "common.weekdays.short.tue",
         fullLabelKey: "common.weekdays.long.tue",
     },
     {
         value: 3,
+        shortKey: "wed",
         shortLabelKey: "common.weekdays.short.wed",
         fullLabelKey: "common.weekdays.long.wed",
     },
     {
         value: 4,
+        shortKey: "thu",
         shortLabelKey: "common.weekdays.short.thu",
         fullLabelKey: "common.weekdays.long.thu",
     },
     {
         value: 5,
+        shortKey: "fri",
         shortLabelKey: "common.weekdays.short.fri",
         fullLabelKey: "common.weekdays.long.fri",
     },
     {
         value: 6,
+        shortKey: "sat",
         shortLabelKey: "common.weekdays.short.sat",
         fullLabelKey: "common.weekdays.long.sat",
     },
@@ -95,7 +103,10 @@ function formatLocaleDate(
     locale: Locale,
     options: Intl.DateTimeFormatOptions
 ) {
-    return new Intl.DateTimeFormat(locale, options).format(value)
+    return formatIntlDate(value, {
+        locale,
+        ...options,
+    })
 }
 
 function getStartDay(startDate: Date, timezone: string) {
@@ -180,7 +191,9 @@ export function formatRecurrenceBaseText(
         ? t(recurrenceTypeLabelMap[recurrence.type])
         : t("event.recurrence.everyInterval", {
               interval,
-              unit: t(recurrenceIntervalUnitLabelMap[recurrence.type]),
+              unit: t(
+                  `event.recurrence.${recurrenceIntervalUnitLabelMap[recurrence.type]}`
+              ),
           })
 }
 

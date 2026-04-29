@@ -42,6 +42,20 @@
 - 번역 파일: `apps/web/messages/{locale}.json` (ko.json, en.json)
 - ko.json에 키를 추가하면 en.json에도 동시에 추가한다 — 구조는 항상 동일하게 유지
 
+**번역 문자열 규칙**
+
+- `next-intl` 메시지는 ICU 포맷으로 처리되므로 placeholder는 `{name}`, `{count}`처럼 그대로 쓴다.
+- 작은따옴표 `'`는 escape 문자로 해석될 수 있으니 `'{name}'`처럼 placeholder를 감싸지 않는다. 치환이 깨질 수 있다.
+- 화면에 작은따옴표를 보여줘야 하면 `''{name}''`처럼 작은따옴표를 두 번 써서 escape한다.
+- `{`, `}`, `'`가 함께 들어가는 번역은 추가 후 실제 치환 결과까지 확인한다.
+
+```json
+{
+  "bad": "'{name}' 컬렉션을 추가할 캘린더를 선택하세요.",
+  "good": "''{name}'' 컬렉션을 추가할 캘린더를 선택하세요."
+}
+```
+
 **사용 패턴**
 
 ```typescript

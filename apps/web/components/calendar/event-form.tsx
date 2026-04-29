@@ -36,8 +36,8 @@ import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
 import { useEventFormDraftCollectionColor } from "@/hooks/use-event-form-draft-collection-color"
-import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
 import { EventChipsCombobox } from "./event-chips-combobox"
+import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
 import { EventFormCollectionChipsField } from "./event-form-collection-field"
 import {
     EventFormPropertyRow,
@@ -59,6 +59,7 @@ import {
     PopoverTrigger,
 } from "@workspace/ui/components/popover"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import { formatCalendarEventScheduleLabel } from "@/lib/calendar/event-date-format"
 import {
@@ -67,6 +68,9 @@ import {
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
+import { type Locale } from "@/lib/i18n/config"
+import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import {
     defaultContent,
     eventStatus,
@@ -113,9 +117,8 @@ import {
     SidebarMenuButton,
 } from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
-import dynamic from "next/dynamic"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useLocale } from "next-intl"
+import dynamic from "next/dynamic"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
 import {
@@ -222,7 +225,34 @@ function isSameScheduleDay(start: Date, end: Date, timezone: string) {
 }
 
 function formatDateInputValue(date: Date, timezone: string) {
-    return dayjs(date).tz(timezone).format("YY.MM.DD")
+    return dayjs(date).tz(timezone).format("YYYY-MM-DD")
+}
+
+function formatEventFormDateLabel(
+    date: Date | string,
+    timezone: string,
+    locale: Locale
+) {
+    return formatIntlDate(date, {
+        locale,
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    })
+}
+
+function formatEventFormTimeLabel(
+    date: Date | string,
+    timezone: string,
+    locale: Locale
+) {
+    return formatIntlDate(date, {
+        locale,
+        timeZone: timezone,
+        hour: "numeric",
+        minute: "2-digit",
+    })
 }
 
 function getMeridiemHourMinute(
@@ -415,7 +445,7 @@ function getRangeModifiers(start: Date, end: Date, timezone: string) {
 function formatExceptionDateTagLabel(
     exceptionDateIso: string,
     timezone: string,
-    locale: string
+    locale: Locale
 ) {
     const parsed = dayjs(exceptionDateIso).tz(timezone)
 
@@ -423,11 +453,13 @@ function formatExceptionDateTagLabel(
         return exceptionDateIso
     }
 
-    return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
+    return formatIntlDate(parsed.toDate(), {
+        locale,
+        timeZone: timezone,
         year: "2-digit",
         month: "numeric",
         day: "numeric",
-    }).format(parsed.toDate())
+    })
 }
 
 function normalizeAllDaySchedule(start: Date, end: Date, timezone: string) {
@@ -635,7 +667,7 @@ export function EventForm({
     const tCommonTime = useDebugTranslations("common.time")
     const tCommonLabels = useDebugTranslations("common.labels")
     const tField = useDebugTranslations("event.fieldDefinition")
-    const locale = useLocale()
+    const locale = useLocale() as Locale
     const calendarEventFieldDefinitions = useMemo(
         () => getCalendarEventFieldDefinitions(tField),
         [tField]
@@ -1486,12 +1518,9 @@ export function EventForm({
         const nextCollectionNames = event.collectionIds
             .map(
                 (collectionId) =>
-                    eventCollections.find(
-                        (c) => c.id === collectionId
-                    )?.name ??
-                    event.collections.find(
-                        (c) => c.id === collectionId
-                    )?.name ??
+                    eventCollections.find((c) => c.id === collectionId)?.name ??
+                    event.collections.find((c) => c.id === collectionId)
+                        ?.name ??
                     null
             )
             .filter((name): name is string => Boolean(name))
@@ -1729,17 +1758,18 @@ export function EventForm({
             timezone
         )
 
-        const filteredMeridiemOptions = localizedMeridiemOptions.filter((option) =>
-            isWheelTimeAllowed({
-                boundary: activeScheduleBoundary,
-                candidate: {
-                    ...activeBoundaryTime,
-                    meridiem: option.value,
-                },
-                start,
-                end,
-                timezone,
-            })
+        const filteredMeridiemOptions = localizedMeridiemOptions.filter(
+            (option) =>
+                isWheelTimeAllowed({
+                    boundary: activeScheduleBoundary,
+                    candidate: {
+                        ...activeBoundaryTime,
+                        meridiem: option.value,
+                    },
+                    start,
+                    end,
+                    timezone,
+                })
         )
         const filteredHourOptions = hourOptions.filter((option) =>
             isWheelTimeAllowed({
@@ -1929,6 +1959,7 @@ export function EventForm({
                                     end,
                                     allDay,
                                     timezone,
+                                    locale,
                                 })}
                             </Button>
                         </PopoverTrigger>
@@ -1961,9 +1992,11 @@ export function EventForm({
                                                     }
                                                 >
                                                     {tForm("startDateValue", {
-                                                        date: dayjs(start)
-                                                            .tz(timezone)
-                                                            .format("YYYY.MM.DD"),
+                                                        date: formatEventFormDateLabel(
+                                                            start,
+                                                            timezone,
+                                                            locale
+                                                        ),
                                                     })}
                                                 </Button>
                                             </div>
@@ -1998,13 +2031,11 @@ export function EventForm({
                                                                     )
                                                                 }
                                                             >
-                                                                {dayjs(value)
-                                                                    .tz(
-                                                                        timezone
-                                                                    )
-                                                                    .format(
-                                                                        "YYYY.MM.DD"
-                                                                    )}
+                                                                {formatEventFormDateLabel(
+                                                                    value,
+                                                                    timezone,
+                                                                    locale
+                                                                )}
                                                             </Button>
                                                             <Separator
                                                                 orientation="vertical"
@@ -2024,21 +2055,11 @@ export function EventForm({
                                                                     )
                                                                 }
                                                             >
-                                                                {dayjs(value)
-                                                                    .tz(
-                                                                        timezone
-                                                                    )
-                                                                    .format(
-                                                                        "A h:mm"
-                                                                    )
-                                                                    .replace(
-                                                                        "AM",
-                                                                        tCommonTime("am")
-                                                                    )
-                                                                    .replace(
-                                                                        "PM",
-                                                                        tCommonTime("pm")
-                                                                    )}
+                                                                {formatEventFormTimeLabel(
+                                                                    value,
+                                                                    timezone,
+                                                                    locale
+                                                                )}
                                                             </Button>
                                                         </div>
                                                     )
@@ -2077,6 +2098,9 @@ export function EventForm({
                                         ) : (
                                             <div className="py-1.5">
                                                 <CalendarPicker
+                                                    locale={getDayPickerLocale(
+                                                        locale
+                                                    )}
                                                     className="mx-auto w-full max-w-full p-0 dark:bg-muted"
                                                     mode="range"
                                                     month={schedulePickerMonth}
@@ -2107,7 +2131,9 @@ export function EventForm({
                                                             size="sm"
                                                             checked={allDay}
                                                             disabled={disabled}
-                                                            aria-label={tForm("allDayAria")}
+                                                            aria-label={tForm(
+                                                                "allDayAria"
+                                                            )}
                                                             onCheckedChange={
                                                                 handleAllDayToggle
                                                             }
@@ -2179,7 +2205,9 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ??
-                                                                tCommonLabels("participant")
+                                                                tCommonLabels(
+                                                                    "participant"
+                                                                )
                                                             }
                                                         />
                                                         <AvatarFallback className="text-xs">
@@ -2205,7 +2233,9 @@ export function EventForm({
                                                             alt={
                                                                 participant.data
                                                                     ?.name ||
-                                                                tCommonLabels("user")
+                                                                tCommonLabels(
+                                                                    "user"
+                                                                )
                                                             }
                                                         />
                                                         <AvatarFallback className="text-sm">
@@ -2228,7 +2258,9 @@ export function EventForm({
                                                                     variant="outline"
                                                                     className="shrink-0 px-1.75 leading-[normal]"
                                                                 >
-                                                                    {tCommonLabels("me")}
+                                                                    {tCommonLabels(
+                                                                        "me"
+                                                                    )}
                                                                 </Badge>
                                                             ) : null}
                                                         </div>
@@ -2255,7 +2287,9 @@ export function EventForm({
                                                         alt={
                                                             participant.data
                                                                 ?.name ??
-                                                                tCommonLabels("member")
+                                                            tCommonLabels(
+                                                                "member"
+                                                            )
                                                         }
                                                     />
                                                     <AvatarFallback className="text-xs">
@@ -2267,7 +2301,9 @@ export function EventForm({
                                                     <div className="truncate">
                                                         {participant.data
                                                             ?.name ??
-                                                            tCommonLabels("noName")}
+                                                            tCommonLabels(
+                                                                "noName"
+                                                            )}
                                                     </div>
                                                     <div className="truncate text-xs text-muted-foreground">
                                                         {participant.data
@@ -2320,7 +2356,8 @@ export function EventForm({
                                         field.onChange(nextCollectionNames)
                                         void saveNow({
                                             ...form.getValues(),
-                                            collectionNames: nextCollectionNames,
+                                            collectionNames:
+                                                nextCollectionNames,
                                         })
                                     }}
                                     errors={
@@ -2672,7 +2709,7 @@ export function EventForm({
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:w-32.5"
+                                className="group justify-center pl-1.5 leading-[normal] text-muted-foreground! not-hover:aria-expanded:bg-transparent md:min-w-32.5"
                             >
                                 <ChevronDownIcon className="group-data-[state=open]:rotate-180" />
                                 {tForm("hiddenProperties", {

@@ -3,6 +3,8 @@
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useCalendarEventHistory } from "@/hooks/use-calendar-event-history"
 import { type CalendarEventHistoryItem } from "@/lib/calendar/event-history"
+import { type Locale } from "@/lib/i18n/config"
+import { formatIntlDate } from "@/lib/i18n/intl-date"
 import dayjs from "@/lib/dayjs"
 import {
     Avatar,
@@ -47,7 +49,7 @@ function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
     const t = useDebugTranslations("event.history")
     const tRoles = useDebugTranslations("common.roles")
     const tLabels = useDebugTranslations("common.labels")
-    const locale = useLocale()
+    const locale = useLocale() as Locale
     return (
         <div className="flex gap-3 p-3">
             <Avatar className="mt-0.5 size-8 shrink-0">
@@ -104,17 +106,15 @@ function HistoryRow({ item }: { item: CalendarEventHistoryItem }) {
                     </div>
                 )}
                 <div className="mt-2 text-xs text-muted-foreground">
-                    {new Intl.DateTimeFormat(
-                        locale === "ko" ? "ko-KR" : "en-US",
-                        {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                        }
-                    ).format(dayjs(item.occurredAt).toDate())}
+                    {formatIntlDate(dayjs(item.occurredAt).toDate(), {
+                        locale,
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                    })}
                 </div>
             </div>
         </div>
