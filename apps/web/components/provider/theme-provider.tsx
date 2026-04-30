@@ -1,12 +1,10 @@
 "use client"
 
-import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 import * as React from "react"
 
 function ThemeColorSync() {
-    const { resolvedTheme } = useTheme() // Provider 안이므로 정상 동작
-    const pathname = usePathname()
+    const { resolvedTheme } = useTheme()
 
     React.useEffect(() => {
         if (!resolvedTheme) return
@@ -15,8 +13,13 @@ function ThemeColorSync() {
             light: "#ffffff",
             dark: "#0c0d0e",
         }
-        const color = colorMap[resolvedTheme] || "#ffffff"
+        const color = colorMap[resolvedTheme] ?? "#ffffff"
 
+        /**
+         * media 쿼리가 있는 태그는 모두 제거하고 단일 태그 하나만 유지한다.
+         * router.refresh() 후 Next.js가 media 배열 태그를 head에 재주입하면
+         * MutationObserver가 즉시 이 함수를 다시 호출해 덮어쓴다.
+         */
         const applyThemeColor = () => {
             const metas = Array.from(
                 document.querySelectorAll<HTMLMetaElement>(
@@ -24,26 +27,54 @@ function ThemeColorSync() {
                 )
             )
 
-            if (metas.length === 0) {
+            // media 쿼리 태그는 모두 제거
+            for (const meta of metas) {
+                if (meta.getAttribute("media")) {
+                    meta.remove()
+                }
+            }
+
+            const remaining = document.querySelector<HTMLMetaElement>(
+                'meta[name="theme-color"]:not([media])'
+            )
+
+            if (remaining) {
+                remaining.content = color
+            } else {
                 const meta = document.createElement("meta")
                 meta.name = "theme-color"
                 meta.content = color
                 document.head.appendChild(meta)
-                return
-            }
-
-            for (const meta of metas) {
-                meta.content = color
             }
         }
 
         applyThemeColor()
 
-        // 라우트 전환이나 iOS/Safari 복귀 시 head 메타가 다시 써지는 경우를 보정.
+        // router.refresh() / 라우트 전환 / iOS Safari 복귀 시 Next.js가
+        // head를 다시 쓰는 경우를 감지해 즉시 재적용한다.
+        const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (
+                        node instanceof HTMLMetaElement &&
+                        node.name === "theme-color"
+                    ) {
+                        applyThemeColor()
+                        return
+                    }
+                }
+            }
+        })
+        observer.observe(document.head, { childList: true })
+
         const onVis = () => applyThemeColor()
         document.addEventListener("visibilitychange", onVis)
-        return () => document.removeEventListener("visibilitychange", onVis)
-    }, [pathname, resolvedTheme])
+
+        return () => {
+            observer.disconnect()
+            document.removeEventListener("visibilitychange", onVis)
+        }
+    }, [resolvedTheme])
 
     return null
 }

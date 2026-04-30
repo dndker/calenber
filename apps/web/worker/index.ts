@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 
 import { clientsClaim } from "workbox-core"
-import { precacheAndRoute } from "workbox-precaching"
+import { precacheAndRoute, createHandlerBoundToURL } from "workbox-precaching"
+import { registerRoute, NavigationRoute } from "workbox-routing"
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -9,6 +10,17 @@ self.skipWaiting()
 clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
+
+/**
+ * 페이지 탐색(navigate) 요청은 프리캐시된 루트 URL로 응답한다.
+ * 이렇게 하면 PWA 첫 오픈 시 캐시에서 즉시 HTML을 반환해 흰 화면 시간을 줄인다.
+ * API, _next/static 같은 non-navigate 요청은 제외한다.
+ */
+registerRoute(
+    new NavigationRoute(createHandlerBoundToURL("/"), {
+        denylist: [/^\/api\//, /^\/_next\//],
+    })
+)
 
 // 🛠 설치(install) 단계 에러 핸들링 및 자동 업데이트 시도
 self.addEventListener("install", (event) => {
