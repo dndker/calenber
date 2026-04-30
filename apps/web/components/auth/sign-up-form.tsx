@@ -198,11 +198,12 @@ export function SignUpForm() {
             <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
+                label={t("google")}
                 onComplete={(result, nextPath) => {
                     if (result !== "success") return
 
                     if (nextPath) {
-                        router.replace(nextPath)
+                        window.location.replace(nextPath)
                         return
                     }
 

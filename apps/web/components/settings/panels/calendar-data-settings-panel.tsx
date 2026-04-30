@@ -1,20 +1,20 @@
 "use client"
 
 import {
-    CalendarCollectionTable,
-    type CalendarCollectionTableRow,
-} from "@/components/settings/panels/calendar-collection-table"
-import {
     EventStatusItem,
     useEventFormStatusItems,
 } from "@/components/calendar/event-form-status-field"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import {
+    CalendarCollectionTable,
+    type CalendarCollectionTableRow,
+} from "@/components/settings/panels/calendar-collection-table"
 import {
     editableStatuses,
     getCalendarDataColumns,
     type CalendarDataRow,
 } from "@/components/settings/panels/calendar-data-table-columns"
 import { CalendarEventFieldSettingsCard } from "@/components/settings/panels/calendar-event-field-settings-card"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { DataTable } from "@/components/settings/shared/data-table"
 import { useCalendarEventFieldSettings } from "@/hooks/use-calendar-event-field-settings"
 import {
@@ -211,7 +211,6 @@ export function CalendarDataSettingsPanel() {
     const t = useDebugTranslations("settings.calendarData")
     const tMembersTable = useDebugTranslations("settings.membersTable")
     const tCommonLabels = useDebugTranslations("common.labels")
-    const tEventForm = useDebugTranslations("event.form")
     const tSidebarEvents = useDebugTranslations("calendar.sidebarEvents")
     const locale = useLocale() as "ko" | "en"
     const eventFormStatusItems = useEventFormStatusItems()
@@ -369,7 +368,7 @@ export function CalendarDataSettingsPanel() {
                 toast.error(t("eventStatusUpdateFailed"))
             }
         },
-        [activeCalendarId]
+        [activeCalendarId, t]
     )
 
     const updateEventsCollections = useCallback(
@@ -379,13 +378,14 @@ export function CalendarDataSettingsPanel() {
             }
 
             const previousEvents = eventsRef.current
-            const nextCollectionIds = nextCollectionId
-                ? [nextCollectionId]
-                : []
+            const nextCollectionIds = nextCollectionId ? [nextCollectionId] : []
             const nextResolvedCollections = nextCollectionIds
                 .map((id) => eventCollectionMap.get(id))
-                .filter((collection): collection is NonNullable<typeof collection> =>
-                    Boolean(collection)
+                .filter(
+                    (
+                        collection
+                    ): collection is NonNullable<typeof collection> =>
+                        Boolean(collection)
                 )
 
             setEvents((current) =>
@@ -429,7 +429,7 @@ export function CalendarDataSettingsPanel() {
                 toast.error(t("eventCollectionUpdateFailed"))
             }
         },
-        [activeCalendarId, eventCollectionMap]
+        [activeCalendarId, eventCollectionMap, t]
     )
 
     const removeEvents = useCallback(
@@ -464,7 +464,7 @@ export function CalendarDataSettingsPanel() {
                 toast.error(t("eventDeleteFailed"))
             }
         },
-        [activeCalendarId]
+        [activeCalendarId, t]
     )
 
     const renameCollection = useCallback(
@@ -556,6 +556,7 @@ export function CalendarDataSettingsPanel() {
             canManageEvents,
             upsertEventCollectionSnapshot,
             withBusyCollection,
+            t,
         ]
     )
 
@@ -606,6 +607,7 @@ export function CalendarDataSettingsPanel() {
             canManageEvents,
             upsertEventCollectionSnapshot,
             withBusyCollection,
+            t,
         ]
     )
 
@@ -670,6 +672,7 @@ export function CalendarDataSettingsPanel() {
         eventCollections,
         newCollectionName,
         upsertEventCollectionSnapshot,
+        t,
     ])
 
     const removeCollection = useCallback(
@@ -706,6 +709,7 @@ export function CalendarDataSettingsPanel() {
             canManageEvents,
             removeEventCollectionSnapshot,
             withBusyCollection,
+            t,
         ]
     )
 
@@ -732,7 +736,7 @@ export function CalendarDataSettingsPanel() {
         })
 
         return Array.from(authorMap.values())
-    }, [events])
+    }, [events, t])
     const collectionOptions = useMemo(
         () =>
             sortCollectionsForSettings(eventCollections).map((collection) => ({
@@ -770,10 +774,7 @@ export function CalendarDataSettingsPanel() {
                     await updateEventsStatus([eventId], nextStatus)
                 },
                 onCollectionChange: async (eventId, nextCollectionId) => {
-                    await updateEventsCollections(
-                        [eventId],
-                        nextCollectionId
-                    )
+                    await updateEventsCollections([eventId], nextCollectionId)
                 },
                 onDeleteEvent: async (eventId) => {
                     await removeEvents([eventId])
@@ -787,7 +788,6 @@ export function CalendarDataSettingsPanel() {
             removeEvents,
             t,
             tCommonLabels,
-            tEventForm,
             tMembersTable,
             tSidebarEvents,
             updateEventsCollections,
@@ -926,7 +926,12 @@ export function CalendarDataSettingsPanel() {
         }))
 
         return [...authorBadges, ...collectionBadges, ...statusBadges]
-    }, [selectedAuthorLabels, selectedCollectionLabels, selectedStatuses])
+    }, [
+        selectedAuthorLabels,
+        selectedCollectionLabels,
+        selectedStatuses,
+        eventStatusLabelMap,
+    ])
     const activeFilterCount = activeFilterBadges.length
     const clearAllFilters = useCallback(() => {
         setSelectedAuthors([])
@@ -950,11 +955,12 @@ export function CalendarDataSettingsPanel() {
     }, [calendarEvents])
 
     const collectionRows = useMemo<CalendarCollectionTableRow[]>(() => {
-        return sortCollectionsForSettings(eventCollections).map((collection) => ({
-            ...collection,
-            usageCount:
-                collectionUsageCountMap.get(collection.id) ?? 0,
-        }))
+        return sortCollectionsForSettings(eventCollections).map(
+            (collection) => ({
+                ...collection,
+                usageCount: collectionUsageCountMap.get(collection.id) ?? 0,
+            })
+        )
     }, [collectionUsageCountMap, eventCollections])
 
     useEffect(() => {
@@ -1028,8 +1034,7 @@ export function CalendarDataSettingsPanel() {
                                 ? new Date(event.end_at).valueOf()
                                 : Date.now(),
                             allDay: storedEvent?.allDay ?? false,
-                            timezone:
-                                storedEvent?.timezone ?? "Asia/Seoul",
+                            timezone: storedEvent?.timezone ?? "Asia/Seoul",
                             status: event.status ?? "scheduled",
                             author:
                                 event.creator_name ||
@@ -1045,8 +1050,7 @@ export function CalendarDataSettingsPanel() {
                             collectionIds,
                             collections,
                             recurrence: storedEvent?.recurrence,
-                            recurrenceInstance:
-                                storedEvent?.recurrenceInstance,
+                            recurrenceInstance: storedEvent?.recurrenceInstance,
                             canManage: canManageEvents,
                         }
                     })
@@ -1111,7 +1115,9 @@ export function CalendarDataSettingsPanel() {
                                 getRowId={(row) => row.id}
                                 emptyMessage={t("eventListEmpty")}
                                 filterColumnId="event"
-                                filterPlaceholder={t("eventListFilterPlaceholder")}
+                                filterPlaceholder={t(
+                                    "eventListFilterPlaceholder"
+                                )}
                                 enableRowSelection={(row) =>
                                     canManageEvents && row.original.canManage
                                 }
@@ -1397,7 +1403,9 @@ export function CalendarDataSettingsPanel() {
                                                     size="sm"
                                                 >
                                                     <CheckCheckIcon />
-                                                    {t("bulkEditButton", { count: selectedEvents.length })}
+                                                    {t("bulkEditButton", {
+                                                        count: selectedEvents.length,
+                                                    })}
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent
@@ -1445,7 +1453,9 @@ export function CalendarDataSettingsPanel() {
                                                 <DropdownMenuSub>
                                                     <DropdownMenuSubTrigger>
                                                         <TagsIcon />
-                                                        {t("bulkCollectionChange")}
+                                                        {t(
+                                                            "bulkCollectionChange"
+                                                        )}
                                                     </DropdownMenuSubTrigger>
                                                     <DropdownMenuSubContent className="w-52">
                                                         <DropdownMenuItem
@@ -1462,13 +1472,17 @@ export function CalendarDataSettingsPanel() {
                                                                 table.resetRowSelection()
                                                             }}
                                                         >
-                                                            {t("bulkNoCollection")}
+                                                            {t(
+                                                                "bulkNoCollection"
+                                                            )}
                                                         </DropdownMenuItem>
                                                         {collectionOptions.length ? (
                                                             <>
                                                                 <DropdownMenuSeparator />
                                                                 {collectionOptions.map(
-                                                                    (option) => (
+                                                                    (
+                                                                        option
+                                                                    ) => (
                                                                         <DropdownMenuItem
                                                                             key={
                                                                                 option.id

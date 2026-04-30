@@ -792,6 +792,68 @@ export async function getCalendarSubscriptionCatalog(
     })
 }
 
+/**
+ * 구독 카탈로그 raw 데이터를 스토어용 CalendarSubscriptionCatalogItem 배열로 변환.
+ * getCalendarInitialData와 동일한 매핑 로직을 공유한다.
+ */
+export function normalizeSubscriptionCatalogs(
+    catalogs: CalendarSubscriptionCatalog[]
+): CalendarSubscriptionCatalogItem[] {
+    return catalogs.map((subscription) => ({
+        id: subscription.id,
+        slug: subscription.slug,
+        name: subscription.name,
+        description: subscription.description,
+        authority: subscription.verified ? "system" : "user",
+        ownerName:
+            subscription.providerName ??
+            (subscription.verified ? "Calenber" : "Shared user"),
+        providerName: subscription.providerName,
+        verified: subscription.verified,
+        tags: [],
+        collectionColor: subscription.collectionColor ?? undefined,
+        sourceType: subscription.sourceType,
+        calendar: subscription.sourceCalendar
+            ? {
+                  id: subscription.sourceCalendar.id,
+                  name: subscription.sourceCalendar.name,
+                  avatarUrl: subscription.sourceCalendar.avatarUrl,
+              }
+            : null,
+        status: subscription.status,
+        sourceDeletedAt: subscription.sourceDeletedAt,
+        sourceDeletedReason: subscription.sourceDeletedReason,
+        config: subscription.config,
+        visibility: subscription.visibility,
+    }))
+}
+
+/**
+ * 구독 카탈로그를 DB에서 다시 읽어 스토어용 형태로 반환.
+ * 구독 추가/삭제 후 스토어를 갱신할 때 사용한다.
+ */
+export async function fetchAndNormalizeSubscriptionCatalogs(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<{
+    catalogs: CalendarSubscriptionCatalogItem[]
+    installedIds: string[]
+    hiddenIds: string[]
+}> {
+    const raw = await getCalendarSubscriptionCatalog(supabase, calendarId)
+    const merged = mergeBuiltinSystemSubscriptionCatalog(raw)
+    const catalogs = normalizeSubscriptionCatalogs(merged)
+    return {
+        catalogs,
+        installedIds: merged
+            .filter((s) => s.installed)
+            .map((s) => s.id),
+        hiddenIds: merged
+            .filter((s) => s.installed && !s.isVisible)
+            .map((s) => s.id),
+    }
+}
+
 export async function getCalendarMembership(
     supabase: SupabaseClient,
     calendarId: string,

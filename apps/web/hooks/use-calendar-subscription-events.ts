@@ -2,6 +2,7 @@
 
 import { useCalendarSubscriptions } from "@/hooks/use-calendar-subscriptions"
 import { useSharedCollectionSubscriptionEvents } from "@/hooks/use-shared-collection-subscription-events"
+import { useGoogleCalendarSubscriptionEvents } from "@/hooks/use-google-calendar-subscription-events"
 import {
     KOREA_HOLIDAY_SUBSCRIPTION_ID,
     KOREAN_HOLIDAY_PROVIDER_KEY,
@@ -28,6 +29,9 @@ export function useCalendarSubscriptionEvents(
 
     // shared_collection 구독 이벤트는 DB에서 실시간으로 가져옴
     const sharedCollectionEvents = useSharedCollectionSubscriptionEvents(options)
+
+    // google_calendar 구독 이벤트는 Google API + Realtime/polling으로 동기화
+    const googleCalendarEvents = useGoogleCalendarSubscriptionEvents(options)
 
     const systemEvents = useMemo(() => {
         const merged: CalendarEvent[] = []
@@ -99,7 +103,7 @@ export function useCalendarSubscriptionEvents(
     ])
 
     return useMemo(
-        () => [...systemEvents, ...sharedCollectionEvents],
-        [systemEvents, sharedCollectionEvents]
+        () => [...systemEvents, ...sharedCollectionEvents, ...googleCalendarEvents],
+        [systemEvents, sharedCollectionEvents, googleCalendarEvents]
     )
 }

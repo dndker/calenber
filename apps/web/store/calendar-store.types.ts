@@ -116,7 +116,19 @@ export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
 export type CalendarSubscriptionSourceType =
     | "system_holiday"
     | "shared_collection"
+    | "google_calendar"
     | "custom"
+
+/** google_calendar 타입 구독의 config 구조 */
+export type GoogleCalendarSubscriptionConfig = {
+    provider: "google_calendar_v1"
+    /** Google Calendar API의 캘린더 ID (e.g. "primary", "xxx@group.calendar.google.com") */
+    googleCalendarId: string
+    /** user_google_integrations.google_account_id */
+    googleAccountId: string
+    /** 증분 동기화 토큰 (Google Calendar API nextSyncToken) */
+    syncToken?: string
+}
 
 export type CalendarSubscriptionCalendarInfo = {
     id: string | null

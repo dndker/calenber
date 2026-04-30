@@ -4,7 +4,6 @@ import { resolvePostAuthCalendarPath } from "@/lib/calendar/resolve-post-auth-ca
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
 import type { User } from "@supabase/supabase-js"
-import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/useAuthStore"
 
 function sleep(ms: number) {
@@ -14,7 +13,6 @@ function sleep(ms: number) {
 }
 
 export function useRouteToPostAuthCalendar() {
-    const router = useRouter()
     const setUser = useAuthStore((state) => state.setUser)
     const setLoading = useAuthStore((state) => state.setLoading)
 
@@ -23,7 +21,9 @@ export function useRouteToPostAuthCalendar() {
             if (user) {
                 setUser(mapUser(user))
                 setLoading(false)
-                router.replace(await resolvePostAuthCalendarPath(user.id))
+                window.location.replace(
+                    await resolvePostAuthCalendarPath(user.id)
+                )
                 return
             }
 
@@ -37,7 +37,7 @@ export function useRouteToPostAuthCalendar() {
                 if (session?.user) {
                     setUser(mapUser(session.user))
                     setLoading(false)
-                    router.replace(
+                    window.location.replace(
                         await resolvePostAuthCalendarPath(session.user.id)
                     )
                     return
@@ -47,11 +47,11 @@ export function useRouteToPostAuthCalendar() {
             }
 
             setLoading(false)
-            router.replace("/calendar")
+            window.location.replace("/calendar")
         } catch (error) {
             console.error("Failed to route to post-auth calendar:", error)
             setLoading(false)
-            router.replace("/calendar")
+            window.location.replace("/calendar")
         }
     }
 }
