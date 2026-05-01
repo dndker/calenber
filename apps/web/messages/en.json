@@ -452,6 +452,11 @@
             "loadCalendarsFailed": "Failed to load Google calendars.",
             "insufficientPermission": "Google Calendar permission is missing. Reconnect your account and allow all requested permissions.",
             "refresh": "Refresh",
+            "collectionNameLabel": "Collection name to add",
+            "collectionNamePlaceholder": "Enter a collection name",
+            "alreadyAddedBadge": "Already added",
+            "alreadyAddedDescription": "This Google Calendar has already been added to the current calendar.",
+            "allCalendarsAlreadyAdded": "All Google Calendars in this account have already been added.",
             "colorLabel": "Color",
             "description": "Events from the selected Google Calendar will appear in this calendar.",
             "submit": "Add",
@@ -583,7 +588,8 @@
         "collection": {
             "emptyText": "Type a collection name to create it.",
             "searchOrCreate": "Search or create",
-            "createNew": "Create new collection"
+            "createNew": "Create new collection",
+            "googleCalendarLabel": "Google Calendar"
         },
         "status": {
             "scheduled": "Scheduled",
@@ -745,6 +751,21 @@
             "languageDescription": "Choose the language to use in Calenber.",
             "timezoneLabel": "Time zone",
             "timezoneDescription": "Select a time zone"
+        },
+        "profileNotification": {
+            "loading": "Loading settings...",
+            "channelSection": "Notification Channels",
+            "pushNotifications": "Push Notifications",
+            "pushNotificationsDescription": "Receive notifications in your browser and app (PWA)",
+            "emailNotifications": "Email Notifications",
+            "emailNotificationsDescription": "Receive notifications via email",
+            "emailFrequency": "Email Frequency",
+            "emailFrequencyDescription": "How often you want to receive email notifications",
+            "frequencyRealtime": "Instant",
+            "frequencyDaily": "Daily digest",
+            "frequencyWeekly": "Weekly digest",
+            "frequencyOff": "Off",
+            "typeSection": "Notification Types"
         },
         "calendarData": {
             "fieldSettingsPermissionDenied": "Only managers or owners can change event field settings.",
@@ -963,6 +984,21 @@
             "deleteAccountConfirmSuffix": ".",
             "deleteAccountConfirmAria": "Account deletion confirmation",
             "deleting": "Deleting..."
+        }
+    },
+    "notification": {
+        "unknownUser": "Unknown user",
+        "dropdown": {
+            "trigger": "Notifications",
+            "title": "Notifications",
+            "markAllRead": "Mark all read",
+            "empty": "No new notifications",
+            "loadMore": "Load more",
+            "viewAll": "View all notifications"
+        },
+        "page": {
+            "title": "Notifications",
+            "empty": "No new notifications"
         }
     }
 }

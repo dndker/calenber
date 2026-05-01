@@ -51,6 +51,8 @@ type EventChipsComboboxProps<TData = unknown> = {
     value: string[]
     portalContainer?: HTMLElement | null
     disabled?: boolean
+    /** 선택은 됐지만 새로 토글할 수 없는 옵션 값 목록 (비활성 표시) */
+    disabledValues?: Set<string>
     invalid?: boolean
     placeholder?: string
     emptyText: string
@@ -78,6 +80,7 @@ export function EventChipsCombobox<TData = unknown>({
     value,
     portalContainer,
     disabled = false,
+    disabledValues,
     invalid = false,
     placeholder,
     emptyText,
@@ -168,6 +171,10 @@ export function EventChipsCombobox<TData = unknown>({
             return false
         }
 
+        if (disabledValues?.has(createdOption.value)) {
+            return false
+        }
+
         onValueChange(Array.from(new Set([...value, createdOption.value])))
         setQuery("")
         setOpen(false)
@@ -228,6 +235,10 @@ export function EventChipsCombobox<TData = unknown>({
     const isSelected = (optionValue: string) => value.includes(optionValue)
 
     const toggleOption = (optionValue: string) => {
+        if (disabledValues?.has(optionValue) && !isSelected(optionValue)) {
+            return
+        }
+
         if (isSelected(optionValue)) {
             onValueChange(
                 value.filter((currentValue) => currentValue !== optionValue)
@@ -247,25 +258,33 @@ export function EventChipsCombobox<TData = unknown>({
                 </div>
             ) : (
                 <div className="flex max-h-52 flex-col overflow-y-auto">
-                    {filteredOptions.map((option) => (
-                        <ContextMenuItem
-                            key={option.value}
-                            onMouseDown={(event) => {
-                                event.preventDefault()
-                            }}
-                            onSelect={(event) => {
-                                event.preventDefault()
-                                toggleOption(option.value)
-                            }}
-                        >
-                            <span className="min-w-0 flex-1">
-                                {renderItemContent
-                                    ? renderItemContent(option)
-                                    : option.label}
-                            </span>
-                            {isSelected(option.value) ? <CheckIcon /> : null}
-                        </ContextMenuItem>
-                    ))}
+                    {filteredOptions.map((option) => {
+                        const isItemDisabled =
+                            disabledValues?.has(option.value) &&
+                            !isSelected(option.value)
+                        return (
+                            <ContextMenuItem
+                                key={option.value}
+                                disabled={isItemDisabled}
+                                onMouseDown={(event) => {
+                                    event.preventDefault()
+                                }}
+                                onSelect={(event) => {
+                                    event.preventDefault()
+                                    toggleOption(option.value)
+                                }}
+                            >
+                                <span className="min-w-0 flex-1">
+                                    {renderItemContent
+                                        ? renderItemContent(option)
+                                        : option.label}
+                                </span>
+                                {isSelected(option.value) ? (
+                                    <CheckIcon />
+                                ) : null}
+                            </ContextMenuItem>
+                        )
+                    })}
                 </div>
             )}
         </>
@@ -357,11 +376,20 @@ export function EventChipsCombobox<TData = unknown>({
                                 return null
                             }
 
+                            const isItemDisabled =
+                                disabledValues?.has(option.value) &&
+                                !value.includes(option.value)
+
                             return (
                                 <ComboboxItem
-                                    className="py-1.5 dark:hover:bg-input/50"
+                                    className={cn(
+                                        "py-1.5 dark:hover:bg-input/50",
+                                        isItemDisabled &&
+                                            "pointer-events-none opacity-40"
+                                    )}
                                     key={option.value}
                                     value={option.value}
+                                    disabled={isItemDisabled}
                                 >
                                     {renderItemContent
                                         ? renderItemContent(option)

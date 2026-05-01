@@ -251,6 +251,7 @@ export const EventItem = memo(
             continuesFromPrevWeek,
             continuesToNextWeek
         )
+        // isSubscriptionStyleEventId: 공휴일·공유컬렉션(sub:)만 해당. gcal: 이벤트는 미포함이므로 편집/삭제 허용
         const canEdit = isGeneratedSubscriptionEvent
             ? false
             : activeCalendar?.id === "demo" ||
@@ -609,13 +610,29 @@ export const EventItem = memo(
             isCtxOpen,
             primaryCollectionColor,
         ])
+        const resolvedCollectionEventClassName =
+            displayPrimaryCollectionColor && event.allDay
+                ? getCalendarCollectionEventClassName(
+                      displayPrimaryCollectionColor
+                  )
+                : undefined
+        const resolvedCollectionHoverClassName = displayPrimaryCollectionColor
+            ? getCalendarCollectionEventHoverClassName(
+                  displayPrimaryCollectionColor
+              )
+            : "bg-muted text-foreground dark:bg-input/50"
+        const resolvedDefaultHoverClassName = "bg-muted text-foreground dark:bg-input/50"
         const resolvedSeriesHoverClassName =
-            isSeriesHover && !isDragging && event.allDay
-                ? displayPrimaryCollectionColor
-                    ? getCalendarCollectionEventHoverClassName(
-                          displayPrimaryCollectionColor
-                      )
-                    : "bg-muted text-foreground dark:bg-input/50"
+            isSeriesHover && !isDragging
+                ? event.allDay
+                    ? resolvedCollectionHoverClassName
+                    : resolvedDefaultHoverClassName
+                : undefined
+        const resolvedInteractiveStateClassName =
+            isResizingThis || isCtxOpen
+                ? event.allDay
+                    ? resolvedCollectionHoverClassName
+                    : resolvedDefaultHoverClassName
                 : undefined
         const eventRadiusClass = cn(
             continuesFromPrevWeek
@@ -691,20 +708,9 @@ export const EventItem = memo(
                                     "text-muted-foreground line-through",
                                 eventMembers.length > 0 && "shadow-lg/7",
                                 eventRadiusClass,
-                                // primaryCollectionColor && "pl-2.25",
-                                displayPrimaryCollectionColor &&
-                                    event.allDay &&
-                                    getCalendarCollectionEventClassName(
-                                        displayPrimaryCollectionColor
-                                    ),
+                                resolvedCollectionEventClassName,
                                 resolvedSeriesHoverClassName,
-                                (isResizingThis || isCtxOpen) && "bg-muted",
-                                (isResizingThis || isCtxOpen) &&
-                                    event.allDay &&
-                                    displayPrimaryCollectionColor &&
-                                    getCalendarCollectionEventHoverClassName(
-                                        displayPrimaryCollectionColor
-                                    )
+                                resolvedInteractiveStateClassName
                                 // eventMembers.length > 0 &&
                                 //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
                             )}

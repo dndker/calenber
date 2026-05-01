@@ -70,12 +70,45 @@ self.addEventListener("message", () => {
 })
 
 self.addEventListener("push", (event) => {
-    const data = event.data?.json() || {}
+    const data: {
+        title?: string
+        message?: string
+        icon?: string
+        badge?: string
+        url?: string
+        tag?: string
+        data?: Record<string, unknown>
+    } = event.data?.json() ?? {}
 
-    event?.waitUntil(
-        self.registration.showNotification(data.title, {
-            body: data.message,
-            icon: "/icons/android-chrome-192x192.png",
-        })
+    const title = data.title ?? "Calenber"
+    const options: NotificationOptions = {
+        body: data.message ?? "",
+        icon: data.icon ?? "/icons/android-chrome-192x192.png",
+        badge: data.badge ?? "/icons/badge-72x72.png",
+        tag: data.tag,           // 같은 tag 끼리 대치 (중복 방지)
+        data: { url: data.url ?? "/" },
+    }
+
+    event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close()
+
+    const url: string = (event.notification.data as { url?: string })?.url ?? "/"
+
+    event.waitUntil(
+        (self as unknown as ServiceWorkerGlobalScope).clients
+            .matchAll({ type: "window", includeUncontrolled: true })
+            .then((clientList) => {
+                // 이미 열린 창이 있으면 포커스 후 navigate
+                for (const client of clientList) {
+                    if ("navigate" in client && "focus" in client) {
+                        return (client as WindowClient).focus().then((c) => c.navigate(url))
+                    }
+                }
+                // 없으면 새 창 열기
+                return (self as unknown as ServiceWorkerGlobalScope).clients.openWindow(url)
+            })
     )
 })

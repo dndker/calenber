@@ -7,17 +7,25 @@
  */
 
 export const GOOGLE_CALENDAR_SCOPES = [
-    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
 ] as const
 
 /**
- * 현재 Google Calendar "구독" 기능에 필요한 최소 읽기 권한.
- * OAuth 응답 scope에서 이 집합이 모두 포함되는지 검증한다.
+ * Google Calendar 기능에 필요한 최소 권한.
+ * calendar(full) 스코프가 있으면 readonly 요구를 충족한다 (GOOGLE_SCOPE_ALIASES 참고).
  */
 export const GOOGLE_CALENDAR_REQUIRED_SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
+] as const
+
+/**
+ * 이벤트 쓰기(생성·수정·삭제)에 필요한 권한 집합.
+ * calendar(full) 스코프를 직접 확인한다.
+ */
+export const GOOGLE_CALENDAR_WRITE_SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
 ] as const
 
 /**

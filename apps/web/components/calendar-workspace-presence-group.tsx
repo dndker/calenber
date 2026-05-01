@@ -65,28 +65,26 @@ function getPresenceCursorLabel(
 
         return (
             t?.("viewingEventDate", {
-                date:
-                    dateFormats
-                        ? cursorDate.format(
-                              myDate.year() === cursorDate.year()
-                                  ? dateFormats.sameYear
-                                  : dateFormats.diffYear
-                          )
-                        : fallbackDateLabel,
-            }) ?? fallbackDateLabel
-        )
-    }
-
-    return (
-        t?.("viewingDate", {
-            date:
-                dateFormats
+                date: dateFormats
                     ? cursorDate.format(
                           myDate.year() === cursorDate.year()
                               ? dateFormats.sameYear
                               : dateFormats.diffYear
                       )
                     : fallbackDateLabel,
+            }) ?? fallbackDateLabel
+        )
+    }
+
+    return (
+        t?.("viewingDate", {
+            date: dateFormats
+                ? cursorDate.format(
+                      myDate.year() === cursorDate.year()
+                          ? dateFormats.sameYear
+                          : dateFormats.diffYear
+                  )
+                : fallbackDateLabel,
         }) ?? fallbackDateLabel
     )
 }
@@ -159,6 +157,7 @@ export function CalendarWorkspacePresenceGroup() {
             id: user.id,
             name: user.displayName,
             avatarUrl: user.avatarUrl,
+            isAnonymous: user.isAnonymous,
             avatarFallback: getAvatarGroupFallbackLabel(
                 user.displayName,
                 user.isAnonymous

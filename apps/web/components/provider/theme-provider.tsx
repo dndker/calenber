@@ -14,32 +14,17 @@ function ThemeColorSync() {
             dark: "#0c0d0e",
         }
         const color = colorMap[resolvedTheme] ?? "#ffffff"
-
         /**
-         * media 쿼리가 있는 태그는 모두 제거하고 단일 태그 하나만 유지한다.
-         * router.refresh() 후 Next.js가 media 배열 태그를 head에 재주입하면
-         * MutationObserver가 즉시 이 함수를 다시 호출해 덮어쓴다.
+         * theme-color는 단일 메타 하나만 유지하고 content만 갱신한다.
+         * head 자식을 제거하지 않아야 라우트 전환 중 Next.js head diff와 충돌하지 않는다.
          */
         const applyThemeColor = () => {
-            const metas = Array.from(
-                document.querySelectorAll<HTMLMetaElement>(
-                    'meta[name="theme-color"]'
-                )
-            )
-
-            // media 쿼리 태그는 모두 제거
-            for (const meta of metas) {
-                if (meta.getAttribute("media")) {
-                    meta.remove()
-                }
-            }
-
-            const remaining = document.querySelector<HTMLMetaElement>(
+            const themeMeta = document.querySelector<HTMLMetaElement>(
                 'meta[name="theme-color"]:not([media])'
             )
 
-            if (remaining) {
-                remaining.content = color
+            if (themeMeta) {
+                themeMeta.content = color
             } else {
                 const meta = document.createElement("meta")
                 meta.name = "theme-color"

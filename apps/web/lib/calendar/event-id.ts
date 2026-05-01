@@ -49,3 +49,11 @@ export function isSubscriptionStyleEventId(eventId: string): boolean {
         isSubscriptionCompositeEventId(eventId)
     )
 }
+
+/**
+ * Google 캘린더 구독 이벤트 ID(`gcal:<catalogId>:<googleEventId>`)인지 검사한다.
+ * isSubscriptionStyleEventId와 달리 편집/삭제가 가능한 이벤트다.
+ */
+export function isGoogleCalendarSubscriptionEventId(eventId: string): boolean {
+    return eventId.startsWith("gcal:")
+}

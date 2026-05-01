@@ -20,7 +20,6 @@ import {
 import {
     makeGoogleCalendarEventId,
     mapGoogleEventToCalendarEvent,
-    GOOGLE_CALENDAR_PROVIDER_KEY,
 } from "@/lib/google/calendar-event-mapper"
 import type { GoogleCalendarEvent } from "@/lib/google/calendar-api"
 import { useEffect, useRef, useState } from "react"
@@ -34,6 +33,7 @@ type GoogleCatalogMeta = {
     collectionColor: string | null | undefined
     googleCalendarId: string
     googleAccountId: string
+    googleEmail: string | null
 }
 
 type UseGoogleCalendarSubscriptionEventsOptions = {
@@ -73,6 +73,19 @@ export function useGoogleCalendarSubscriptionEvents(
 ): CalendarEvent[] {
     const subscriptionCatalogs = useCalendarStore((s) => s.subscriptionCatalogs)
     const subscriptionState = useCalendarStore((s) => s.subscriptionState)
+    /**
+     * Calenber에 저장된 이벤트 중 google_event_id가 있는 것들의 집합.
+     * 구글 webhook re-fetch 시 이미 Calenber에 저장된 이벤트는 중복 표시하지 않는다.
+     */
+    const calenberGoogleEventIds = useCalendarStore((s) => {
+        const ids = new Set<string>()
+        for (const ev of s.events) {
+            if (ev.googleEventId) ids.add(ev.googleEventId)
+        }
+        return ids
+    })
+    const calenberGoogleEventIdsRef = useRef(calenberGoogleEventIds)
+    calenberGoogleEventIdsRef.current = calenberGoogleEventIds
 
     const [eventsByCatalogId, setEventsByCatalogId] = useState<Map<string, CalendarEvent[]>>(
         new Map()
@@ -97,6 +110,10 @@ export function useGoogleCalendarSubscriptionEvents(
                 collectionColor: c.collectionColor,
                 googleCalendarId: String(c.config?.googleCalendarId ?? ""),
                 googleAccountId: String(c.config?.googleAccountId ?? ""),
+                googleEmail:
+                    typeof c.config?.googleEmail === "string"
+                        ? c.config.googleEmail
+                        : null,
             }))
             .filter((c) => c.googleCalendarId && c.googleAccountId)
     })()
@@ -127,10 +144,14 @@ export function useGoogleCalendarSubscriptionEvents(
             authority: "user",
             providerName: "Google Calendar",
             calendar: null,
+            googleEmail: catalog.googleEmail,
         }
 
         const calendarEvents: CalendarEvent[] = []
         for (const ge of googleEvents) {
+            // Calenber에 이미 저장된 이벤트(google_event_id 일치)는 중복 표시 방지
+            if (calenberGoogleEventIdsRef.current.has(ge.id)) continue
+
             const mapped = mapGoogleEventToCalendarEvent(ge, {
                 catalogId: catalog.id,
                 catalogName: catalog.name,

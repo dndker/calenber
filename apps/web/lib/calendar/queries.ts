@@ -20,6 +20,7 @@ import type {
     CalendarEvent,
     CalendarEventFieldSettings,
     EventSubscriptionItem,
+    GoogleCalendarSubscriptionConfig,
 } from "@/store/calendar-store.types"
 import type {
     CalendarAccessMode,
@@ -320,6 +321,11 @@ type SourceCalendarMetaRow = {
     id: string
     name: string
     avatar_url: string | null
+}
+
+type GoogleIntegrationMetaRow = {
+    google_account_id: string
+    google_email: string
 }
 
 function normalizeCalendarSubscriptionSourceType(
@@ -719,6 +725,18 @@ export async function getCalendarSubscriptionCatalog(
         return []
     }
     const rows = data as CalendarSubscriptionCatalogRow[]
+    const googleAccountIds = Array.from(
+        new Set(
+            rows
+                .map((row) => {
+                    const config = (row.config ?? {}) as Record<string, unknown>
+                    return typeof config.googleAccountId === "string"
+                        ? config.googleAccountId
+                        : null
+                })
+                .filter((id): id is string => Boolean(id))
+        )
+    )
     const sourceCalendarIds = Array.from(
         new Set(
             rows
@@ -731,6 +749,7 @@ export async function getCalendarSubscriptionCatalog(
         string,
         { name: string; avatarUrl: string | null }
     >()
+    let googleEmailByAccountId = new Map<string, string>()
 
     if (sourceCalendarIds.length > 0) {
         const { data: sourceCalendars, error: sourceCalendarError } = await supabase
@@ -756,10 +775,46 @@ export async function getCalendarSubscriptionCatalog(
         }
     }
 
+    if (googleAccountIds.length > 0) {
+        const { data: googleIntegrations, error: googleIntegrationError } =
+            await supabase
+                .from("user_google_integrations")
+                .select("google_account_id, google_email")
+                .in("google_account_id", googleAccountIds)
+
+        if (googleIntegrationError) {
+            console.error(
+                "Failed to load Google integration emails for subscriptions:",
+                googleIntegrationError
+            )
+        } else {
+            googleEmailByAccountId = new Map(
+                ((googleIntegrations ?? []) as GoogleIntegrationMetaRow[]).map(
+                    (row) => [row.google_account_id, row.google_email]
+                )
+            )
+        }
+    }
+
     return rows.map((row) => {
         const meta = row.source_calendar_id
             ? sourceCalendarMetaById.get(row.source_calendar_id)
             : undefined
+        const config = (row.config ?? {}) as Record<string, unknown>
+        const googleAccountId =
+            typeof config.googleAccountId === "string"
+                ? config.googleAccountId
+                : null
+        const googleEmail = googleAccountId
+            ? googleEmailByAccountId.get(googleAccountId) ?? null
+            : null
+        const normalizedConfig =
+            googleEmail && config.provider === "google_calendar_v1"
+                ? ({
+                      ...(config as GoogleCalendarSubscriptionConfig),
+                      googleEmail,
+                  } as Record<string, unknown>)
+                : config
 
         return {
             id: row.id,
@@ -781,7 +836,7 @@ export async function getCalendarSubscriptionCatalog(
             sourceDeletedAt: row.source_deleted_at,
             sourceDeletedReason: row.source_deleted_reason,
             collectionColor: normalizeCalendarCollectionColor(row.collection_color),
-            config: (row.config ?? {}) as Record<string, unknown>,
+            config: normalizedConfig,
             installed: row.installed,
             isVisible: row.is_visible,
             visibility:
@@ -1044,6 +1099,9 @@ function mapSharedCollectionRowToEventMetadata(
 function calendarCatalogRowToEventSubscriptionItem(
     row: CalendarSubscriptionCatalog
 ): EventSubscriptionItem {
+    const googleEmail =
+        typeof row.config.googleEmail === "string" ? row.config.googleEmail : null
+
     return {
         id: row.id,
         slug: row.slug,
@@ -1058,6 +1116,7 @@ function calendarCatalogRowToEventSubscriptionItem(
                   avatarUrl: row.sourceCalendar.avatarUrl,
               }
             : null,
+        googleEmail,
     }
 }
 

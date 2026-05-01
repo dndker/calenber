@@ -92,6 +92,7 @@ function Button({
               "--button-effect-color": "currentColor",
           } as React.CSSProperties)
         : style
+    const shouldWrapChildren = !asChild && effect
 
     return (
         <Comp
@@ -177,7 +178,7 @@ function Button({
             {loading && <Spinner data-icon="inline-start" />}
             {asChild ? (
                 <Slot.Slottable>{children}</Slot.Slottable>
-            ) : (
+            ) : shouldWrapChildren ? (
                 <motion.span
                     className="relative z-10 inline-flex transform-gpu items-center justify-center gap-[inherit] leading-[normal] will-change-transform backface-hidden"
                     initial={false}
@@ -200,6 +201,8 @@ function Button({
                 >
                     {children}
                 </motion.span>
+            ) : (
+                children
             )}
         </Comp>
     )

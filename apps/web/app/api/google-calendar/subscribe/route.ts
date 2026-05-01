@@ -16,6 +16,7 @@ import {
 import { createServerSupabase } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import crypto from "crypto"
+import { normalizeCalendarCollectionColor } from "@/lib/calendar/collection-color"
 
 export async function POST(request: Request) {
     const user = await getServerUser()
@@ -28,14 +29,27 @@ export async function POST(request: Request) {
         googleAccountId: string
         googleCalendarId: string
         googleCalendarName: string
+        collectionName?: string
         collectionColor?: string
     }
 
-    const { calendarId, googleAccountId, googleCalendarId, googleCalendarName, collectionColor } = body
+    const {
+        calendarId,
+        googleAccountId,
+        googleCalendarId,
+        googleCalendarName,
+        collectionName,
+        collectionColor,
+    } = body
 
     if (!calendarId || !googleAccountId || !googleCalendarId || !googleCalendarName) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
+
+    const normalizedCollectionColor =
+        normalizeCalendarCollectionColor(collectionColor) ?? "blue"
+    const normalizedCollectionName =
+        collectionName?.trim() || googleCalendarName
 
     const supabase = await createServerSupabase()
     const accessToken = await getValidAccessToken(supabase, user.id, googleAccountId)
@@ -76,19 +90,19 @@ export async function POST(request: Request) {
 
         if (existingCatalog) {
             catalogId = existingCatalog.id as string
-            // 이름 + syncToken 갱신
+            // 이름, 설명, 컬러, syncToken 갱신
             await supabase
                 .from("calendar_subscription_catalogs")
                 .update({
-                    name: googleCalendarName,
-                    ...(syncToken && {
-                        config: {
-                            provider: "google_calendar_v1",
-                            googleCalendarId,
-                            googleAccountId,
-                            syncToken,
-                        },
-                    }),
+                    name: normalizedCollectionName,
+                    description: `Google Calendar: ${googleCalendarName}`,
+                    collection_color: normalizedCollectionColor,
+                    config: {
+                        provider: "google_calendar_v1",
+                        googleCalendarId,
+                        googleAccountId,
+                        syncToken: syncToken ?? null,
+                    },
                 })
                 .eq("id", catalogId)
         } else {
@@ -106,13 +120,13 @@ export async function POST(request: Request) {
                 .from("calendar_subscription_catalogs")
                 .insert({
                     slug,
-                    name: googleCalendarName,
+                    name: normalizedCollectionName,
                     description: `Google Calendar: ${googleCalendarName}`,
                     source_type: "google_calendar",
                     verified: false,
                     status: "active",
                     visibility: "private",
-                    collection_color: collectionColor ?? "blue",
+                    collection_color: normalizedCollectionColor,
                     owner_user_id: user.id,
                     created_by: user.id,
                     config: {

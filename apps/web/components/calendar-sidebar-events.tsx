@@ -9,6 +9,7 @@ import {
 } from "@/lib/calendar/event-date-format"
 import { orderCalendarEventFieldIds } from "@/lib/calendar/event-field-settings"
 import { isSubscriptionStyleEventId } from "@/lib/calendar/event-id"
+import { parseGoogleCalendarEventId } from "@/lib/google/calendar-event-mapper"
 import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
 import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import { getKoreanPublicHolidaySubscriptionEventById } from "@/lib/calendar/subscriptions/providers/korean-public-holidays"
@@ -452,6 +453,7 @@ export const CalendarSidebarEventItem = memo(function CalendarSidebarEvent({
                                     subscription={event.subscription}
                                     size="sm"
                                     className="mt-1"
+                                    editable={Boolean(parseGoogleCalendarEventId(event.id))}
                                 />
                             )}
                         </div>

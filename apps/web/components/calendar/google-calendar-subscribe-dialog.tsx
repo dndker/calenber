@@ -21,8 +21,10 @@ import {
     type GoogleIntegration,
 } from "@/hooks/use-google-integrations"
 import {
+    calendarCollectionColorLabels,
     calendarCollectionColors,
     getCalendarCollectionPaletteClassName,
+    isCalendarCollectionColor,
     type CalendarCollectionColor,
 } from "@/lib/calendar/collection-color"
 import { useCalendarStore } from "@/store/useCalendarStore"
@@ -46,6 +48,11 @@ import {
     DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { Field, FieldLabel } from "@workspace/ui/components/field"
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupInput,
+} from "@workspace/ui/components/input-group"
 import {
     Select,
     SelectContent,
@@ -78,6 +85,17 @@ type GoogleCalendarEntry = {
     accessRole: string
     backgroundColor?: string
     primary?: boolean
+}
+
+function getGoogleCalendarDefaultCollectionName(
+    calendarEntry: GoogleCalendarEntry,
+    integration?: GoogleIntegration
+) {
+    if (calendarEntry.primary && integration) {
+        return integration.googleEmail
+    }
+
+    return calendarEntry.summary
 }
 
 export type GoogleCalendarSubscribeDialogProps = {
@@ -266,6 +284,10 @@ export function GoogleCalendarSubscribeForm({
     const t = useDebugTranslations("calendar.googleCalendarSubscribe")
     const tCommon = useDebugTranslations("common.actions")
     const activeCalendarId = useCalendarStore((s) => s.activeCalendar?.id)
+    const subscriptionCatalogs = useCalendarStore((s) => s.subscriptionCatalogs)
+    const installedSubscriptionIds = useCalendarStore(
+        (s) => s.subscriptionState.installedSubscriptionIds
+    )
 
     const {
         integrations,
@@ -282,6 +304,7 @@ export function GoogleCalendarSubscribeForm({
     const [isLoadingCalendars, setIsLoadingCalendars] = React.useState(false)
     const [selectedCalendarId, setSelectedCalendarId] =
         React.useState<string>("")
+    const [collectionName, setCollectionName] = React.useState("")
 
     const [selectedColor, setSelectedColor] =
         React.useState<CalendarCollectionColor>("blue")
@@ -293,11 +316,40 @@ export function GoogleCalendarSubscribeForm({
     const [pendingDisconnectAccount, setPendingDisconnectAccount] =
         React.useState<GoogleIntegration | null>(null)
 
+    const installedGoogleCalendarKeys = React.useMemo(() => {
+        const installedSet = new Set(installedSubscriptionIds)
+
+        return new Set(
+            subscriptionCatalogs
+                .filter((catalog) => installedSet.has(catalog.id))
+                .map((catalog) => {
+                    const googleCalendarId = String(
+                        catalog.config?.googleCalendarId ?? ""
+                    )
+                    const googleAccountId = String(
+                        catalog.config?.googleAccountId ?? ""
+                    )
+
+                    return googleCalendarId && googleAccountId
+                        ? `${googleAccountId}::${googleCalendarId}`
+                        : ""
+                })
+                .filter(Boolean)
+        )
+    }, [installedSubscriptionIds, subscriptionCatalogs])
+
+    const isCalendarAlreadyInstalled = React.useCallback(
+        (accountId: string, calendarId: string) =>
+            installedGoogleCalendarKeys.has(`${accountId}::${calendarId}`),
+        [installedGoogleCalendarKeys]
+    )
+
     // 계정 선택 시 캘린더 목록 로드
     React.useEffect(() => {
         if (!selectedAccountId) {
             setGoogleCalendars([])
             setSelectedCalendarId("")
+            setCollectionName("")
             return
         }
 
@@ -335,9 +387,19 @@ export function GoogleCalendarSubscribeForm({
                     }
                     const calendars = data.calendars ?? []
                     setGoogleCalendars(calendars)
-                    // primary 캘린더를 기본 선택
-                    const primary = calendars.find((c) => c.primary)
-                    if (primary) setSelectedCalendarId(primary.id)
+                    // 이미 추가된 캘린더는 제외하고 primary를 우선 선택
+                    const primary = calendars.find(
+                        (c) =>
+                            c.primary &&
+                            !isCalendarAlreadyInstalled(selectedAccountId, c.id)
+                    )
+                    const firstAvailable = calendars.find(
+                        (c) =>
+                            !isCalendarAlreadyInstalled(selectedAccountId, c.id)
+                    )
+                    setSelectedCalendarId(
+                        primary?.id ?? firstAvailable?.id ?? ""
+                    )
                 }
             )
             .catch(
@@ -351,7 +413,32 @@ export function GoogleCalendarSubscribeForm({
             )
             .finally(() => setIsLoadingCalendars(false))
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedAccountId])
+    }, [isCalendarAlreadyInstalled, selectedAccountId])
+
+    React.useEffect(() => {
+        if (!selectedAccountId || !selectedCalendarId) {
+            setCollectionName("")
+            return
+        }
+
+        const calendarEntry = googleCalendars.find(
+            (calendar) => calendar.id === selectedCalendarId
+        )
+        if (!calendarEntry) {
+            setCollectionName("")
+            return
+        }
+
+        const selectedIntegration = integrations.find(
+            (integration) => integration.googleAccountId === selectedAccountId
+        )
+        setCollectionName(
+            getGoogleCalendarDefaultCollectionName(
+                calendarEntry,
+                selectedIntegration
+            )
+        )
+    }, [googleCalendars, integrations, selectedAccountId, selectedCalendarId])
 
     // 새 Google 계정 연결
     const handleConnectAccount = async () => {
@@ -382,10 +469,12 @@ export function GoogleCalendarSubscribeForm({
         const selectedIntegration = integrations.find(
             (i) => i.googleAccountId === selectedAccountId
         )
-        const calendarName =
-            calendarEntry.primary && selectedIntegration
-                ? selectedIntegration.googleEmail
-                : calendarEntry.summary
+        const googleCalendarName = getGoogleCalendarDefaultCollectionName(
+            calendarEntry,
+            selectedIntegration
+        )
+        const trimmedCollectionName = collectionName.trim()
+        const nextCollectionName = trimmedCollectionName || googleCalendarName
 
         setIsSubscribing(true)
         try {
@@ -396,7 +485,8 @@ export function GoogleCalendarSubscribeForm({
                     calendarId: activeCalendarId,
                     googleAccountId: selectedAccountId,
                     googleCalendarId: selectedCalendarId,
-                    googleCalendarName: calendarName,
+                    googleCalendarName,
+                    collectionName: nextCollectionName,
                     collectionColor: selectedColor,
                 }),
             })
@@ -407,7 +497,7 @@ export function GoogleCalendarSubscribeForm({
 
             const { catalogId } = (await res.json()) as { catalogId: string }
 
-            toast.success(t("subscribeSuccess", { name: calendarName }))
+            toast.success(t("subscribeSuccess", { name: nextCollectionName }))
             onSubscribed?.(catalogId)
             onClose()
         } catch {
@@ -446,7 +536,22 @@ export function GoogleCalendarSubscribeForm({
     }
 
     const isBusy = isConnecting || isLoadingCalendars || isSubscribing
-    const canSubscribe = !!selectedAccountId && !!selectedCalendarId && !isBusy
+    const isSelectedCalendarAlreadyInstalled =
+        !!selectedAccountId &&
+        !!selectedCalendarId &&
+        isCalendarAlreadyInstalled(selectedAccountId, selectedCalendarId)
+    const hasAvailableGoogleCalendar =
+        !!selectedAccountId &&
+        googleCalendars.some(
+            (calendar) =>
+                !isCalendarAlreadyInstalled(selectedAccountId, calendar.id)
+        )
+    const canSubscribe =
+        !!selectedAccountId &&
+        !!selectedCalendarId &&
+        !!collectionName.trim() &&
+        !isSelectedCalendarAlreadyInstalled &&
+        !isBusy
 
     return (
         <>
@@ -556,37 +661,55 @@ export function GoogleCalendarSubscribeForm({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
-                                        {googleCalendars.map((cal) => (
-                                            <SelectItem
-                                                key={cal.id}
-                                                value={cal.id}
-                                                className="py-2"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    {cal.backgroundColor && (
-                                                        <span
-                                                            className="inline-block size-2.5 shrink-0 rounded-full"
-                                                            style={{
-                                                                backgroundColor:
-                                                                    cal.backgroundColor,
-                                                            }}
-                                                        />
-                                                    )}
-                                                    <span className="truncate text-sm">
-                                                        {cal.summary}
-                                                        {cal.primary && (
-                                                            <span className="ml-1.5 text-xs text-muted-foreground">
-                                                                (
-                                                                {t(
-                                                                    "primaryCalendar"
-                                                                )}
-                                                                )
-                                                            </span>
+                                        {googleCalendars.map((cal) => {
+                                            const isInstalled =
+                                                isCalendarAlreadyInstalled(
+                                                    selectedAccountId,
+                                                    cal.id
+                                                )
+
+                                            return (
+                                                <SelectItem
+                                                    key={cal.id}
+                                                    value={cal.id}
+                                                    className="py-2"
+                                                    disabled={isInstalled}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        {cal.backgroundColor && (
+                                                            <span
+                                                                className="inline-block size-2.5 shrink-0 rounded-full"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        cal.backgroundColor,
+                                                                }}
+                                                            />
                                                         )}
-                                                    </span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
+                                                        <span className="truncate text-sm">
+                                                            {cal.summary}
+                                                            {cal.primary && (
+                                                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                                                    (
+                                                                    {t(
+                                                                        "primaryCalendar"
+                                                                    )}
+                                                                    )
+                                                                </span>
+                                                            )}
+                                                            {isInstalled && (
+                                                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                                                    (
+                                                                    {t(
+                                                                        "alreadyAddedBadge"
+                                                                    )}
+                                                                    )
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </SelectItem>
+                                            )
+                                        })}
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
@@ -594,29 +717,83 @@ export function GoogleCalendarSubscribeForm({
                     </Field>
                 )}
 
-                {/* 색상 선택 */}
-                <Field>
-                    <FieldLabel>{t("colorLabel")}</FieldLabel>
-                    <div className="flex flex-wrap gap-1.5">
-                        {calendarCollectionColors.map((color) => (
-                            <button
-                                key={color}
-                                type="button"
-                                aria-label={color}
-                                onClick={() => setSelectedColor(color)}
-                                className={cn(
-                                    "size-6 rounded-full transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                                    getCalendarCollectionPaletteClassName(
-                                        color
-                                    ),
-                                    selectedColor === color
-                                        ? "ring-2 ring-ring ring-offset-2"
-                                        : "opacity-70 hover:opacity-100"
-                                )}
+                {selectedAccountId && !isLoadingCalendars && (
+                    <Field>
+                        <FieldLabel htmlFor="google-calendar-collection-name">
+                            {t("collectionNameLabel")}
+                        </FieldLabel>
+                        <InputGroup>
+                            <InputGroupAddon align="inline-start">
+                                <Select
+                                    value={selectedColor}
+                                    onValueChange={(value) => {
+                                        if (isCalendarCollectionColor(value)) {
+                                            setSelectedColor(value)
+                                        }
+                                    }}
+                                    disabled={isBusy || !selectedCalendarId}
+                                >
+                                    <SelectTrigger className="h-auto! w-13 border-0 px-1 py-0! hover:bg-muted">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {calendarCollectionColors.map(
+                                            (color) => (
+                                                <SelectItem
+                                                    key={color}
+                                                    value={color}
+                                                >
+                                                    <span className="flex cursor-pointer items-center gap-1.75 px-0.5 py-0.5">
+                                                        <span
+                                                            className={cn(
+                                                                "inline-flex size-4.5 items-center gap-1.5 rounded-sm",
+                                                                getCalendarCollectionPaletteClassName(
+                                                                    color
+                                                                )
+                                                            )}
+                                                        ></span>
+                                                        <span>
+                                                            {
+                                                                calendarCollectionColorLabels[
+                                                                    color
+                                                                ]
+                                                            }
+                                                        </span>
+                                                    </span>
+                                                </SelectItem>
+                                            )
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </InputGroupAddon>
+                            <InputGroupInput
+                                id="google-calendar-collection-name"
+                                value={collectionName}
+                                onChange={(event) =>
+                                    setCollectionName(event.target.value)
+                                }
+                                placeholder={t("collectionNamePlaceholder")}
+                                disabled={isBusy || !selectedCalendarId}
+                                maxLength={80}
                             />
-                        ))}
-                    </div>
-                </Field>
+                        </InputGroup>
+                    </Field>
+                )}
+
+                {isSelectedCalendarAlreadyInstalled && (
+                    <p className="text-xs text-muted-foreground">
+                        {t("alreadyAddedDescription")}
+                    </p>
+                )}
+
+                {selectedAccountId &&
+                    !isLoadingCalendars &&
+                    googleCalendars.length > 0 &&
+                    !hasAvailableGoogleCalendar && (
+                        <p className="text-xs text-muted-foreground">
+                            {t("allCalendarsAlreadyAdded")}
+                        </p>
+                    )}
 
                 {/* 안내 문구 */}
                 <p className="text-xs text-muted-foreground">

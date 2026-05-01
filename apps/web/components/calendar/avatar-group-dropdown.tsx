@@ -33,6 +33,7 @@ type AvatarGroupDropdownItem = {
     timeValue?: string | Date | number | null
     onSelect?: () => void
     disabled?: boolean
+    isAnonymous?: boolean
 }
 
 type AvatarGroupDropdownProps = {
@@ -116,7 +117,12 @@ function AvatarGroupDropdownRow({
                         src={item.avatarUrl ?? undefined}
                         alt={item.name}
                     />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback
+                        className={cn(
+                            "text-xs",
+                            item.isAnonymous && "text-[9px] tracking-tight"
+                        )}
+                    >
                         {avatarFallback || "?"}
                     </AvatarFallback>
                 </Avatar>
@@ -147,7 +153,7 @@ export function getAvatarGroupFallbackLabel(
     isAnonymous = false
 ) {
     if (isAnonymous) {
-        return "?"
+        return "Anon"
     }
 
     return displayName.trim().charAt(0).toUpperCase() || "?"
@@ -223,7 +229,7 @@ export function AvatarGroupDropdownPreview({
 }: {
     items: Pick<
         AvatarGroupDropdownItem,
-        "id" | "name" | "avatarUrl" | "avatarFallback"
+        "id" | "name" | "avatarUrl" | "avatarFallback" | "isAnonymous"
     >[]
     maxVisibleAvatars?: number
     title?: string
@@ -240,7 +246,12 @@ export function AvatarGroupDropdownPreview({
                         src={item.avatarUrl ?? undefined}
                         alt={item.name}
                     />
-                    <AvatarFallback>
+                    <AvatarFallback
+                        className={cn(
+                            "text-xs",
+                            item.isAnonymous && "text-[9px]! tracking-tight!"
+                        )}
+                    >
                         {item.avatarFallback ?? "?"}
                     </AvatarFallback>
                 </Avatar>

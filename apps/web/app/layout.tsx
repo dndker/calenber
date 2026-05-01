@@ -16,6 +16,7 @@ import {
 import { getServerUser } from "@/lib/auth/get-server-user"
 import { ogLocaleMap, type Locale } from "@/lib/i18n/config"
 import { AuthStoreProvider } from "@/store/useAuthStore"
+import { NotificationStoreProvider } from "@/store/useNotificationStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { mapUser } from "@workspace/lib/supabase/map-user"
@@ -446,20 +447,26 @@ export async function generateMetadata(): Promise<Metadata> {
     }
 }
 
-export const viewport: Viewport = {
-    userScalable: false,
-    themeColor: [
-        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-        { media: "(prefers-color-scheme: dark)", color: "#0c0d0e" },
-    ],
-}
-
 function normalizeTheme(theme: string | undefined): Theme {
     if (theme === "light" || theme === "dark" || theme === "system") {
         return theme
     }
 
     return "system"
+}
+
+function getThemeColor(theme: Theme) {
+    return theme === "dark" ? "#0c0d0e" : "#ffffff"
+}
+
+export async function generateViewport(): Promise<Viewport> {
+    const cookieStore = await cookies()
+    const theme = normalizeTheme(cookieStore.get("theme")?.value)
+
+    return {
+        userScalable: false,
+        themeColor: getThemeColor(theme === "system" ? "light" : theme),
+    }
 }
 
 export default async function RootLayout({
@@ -506,9 +513,11 @@ export default async function RootLayout({
                                     <AuthStoreProvider
                                         initialState={{ user: appUser }}
                                     >
-                                        <DevServiceWorkerCleanup />
-                                        <AuthSync />
-                                        {children}
+                                        <NotificationStoreProvider>
+                                            <DevServiceWorkerCleanup />
+                                            <AuthSync />
+                                            {children}
+                                        </NotificationStoreProvider>
                                     </AuthStoreProvider>
                                 </TooltipProvider>
                             </ThemeProvider>

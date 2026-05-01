@@ -3,7 +3,6 @@
 import {
     ArrowDown,
     ArrowUp,
-    Bell,
     Copy,
     CornerUpLeft,
     CornerUpRight,
@@ -41,6 +40,7 @@ import {
 import Link from "next/link"
 import { CalendarWorkspacePresenceGroup } from "./calendar-workspace-presence-group"
 import ThemeSwitch from "./theme-switch"
+import { NotificationDropdown } from "./notifications/notification-dropdown"
 
 const data = [
     [
@@ -88,10 +88,6 @@ const data = [
             label: "Show delete pages",
             icon: Trash,
         },
-        {
-            label: "Notifications",
-            icon: Bell,
-        },
     ],
     [
         {
@@ -113,26 +109,11 @@ export function NavActions() {
     const isLoggedIn = useAuthStore((s) => s.user != null)
 
     const [isOpen, setIsOpen] = React.useState(false)
+    const [isNotifOpen, setIsNotifOpen] = React.useState(false)
 
     return (
         <div className="flex items-center gap-1 text-sm">
-            {/* <div className="hidden font-medium text-muted-foreground md:inline-block">
-                Edit Oct 08
-            </div> */}
-
             <CalendarWorkspacePresenceGroup />
-
-            {/* <Button
-                    variant="outline"
-                    className="leading-[normal]"
-                    asChild
-                    size="sm"
-                >
-                    <a href="/docs">
-                        <Info />
-                        Support
-                    </a>
-                </Button> */}
 
             {!isLoggedIn && (
                 <Button
@@ -145,23 +126,18 @@ export function NavActions() {
                 </Button>
             )}
 
-            {/* <TimezoneSelect
-                value={calendarTimezone}
-                onChange={(value) => {
-                    if (!value) return
-                    setCalendarTimezone(value)
-
-                    document.cookie = `calendar-timezone=${encodeURIComponent(
-                        value
-                    )}; path=/; max-age=31536000`
-                }}
-            /> */}
-
             <Button variant="ghost" size="icon" className="size-8 sm:hidden">
                 <Search className="size-4.5" />
             </Button>
 
             <ThemeSwitch />
+
+            {isLoggedIn && (
+                <NotificationDropdown
+                    open={isNotifOpen}
+                    onOpenChange={setIsNotifOpen}
+                />
+            )}
 
             <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
