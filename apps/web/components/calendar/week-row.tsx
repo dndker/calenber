@@ -1,10 +1,4 @@
-import {
-    filterCalendarWeekVisibleDays,
-    normalizeCalendarLayoutOptions,
-} from "@/lib/calendar/layout-options"
-import { shallow } from "@/store/createSSRStore"
-import { useCalendarStore } from "@/store/useCalendarStore"
-import { getMonthKey, getWeek } from "@/utils/calendar"
+import { getMonthKey } from "@/utils/calendar"
 import clsx from "clsx"
 import { memo } from "react"
 import type { PositionedCalendarEvent } from "./event-positioning"
@@ -16,7 +10,8 @@ export const WeekRow = memo(
         events,
         start,
         size = 200,
-        weekDate,
+        visibleWeek,
+        calendarTz,
         currentMonthKey,
         skeleton = false,
     }: {
@@ -24,31 +19,20 @@ export const WeekRow = memo(
         start?: number
         skeleton?: boolean
         size?: number
-        weekDate: Date
+        visibleWeek: Date[]
+        calendarTz: string
         currentMonthKey: string
     }) => {
-        const {
-            calendarTimezone,
-            weekStartsOn,
-            hideWeekendColumns,
-        } = useCalendarStore(
-            (s) => {
-                const layout = normalizeCalendarLayoutOptions(
-                    s.activeCalendar?.layoutOptions
-                )
-                return {
-                    calendarTimezone: s.calendarTimezone,
-                    weekStartsOn: layout.weekStartsOn,
-                    hideWeekendColumns: layout.hideWeekendColumns,
-                }
-            },
-            shallow
-        )
-        const week = getWeek(weekDate, calendarTimezone, weekStartsOn)
-        const visibleWeek = filterCalendarWeekVisibleDays(
-            week,
-            hideWeekendColumns
-        )
+        const firstVisibleDay = visibleWeek[0]
+        const lastVisibleDay = visibleWeek[visibleWeek.length - 1]
+
+        if (!firstVisibleDay || !lastVisibleDay) {
+            return null
+        }
+
+        const firstMonthKey = getMonthKey(firstVisibleDay, calendarTz)
+        const lastMonthKey = getMonthKey(lastVisibleDay, calendarTz)
+        const showsWeekendColumns = visibleWeek.length > 5
 
         return (
             <div
@@ -66,9 +50,9 @@ export const WeekRow = memo(
                 }
                 className={clsx(
                     "relative grid snap-start gap-px",
-                    hideWeekendColumns ? "grid-cols-5" : "grid-cols-7",
+                    showsWeekendColumns ? "grid-cols-7" : "grid-cols-5",
                     {
-                    "h-1/5": skeleton,
+                        "h-1/5": skeleton,
                     }
                 )}
             >
@@ -77,8 +61,11 @@ export const WeekRow = memo(
                         key={day.toISOString()}
                         day={day}
                         isCurrentMonth={
-                            getMonthKey(day, calendarTimezone) ===
-                            currentMonthKey
+                            (firstMonthKey === currentMonthKey &&
+                                getMonthKey(day, calendarTz) ===
+                                    firstMonthKey) ||
+                            (lastMonthKey === currentMonthKey &&
+                                getMonthKey(day, calendarTz) === lastMonthKey)
                         }
                     />
                 ))}
@@ -97,8 +84,9 @@ export const WeekRow = memo(
         prev.start === next.start &&
         prev.size === next.size &&
         prev.skeleton === next.skeleton &&
+        prev.calendarTz === next.calendarTz &&
         prev.currentMonthKey === next.currentMonthKey &&
-        prev.weekDate.getTime() === next.weekDate.getTime()
+        prev.visibleWeek === next.visibleWeek
 )
 
 WeekRow.displayName = "WeekRow"

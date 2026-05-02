@@ -621,7 +621,8 @@ export const EventItem = memo(
                   displayPrimaryCollectionColor
               )
             : "bg-muted text-foreground dark:bg-input/50"
-        const resolvedDefaultHoverClassName = "bg-muted text-foreground dark:bg-input/50"
+        const resolvedDefaultHoverClassName =
+            "bg-muted text-foreground dark:bg-input/50"
         const resolvedSeriesHoverClassName =
             isSeriesHover && !isDragging
                 ? event.allDay
@@ -693,7 +694,7 @@ export const EventItem = memo(
                             ref={!canDragResize ? null : setNodeRef}
                             variant="outline"
                             className={cn(
-                                "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1.5 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [&>span]:leading-normal [body[data-scroll-locked='1']_&]:pointer-events-none",
+                                "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1.5 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
                                 !event.allDay && "pl-1.75",
                                 !interactive && "pointer-events-none",
                                 useSplitLayout
@@ -767,21 +768,21 @@ export const EventItem = memo(
                                 !continuesFromPrevWeek && (
                                     <span
                                         className={cn(
-                                            "absolute top-1/2 -left-1.25 inline-block h-[calc(100%-2.5px)] w-0.5 -translate-y-1/2 rounded-lg",
+                                            "absolute top-1/2 left-0.5 inline-block h-[calc(100%-7.5px)] w-0.5 -translate-y-1/2 rounded-full",
                                             getCalendarCollectionDotClassName(
                                                 displayPrimaryCollectionColor
                                             )
                                         )}
                                     ></span>
                                 )}
-                            <span className="flex-initial truncate overflow-hidden">
+                            <span className="flex-initial truncate overflow-hidden leading-3">
                                 {event.title === ""
                                     ? tLabels("newEvent")
                                     : event.title}
                             </span>
 
                             {event.subscription && (
-                                <span className="ml-px text-xs tracking-tight opacity-40 [word-spacing:-1px]">
+                                <span className="ml-px text-xs leading-normal tracking-tight opacity-40 [word-spacing:-1px]">
                                     {event.subscription.name}
                                 </span>
                             )}

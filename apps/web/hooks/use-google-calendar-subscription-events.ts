@@ -13,16 +13,14 @@
 
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import type { CalendarEvent, EventSubscriptionItem } from "@/store/calendar-store.types"
-import {
-    getSubscriptionCatalogTopic,
-} from "@/lib/calendar/realtime"
-import {
-    makeGoogleCalendarEventId,
-    mapGoogleEventToCalendarEvent,
-} from "@/lib/google/calendar-event-mapper"
+import type {
+    CalendarEvent,
+    EventSubscriptionItem,
+} from "@/store/calendar-store.types"
+import { getSubscriptionCatalogTopic } from "@/lib/calendar/realtime"
+import { mapGoogleEventToCalendarEvent } from "@/lib/google/calendar-event-mapper"
 import type { GoogleCalendarEvent } from "@/lib/google/calendar-api"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
 const POLLING_INTERVAL_MS = 5 * 60 * 1000 // 5분
@@ -88,21 +86,18 @@ export function useGoogleCalendarSubscriptionEvents(
     const calenberGoogleEventIdsRef = useRef(calenberGoogleEventIds)
     calenberGoogleEventIdsRef.current = calenberGoogleEventIds
 
-    const [eventsByCatalogId, setEventsByCatalogId] = useState<Map<string, CalendarEvent[]>>(
-        new Map()
-    )
+    const [eventsByCatalogId, setEventsByCatalogId] = useState<
+        Map<string, CalendarEvent[]>
+    >(new Map())
 
-    // 설치 + 가시 + google_calendar 타입만 필터
-    const googleCatalogs: GoogleCatalogMeta[] = (() => {
+    const installedGoogleCatalogs = useMemo((): GoogleCatalogMeta[] => {
         const installedSet = new Set(subscriptionState.installedSubscriptionIds)
-        const hiddenSet = new Set(subscriptionState.hiddenSubscriptionIds)
 
         return subscriptionCatalogs
             .filter(
                 (c) =>
                     c.sourceType === "google_calendar" &&
                     installedSet.has(c.id) &&
-                    !hiddenSet.has(c.id) &&
                     c.status === "active"
             )
             .map((c) => ({
@@ -121,16 +116,28 @@ export function useGoogleCalendarSubscriptionEvents(
                         : null,
             }))
             .filter((c) => c.googleCalendarId && c.googleAccountId)
-    })()
+    }, [subscriptionCatalogs, subscriptionState.installedSubscriptionIds])
 
-    const googleCatalogsRef = useRef(googleCatalogs)
-    googleCatalogsRef.current = googleCatalogs
+    const visibleGoogleCatalogIdSet = useMemo(() => {
+        const hiddenSet = new Set(subscriptionState.hiddenSubscriptionIds)
+
+        return new Set(
+            installedGoogleCatalogs
+                .filter((catalog) => !hiddenSet.has(catalog.id))
+                .map((catalog) => catalog.id)
+        )
+    }, [installedGoogleCatalogs, subscriptionState.hiddenSubscriptionIds])
+
+    const googleCatalogsRef = useRef(installedGoogleCatalogs)
+    googleCatalogsRef.current = installedGoogleCatalogs
 
     const optionsRef = useRef(options)
     optionsRef.current = options
 
     const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map())
-    const pollingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+    const pollingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+        new Map()
+    )
 
     const fetchAndUpdate = async (catalog: GoogleCatalogMeta) => {
         const { rangeStart, rangeEnd } = optionsRef.current
@@ -162,7 +169,8 @@ export function useGoogleCalendarSubscriptionEvents(
                 catalogName: catalog.name,
                 collectionColor: catalog.collectionColor,
                 defaultTimezone:
-                    catalog.googleCalendarTimeZone ?? optionsRef.current.timezone,
+                    catalog.googleCalendarTimeZone ??
+                    optionsRef.current.timezone,
                 isLocked: false, // 쓰기 권한은 API 응답에서 결정하지만 기본 false
                 subscriptionMeta,
             })
@@ -192,7 +200,7 @@ export function useGoogleCalendarSubscriptionEvents(
     }
 
     useEffect(() => {
-        if (googleCatalogs.length === 0) {
+        if (installedGoogleCatalogs.length === 0) {
             // 채널 + polling 전체 정리
             const supabase = createBrowserSupabase()
             for (const ch of channelsRef.current.values()) {
@@ -209,12 +217,12 @@ export function useGoogleCalendarSubscriptionEvents(
         const supabase = createBrowserSupabase()
 
         // 초기 전체 fetch
-        for (const catalog of googleCatalogs) {
+        for (const catalog of installedGoogleCatalogs) {
             void fetchAndUpdate(catalog)
         }
 
         // 더 이상 필요 없는 채널/polling 정리
-        const nextIds = new Set(googleCatalogs.map((c) => c.id))
+        const nextIds = new Set(installedGoogleCatalogs.map((c) => c.id))
         for (const [cid, ch] of channelsRef.current.entries()) {
             if (!nextIds.has(cid)) {
                 void supabase.removeChannel(ch)
@@ -229,7 +237,7 @@ export function useGoogleCalendarSubscriptionEvents(
         }
 
         // 신규 카탈로그 채널 구독 + polling
-        for (const catalog of googleCatalogs) {
+        for (const catalog of installedGoogleCatalogs) {
             // polling
             schedulePolling(catalog)
 
@@ -259,27 +267,38 @@ export function useGoogleCalendarSubscriptionEvents(
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        googleCatalogs.map((c) => c.id).join(","),
+        installedGoogleCatalogs.map((c) => c.id).join(","),
         options.rangeStart,
         options.rangeEnd,
     ])
 
     // 언마운트 시 전체 정리
     useEffect(() => {
+        const channels = channelsRef.current
+        const pollingTimers = pollingTimersRef.current
+
         return () => {
             const supabase = createBrowserSupabase()
-            for (const ch of channelsRef.current.values()) {
+            for (const ch of channels.values()) {
                 void supabase.removeChannel(ch)
             }
-            channelsRef.current.clear()
-            for (const t of pollingTimersRef.current.values()) clearTimeout(t)
-            pollingTimersRef.current.clear()
+            channels.clear()
+            for (const t of pollingTimers.values()) clearTimeout(t)
+            pollingTimers.clear()
         }
     }, [])
 
-    const allEvents: CalendarEvent[] = []
-    for (const events of eventsByCatalogId.values()) {
-        allEvents.push(...events)
-    }
-    return allEvents
+    return useMemo(() => {
+        const allEvents: CalendarEvent[] = []
+
+        for (const [catalogId, events] of eventsByCatalogId.entries()) {
+            if (!visibleGoogleCatalogIdSet.has(catalogId)) {
+                continue
+            }
+
+            allEvents.push(...events)
+        }
+
+        return allEvents
+    }, [eventsByCatalogId, visibleGoogleCatalogIdSet])
 }

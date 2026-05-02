@@ -1,13 +1,20 @@
 import dayjs from "@/lib/dayjs"
-import { getCalendarWeekStart, normalizeCalendarLayoutOptions } from "@/lib/calendar/layout-options"
+import {
+    filterCalendarWeekVisibleDays,
+    getCalendarWeekStart,
+    normalizeCalendarLayoutOptions,
+} from "@/lib/calendar/layout-options"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { getMonthKey } from "@/utils/calendar"
+import { getMonthKey, getWeek } from "@/utils/calendar"
 import { WeekRow } from "./week-row"
 
 export function MonthSkeleton() {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const weekStartsOn = useCalendarStore((s) =>
         normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
+    )
+    const hideWeekendColumns = useCalendarStore((s) =>
+        normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).hideWeekendColumns
     )
     const selectedDate = useCalendarStore((s) => s.selectedDate)
     const today = dayjs(selectedDate).tz(calendarTimezone).add(12, "hour")
@@ -25,12 +32,17 @@ export function MonthSkeleton() {
         <div className="relative flex h-full flex-col gap-px">
             {Array.from({ length: 5 }).map((_, i) => {
                 const weekDate = calendarStart.add(i, "week").toDate()
+                const visibleWeek = filterCalendarWeekVisibleDays(
+                    getWeek(weekDate, calendarTimezone, weekStartsOn),
+                    hideWeekendColumns
+                )
 
                 return (
                     <WeekRow
                         key={i}
                         events={[]}
-                        weekDate={weekDate}
+                        visibleWeek={visibleWeek}
+                        calendarTz={calendarTimezone}
                         currentMonthKey={monthKey}
                         skeleton
                         // size={item.size}
