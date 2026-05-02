@@ -120,6 +120,8 @@ export type NotificationStoreState = {
     // ── 액션 ─────────────────────────────
     /** 알림 목록 첫 로드 */
     loadNotifications: () => Promise<void>
+    /** 앱 진입 시 배지/드롭다운용 경량 preload */
+    primeNotifications: () => Promise<void>
     /** 추가 페이지 로드 */
     loadMoreNotifications: () => Promise<void>
     /** Realtime으로 새 digest 수신 시 병합 */

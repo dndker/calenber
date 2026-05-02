@@ -121,6 +121,7 @@ export function buildEventUpdatedPayload(opts: {
     recipientIds: string[]
     actorId: string
     calendarId: string
+    calendarName?: string
     eventId: string
     eventTitle: string
     actorName: string
@@ -137,6 +138,7 @@ export function buildEventUpdatedPayload(opts: {
         calendarId: opts.calendarId,
         metadata: {
             title: opts.eventTitle,
+            calendarName: opts.calendarName,
             actorName: opts.actorName,
             actorAvatarUrl: opts.actorAvatarUrl ?? undefined,
             changedFields: opts.changedFields,
@@ -149,6 +151,7 @@ export function buildEventTaggedPayload(opts: {
     recipientId: string
     actorId: string
     calendarId: string
+    calendarName?: string
     eventId: string
     eventTitle: string
     actorName: string
@@ -163,6 +166,7 @@ export function buildEventTaggedPayload(opts: {
         calendarId: opts.calendarId,
         metadata: {
             title: opts.eventTitle,
+            calendarName: opts.calendarName,
             actorName: opts.actorName,
             actorAvatarUrl: opts.actorAvatarUrl ?? undefined,
         },
@@ -173,6 +177,7 @@ export function buildEventParticipantAddedPayload(opts: {
     recipientId: string
     actorId: string
     calendarId: string
+    calendarName?: string
     eventId: string
     eventTitle: string
     actorName: string
@@ -186,6 +191,7 @@ export function buildEventParticipantAddedPayload(opts: {
         calendarId: opts.calendarId,
         metadata: {
             title: opts.eventTitle,
+            calendarName: opts.calendarName,
             actorName: opts.actorName,
         },
     }

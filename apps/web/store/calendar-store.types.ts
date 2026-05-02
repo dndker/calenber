@@ -124,6 +124,8 @@ export type GoogleCalendarSubscriptionConfig = {
     provider: "google_calendar_v1"
     /** Google Calendar API의 캘린더 ID (e.g. "primary", "xxx@group.calendar.google.com") */
     googleCalendarId: string
+    /** Google Calendar 자체의 기본 timezone */
+    googleCalendarTimeZone?: string
     /** user_google_integrations.google_account_id */
     googleAccountId: string
     /** user_google_integrations.google_email */

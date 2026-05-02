@@ -1,9 +1,13 @@
 "use client"
 
-import { resolvePostAuthCalendarPath } from "@/lib/calendar/resolve-post-auth-calendar-path"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
 import type { User } from "@supabase/supabase-js"
+import { useRouter } from "next/navigation"
+import {
+    getRecentCalendarPathFromCookieValue,
+    RECENT_CALENDAR_COOKIE_NAME,
+} from "@/lib/calendar/recent-calendar-cookie"
 import { useAuthStore } from "@/store/useAuthStore"
 
 function sleep(ms: number) {
@@ -12,7 +16,21 @@ function sleep(ms: number) {
     })
 }
 
+function getImmediatePostAuthPath() {
+    const cookieValue = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith(`${RECENT_CALENDAR_COOKIE_NAME}=`))
+        ?.split("=")[1]
+
+    return (
+        getRecentCalendarPathFromCookieValue(
+            cookieValue ? decodeURIComponent(cookieValue) : null
+        ) ?? "/calendar"
+    )
+}
+
 export function useRouteToPostAuthCalendar() {
+    const router = useRouter()
     const setUser = useAuthStore((state) => state.setUser)
     const setLoading = useAuthStore((state) => state.setLoading)
 
@@ -21,9 +39,7 @@ export function useRouteToPostAuthCalendar() {
             if (user) {
                 setUser(mapUser(user))
                 setLoading(false)
-                window.location.replace(
-                    await resolvePostAuthCalendarPath(user.id)
-                )
+                router.replace(getImmediatePostAuthPath())
                 return
             }
 
@@ -37,9 +53,7 @@ export function useRouteToPostAuthCalendar() {
                 if (session?.user) {
                     setUser(mapUser(session.user))
                     setLoading(false)
-                    window.location.replace(
-                        await resolvePostAuthCalendarPath(session.user.id)
-                    )
+                    router.replace(getImmediatePostAuthPath())
                     return
                 }
 
@@ -47,11 +61,11 @@ export function useRouteToPostAuthCalendar() {
             }
 
             setLoading(false)
-            window.location.replace("/calendar")
+            router.replace("/calendar")
         } catch (error) {
             console.error("Failed to route to post-auth calendar:", error)
             setLoading(false)
-            window.location.replace("/calendar")
+            router.replace("/calendar")
         }
     }
 }

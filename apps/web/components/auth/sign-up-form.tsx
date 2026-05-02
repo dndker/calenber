@@ -72,7 +72,7 @@ export function SignUpForm() {
         }
 
         if (result.ok && !result.requiresEmailVerification) {
-            await routeToPostAuthCalendar(result.user)
+            void routeToPostAuthCalendar(result.user)
         }
     }
 
@@ -203,7 +203,7 @@ export function SignUpForm() {
                     if (result !== "success") return
 
                     if (nextPath) {
-                        window.location.replace(nextPath)
+                        router.replace(nextPath)
                         return
                     }
 

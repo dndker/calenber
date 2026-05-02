@@ -1,6 +1,5 @@
 "use client"
 
-import { useNotificationRealtime } from "@/hooks/use-notification-realtime"
 import { useAuthStore } from "@/store/useAuthStore"
 import type { NotificationDigest } from "@/store/notification-store.types"
 import { useNotificationStore } from "@/store/useNotificationStore"
@@ -29,10 +28,15 @@ export function useNotificationCenter({
     )
     const markAllRead = useNotificationStore((s) => s.markAllRead)
 
-    useNotificationRealtime()
-
     useEffect(() => {
-        if (!initialDigests || isInitialized) {
+        if (!initialDigests) {
+            return
+        }
+
+        const shouldHydrate =
+            !isInitialized || initialDigests.length > digests.length
+
+        if (!shouldHydrate) {
             return
         }
 
@@ -51,7 +55,7 @@ export function useNotificationCenter({
                 return sum + digest.unreadCount
             }, 0),
         })
-    }, [initialDigests, initialHasMore, isInitialized])
+    }, [initialDigests, initialHasMore, isInitialized, digests.length])
 
     useEffect(() => {
         if (!open || isInitialized || !user || initialDigests) {

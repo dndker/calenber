@@ -89,9 +89,7 @@ export function GoogleButton({ label, onComplete }: GoogleButtonProps) {
             }
 
             toast.success(t("googleCompleted"))
-            window.setTimeout(() => {
-                void onComplete?.("success", event.data.next)
-            }, 0)
+            void onComplete?.("success", event.data.next)
         }
 
         window.addEventListener("message", handleMessage)

@@ -32,6 +32,7 @@ type GoogleCatalogMeta = {
     name: string
     collectionColor: string | null | undefined
     googleCalendarId: string
+    googleCalendarTimeZone: string | null
     googleAccountId: string
     googleEmail: string | null
 }
@@ -109,6 +110,10 @@ export function useGoogleCalendarSubscriptionEvents(
                 name: c.name,
                 collectionColor: c.collectionColor,
                 googleCalendarId: String(c.config?.googleCalendarId ?? ""),
+                googleCalendarTimeZone:
+                    typeof c.config?.googleCalendarTimeZone === "string"
+                        ? c.config.googleCalendarTimeZone
+                        : null,
                 googleAccountId: String(c.config?.googleAccountId ?? ""),
                 googleEmail:
                     typeof c.config?.googleEmail === "string"
@@ -156,6 +161,8 @@ export function useGoogleCalendarSubscriptionEvents(
                 catalogId: catalog.id,
                 catalogName: catalog.name,
                 collectionColor: catalog.collectionColor,
+                defaultTimezone:
+                    catalog.googleCalendarTimeZone ?? optionsRef.current.timezone,
                 isLocked: false, // 쓰기 권한은 API 응답에서 결정하지만 기본 false
                 subscriptionMeta,
             })

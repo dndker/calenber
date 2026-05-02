@@ -5,6 +5,10 @@ import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useNotificationStore } from "@/store/useNotificationStore"
 import { useAuthStore } from "@/store/useAuthStore"
 import {
+    subscribePushNotifications,
+    unsubscribePushNotifications,
+} from "@/lib/notification/push"
+import {
     Field,
     FieldContent,
     FieldDescription,
@@ -58,10 +62,22 @@ export function ProfileNotificationSettingsPanel() {
         )
     }
 
+    const userId = user.id
     const { pushEnabled, emailEnabled, typeSettings, emailDigest } = preferences
 
     function isTypeEnabled(type: NotificationType): boolean {
         return typeSettings[type] !== false // 기본값: true
+    }
+
+    async function handlePushToggle(enabled: boolean) {
+        if (enabled) {
+            const subscription = await subscribePushNotifications(userId)
+            await savePreferences({ pushEnabled: subscription !== null })
+            return
+        }
+
+        await unsubscribePushNotifications()
+        await savePreferences({ pushEnabled: false })
     }
 
     async function handleTypeToggle(type: NotificationType, enabled: boolean) {
@@ -87,9 +103,7 @@ export function ProfileNotificationSettingsPanel() {
                             <FieldContent>
                                 <Switch
                                     checked={pushEnabled}
-                                    onCheckedChange={(checked) =>
-                                        savePreferences({ pushEnabled: checked })
-                                    }
+                                    onCheckedChange={handlePushToggle}
                                 />
                             </FieldContent>
                         </Field>

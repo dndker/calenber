@@ -11,8 +11,8 @@ import type { TriggerNotificationPayload } from "@/lib/notification/mutations"
  *
  * 중복 방지:
  *  - actorId === recipientId 인 경우 자기 자신에게는 보내지 않는다.
- *  - 30초 이내 동일 (actorId, notificationType, entityId) 조합의 알림이
- *    이미 존재하면 건너뛴다 (debounce 기반 실시간 수정 중복 방지).
+ *  - 각 recipient 별로 DB 함수 `create_notification_if_absent(...)` 를 호출해
+ *    30초 dedupe window 안의 동일 알림을 원자적으로 막는다.
  */
 export async function POST(request: Request) {
     // 1. 인증 확인
@@ -50,51 +50,62 @@ export async function POST(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // 4. 중복 방지 체크 (30초 debounce window)
-    const dedupeWindow = new Date(Date.now() - 30_000).toISOString()
-    const digestKey = `${notificationType}:${entityType}:${entityId}`
-
-    const { data: recentNotif } = await serviceSupabase
-        .from("notifications")
-        .select("id")
-        .eq("actor_id", actorId ?? user.id)
-        .eq("digest_key", digestKey)
-        .gte("created_at", dedupeWindow)
-        .limit(1)
-        .maybeSingle()
-
-    if (recentNotif) {
-        // 30초 이내 동일 알림 존재 → 건너뜀
-        return NextResponse.json({ skipped: true })
-    }
-
-    // 5. 각 수신자에게 알림 생성 (자기 자신 제외)
+    // 4. 각 수신자에게 알림 생성 (자기 자신 제외)
     const targets = recipientIds.filter((id) => id !== (actorId ?? user.id))
     if (targets.length === 0) {
         return NextResponse.json({ skipped: true })
     }
 
     const results = await Promise.allSettled(
-        targets.map((recipientId) =>
-            serviceSupabase.rpc("create_notification", {
-                p_recipient_id: recipientId,
-                p_actor_id: actorId ?? null,
-                p_notification_type: notificationType,
-                p_entity_type: entityType,
-                p_entity_id: entityId,
-                p_calendar_id: calendarId ?? null,
-                p_metadata: metadata ?? {},
-            })
-        )
+        targets.map(async (recipientId) => {
+            const { data, error } = await serviceSupabase.rpc(
+                "create_notification_if_absent",
+                {
+                    p_recipient_id: recipientId,
+                    p_actor_id: actorId ?? null,
+                    p_notification_type: notificationType,
+                    p_entity_type: entityType,
+                    p_entity_id: entityId,
+                    p_calendar_id: calendarId ?? null,
+                    p_metadata: metadata ?? {},
+                    p_dedupe_window_seconds: 30,
+                }
+            )
+
+            if (error) {
+                throw error
+            }
+
+            const result = Array.isArray(data) ? data[0] : null
+            if (!result) {
+                throw new Error("Notification creation returned no result")
+            }
+
+            return {
+                recipientId,
+                skipped: result.created !== true,
+            }
+        })
     )
 
     const errors = results
-        .filter((r) => r.status === "rejected")
-        .map((r) => (r as PromiseRejectedResult).reason)
+        .filter((result) => result.status === "rejected")
+        .map((result) => (result as PromiseRejectedResult).reason)
+
+    const createdCount = results.filter(
+        (result) => result.status === "fulfilled" && !(result.value as { skipped: boolean }).skipped
+    ).length
+    const skippedCount = results.filter(
+        (result) => result.status === "fulfilled" && (result.value as { skipped: boolean }).skipped
+    ).length
 
     if (errors.length > 0) {
         console.error("[notification/trigger] partial failure", errors)
     }
 
-    return NextResponse.json({ sent: targets.length - errors.length })
+    return NextResponse.json({
+        sent: createdCount,
+        skipped: skippedCount,
+        failed: errors.length,
+    })
 }

@@ -27,10 +27,34 @@ export const useNotificationStore = createSSRStore<NotificationStoreState>(
                     digests.length > 0
                         ? new Date(digests[digests.length - 1]!.lastOccurredAt).toISOString()
                         : null
-                set({ digests, hasMore, nextCursor, isInitialized: true })
+                const unreadCount = digests.reduce((sum, digest) => sum + digest.unreadCount, 0)
+                set({ digests, hasMore, nextCursor, unreadCount, isInitialized: true })
             } catch (error) {
                 console.error("[notification] loadNotifications failed", error)
                 set({ isInitialized: true })
+            } finally {
+                set({ isLoading: false })
+            }
+        },
+
+        primeNotifications: async () => {
+            const { isLoading, isInitialized } = get()
+            if (isLoading || isInitialized) return
+
+            set({ isLoading: true })
+            try {
+                const supabase = createClient()
+                const { digests, hasMore } = await fetchNotifications(supabase, { limit: 10 })
+                const nextCursor =
+                    digests.length > 0
+                        ? new Date(digests[digests.length - 1]!.lastOccurredAt).toISOString()
+                        : null
+                const unreadCount = digests.reduce((sum, digest) => sum + digest.unreadCount, 0)
+                set({ digests, hasMore, nextCursor, unreadCount, isInitialized: true })
+            } catch (error) {
+                if (!(error instanceof Error && error.message === "Notification request timed out")) {
+                    console.warn("[notification] primeNotifications skipped", error)
+                }
             } finally {
                 set({ isLoading: false })
             }
@@ -84,6 +108,7 @@ export const useNotificationStore = createSSRStore<NotificationStoreState>(
         markRead: async (digestKeys: string[]) => {
             // 낙관적 업데이트
             const current = get().digests
+            const previousUnreadCount = get().unreadCount
             const updated = current.map((d) =>
                 digestKeys.includes(d.digestKey) ? { ...d, isRead: true, unreadCount: 0 } : d
             )
@@ -95,12 +120,13 @@ export const useNotificationStore = createSSRStore<NotificationStoreState>(
                 await markNotificationsRead(supabase, digestKeys)
             } catch {
                 // 실패 시 원복
-                set({ digests: current, unreadCount: get().unreadCount })
+                set({ digests: current, unreadCount: previousUnreadCount })
             }
         },
 
         markAllRead: async () => {
             const current = get().digests
+            const previousUnreadCount = get().unreadCount
             const updated = current.map((d) => ({ ...d, isRead: true, unreadCount: 0 }))
             set({ digests: updated, unreadCount: 0 })
 
@@ -108,7 +134,7 @@ export const useNotificationStore = createSSRStore<NotificationStoreState>(
                 const supabase = createClient()
                 await markNotificationsRead(supabase, null)
             } catch {
-                set({ digests: current, unreadCount: get().unreadCount })
+                set({ digests: current, unreadCount: previousUnreadCount })
             }
         },
 
@@ -140,6 +166,15 @@ export const useNotificationStore = createSSRStore<NotificationStoreState>(
                 const count = await fetchUnreadNotificationCount(supabase)
                 set({ unreadCount: count })
             } catch (error) {
+                if (error instanceof Error && error.message === "Notification request timed out") {
+                    const fallbackCount = get().digests.reduce(
+                        (sum, digest) => sum + digest.unreadCount,
+                        0
+                    )
+                    set({ unreadCount: fallbackCount })
+                    return
+                }
+
                 console.error("[notification] syncUnreadCount failed", error)
             }
         },

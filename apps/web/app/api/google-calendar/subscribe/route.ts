@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         calendarId: string        // Calenber 캘린더 ID
         googleAccountId: string
         googleCalendarId: string
+        googleCalendarTimeZone?: string
         googleCalendarName: string
         collectionName?: string
         collectionColor?: string
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
         calendarId,
         googleAccountId,
         googleCalendarId,
+        googleCalendarTimeZone,
         googleCalendarName,
         collectionName,
         collectionColor,
@@ -100,6 +102,7 @@ export async function POST(request: Request) {
                     config: {
                         provider: "google_calendar_v1",
                         googleCalendarId,
+                        googleCalendarTimeZone: googleCalendarTimeZone ?? null,
                         googleAccountId,
                         syncToken: syncToken ?? null,
                     },
@@ -132,6 +135,7 @@ export async function POST(request: Request) {
                     config: {
                         provider: "google_calendar_v1",
                         googleCalendarId,
+                        googleCalendarTimeZone: googleCalendarTimeZone ?? null,
                         googleAccountId,
                         syncToken: syncToken ?? null,
                     },

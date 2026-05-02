@@ -9,22 +9,7 @@ export function formatNotificationBody(
     digest: NotificationDigest,
     t: (key: string, params?: Record<string, string | number>) => string
 ): string {
-    const { metadata, count, notificationType } = digest
-    const primaryActor = metadata.actorName ?? t("notification.unknownUser")
-
-    // 추가 actor 수 (primary 제외)
-    const otherCount = Math.max(0, count - 1)
-
-    const tKey = getNotificationTypeKey(notificationType)
-
-    if (otherCount === 0) {
-        return t(`notification.body.${tKey}.single`, { actor: primaryActor })
-    }
-
-    return t(`notification.body.${tKey}.multiple`, {
-        actor: primaryActor,
-        others: otherCount,
-    })
+    return buildNotificationBodyText(digest)
 }
 
 /**
@@ -44,6 +29,79 @@ function getNotificationTypeKey(type: NotificationType): string {
         event_reaction: "eventReaction",
     }
     return map[type] ?? type
+}
+
+export function buildNotificationBodyText(
+    digest: NotificationDigest,
+    locale = "ko"
+): string {
+    const { notificationType, metadata, count } = digest
+    const actor = metadata.actorName ?? (locale === "ko" ? "알 수 없는 사용자" : "Unknown user")
+    const others = Math.max(0, count - 1)
+    const isKo = locale === "ko"
+    const eventTitle = metadata.title?.trim() || (isKo ? "제목 없는 일정" : "Untitled event")
+    const calendarName = metadata.calendarName?.trim() || (isKo ? "캘린더" : "calendar")
+
+    function withOthers(single: string, multi: (n: number) => string): string {
+        return others === 0 ? single : multi(others)
+    }
+
+    switch (notificationType) {
+        case "calendar_joined":
+            return withOthers(
+                isKo
+                    ? `${actor}님이 ${calendarName}에 가입했습니다`
+                    : `${actor} joined ${calendarName}`,
+                (n) =>
+                    isKo
+                        ? `${actor}님 외 ${n}명이 ${calendarName}에 가입했습니다`
+                        : `${actor} and ${n} others joined ${calendarName}`
+            )
+        case "calendar_settings_changed":
+            return withOthers(
+                isKo
+                    ? `${actor}님이 ${calendarName} 설정을 변경했습니다`
+                    : `${actor} updated settings for ${calendarName}`,
+                (n) =>
+                    isKo
+                        ? `${actor}님 외 ${n}명이 ${calendarName} 설정을 변경했습니다`
+                        : `${actor} and ${n} others updated settings for ${calendarName}`
+            )
+        case "event_created":
+            return isKo
+                ? `${actor}님이 ${calendarName}에 ${eventTitle} 일정을 추가했습니다`
+                : `${actor} created ${eventTitle} in ${calendarName}`
+        case "event_updated":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정을 수정했습니다`
+                : `${actor} updated ${eventTitle} in ${calendarName}`
+        case "event_deleted":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정을 삭제했습니다`
+                : `${actor} deleted ${eventTitle} from ${calendarName}`
+        case "event_tagged":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정에서 회원님을 언급했습니다`
+                : `${actor} mentioned you in ${eventTitle} from ${calendarName}`
+        case "event_participant_added":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정에 회원님을 초대했습니다`
+                : `${actor} invited you to ${eventTitle} in ${calendarName}`
+        case "event_comment_added":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정에 댓글을 남겼습니다`
+                : `${actor} commented on ${eventTitle} in ${calendarName}`
+        case "event_comment_replied":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정 댓글에 답글을 남겼습니다`
+                : `${actor} replied in ${eventTitle} from ${calendarName}`
+        case "event_reaction":
+            return isKo
+                ? `${actor}님이 ${calendarName}의 ${eventTitle} 일정에 반응을 남겼습니다`
+                : `${actor} reacted to ${eventTitle} in ${calendarName}`
+        default:
+            return isKo ? "새 알림이 있습니다" : "New notification"
+    }
 }
 
 /**

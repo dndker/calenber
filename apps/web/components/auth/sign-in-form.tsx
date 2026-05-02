@@ -18,6 +18,7 @@ import { Input } from "@workspace/ui/components/input"
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react"
 import Link from "next/link"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { z } from "zod"
 import { AuthFormShell } from "./auth-form-shell"
@@ -48,6 +49,7 @@ export function SignInForm({
     const t = useDebugTranslations("auth.signIn")
     const tNotice = useDebugTranslations("auth.notice")
     const tValidation = useDebugTranslations("auth.validation")
+    const router = useRouter()
     const routeToPostAuthCalendar = useRouteToPostAuthCalendar()
     const { loading, signInWithEmail } = useEmailAuth()
     const signInSchema = z.object({
@@ -88,7 +90,7 @@ export function SignInForm({
         }
 
         if (result.ok) {
-            await routeToPostAuthCalendar(result.user)
+            void routeToPostAuthCalendar(result.user)
         }
     }
 
@@ -191,7 +193,7 @@ export function SignInForm({
                     if (result !== "success") return
 
                     if (nextPath) {
-                        window.location.replace(nextPath)
+                        router.replace(nextPath)
                         return
                     }
 

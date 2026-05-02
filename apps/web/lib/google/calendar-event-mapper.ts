@@ -11,6 +11,7 @@ import type { CalendarEvent, EventSubscriptionItem } from "@/store/calendar-stor
 import type { GoogleCalendarEvent } from "@/lib/google/calendar-api"
 import type { CalendarCollectionColor } from "@/lib/calendar/collection-color"
 import { normalizeCalendarCollectionColor } from "@/lib/calendar/collection-color"
+import dayjs from "@/lib/dayjs"
 
 export const GOOGLE_CALENDAR_PROVIDER_KEY = "google_calendar_v1"
 export const GOOGLE_CALENDAR_EVENT_PREFIX = "gcal"
@@ -74,6 +75,8 @@ type MapOptions = {
     catalogName: string
     /** catalog의 collection color */
     collectionColor?: string | null
+    /** Google Calendar 자체 timezone. all-day 날짜 해석 기준으로 사용 */
+    defaultTimezone?: string | null
     /** Google Calendar API accessRole이 writer/owner이면 false */
     isLocked?: boolean
     subscriptionMeta: EventSubscriptionItem
@@ -98,7 +101,8 @@ export function mapGoogleEventToCalendarEvent(
     // 시작/종료 시간 파싱
     const { start: startMs, end: endMs, allDay } = parseGoogleDateTime(
         googleEvent.start,
-        googleEvent.end
+        googleEvent.end,
+        options.defaultTimezone
     )
 
     if (startMs === null || endMs === null) return null
@@ -114,7 +118,11 @@ export function mapGoogleEventToCalendarEvent(
         start: startMs,
         end: endMs,
         allDay,
-        timezone: googleEvent.start.timeZone ?? "UTC",
+        timezone:
+            googleEvent.start.timeZone ??
+            googleEvent.end.timeZone ??
+            options.defaultTimezone ??
+            "UTC",
         collectionIds: [collectionId],
         collections: [
             {
@@ -166,13 +174,21 @@ type ParsedDateTime = {
 
 function parseGoogleDateTime(
     start: GoogleCalendarEvent["start"],
-    end: GoogleCalendarEvent["end"]
+    end: GoogleCalendarEvent["end"],
+    defaultTimezone?: string | null
 ): ParsedDateTime {
     // 종일 이벤트
     if (start.date) {
-        const startMs = new Date(start.date + "T00:00:00").getTime()
-        // Google end.date는 exclusive (다음 날) → -1ms
-        const endDate = end.date ? new Date(end.date + "T00:00:00").getTime() - 1 : startMs
+        const resolvedTimezone =
+            start.timeZone ?? end.timeZone ?? defaultTimezone ?? "UTC"
+        const startMs = dayjs.tz(start.date, resolvedTimezone).startOf("day").valueOf()
+        // Google end.date는 exclusive (다음 날)다.
+        const endDate = end.date
+            ? dayjs.tz(end.date, resolvedTimezone)
+                  .startOf("day")
+                  .subtract(1, "millisecond")
+                  .valueOf()
+            : startMs
         return { start: startMs, end: endDate, allDay: true }
     }
 

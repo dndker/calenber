@@ -23,9 +23,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 // 타입
 // ─────────────────────────────────────────
 type SendNotificationRequest = {
-    notificationId: string
-    recipientId: string
-    channels: ("push" | "email")[]
+    jobId?: string
+    notificationId?: string
+    recipientId?: string
+    channels?: ("push" | "email")[]
 }
 
 type PushSubscriptionRow = {
@@ -34,12 +35,43 @@ type PushSubscriptionRow = {
     auth_key: string
 }
 
+type NotificationPreferenceRow = {
+    push_enabled: boolean
+    email_enabled: boolean
+    type_settings: Record<string, boolean> | null
+    email_digest: "realtime" | "daily" | "weekly" | "off"
+    quiet_hours: { start: string; end: string } | null
+}
+
+type ClaimedNotificationDeliveryJobRow = {
+    id: string
+    notification_id: string
+    recipient_id: string
+    channels: string[] | null
+}
+
+type PushDeliveryResult = {
+    attempted: number
+    delivered: number
+    expiredEndpoints: string[]
+}
+
+type DeliveryJobStatus = "sent" | "failed" | "noop"
+
 // ─────────────────────────────────────────
 // 핸들러
 // ─────────────────────────────────────────
 Deno.serve(async (req: Request) => {
     if (req.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 })
+    }
+
+    const webhookSecret = Deno.env.get("NOTIFICATION_WEBHOOK_SECRET") ?? ""
+    const requestSecret =
+        req.headers.get("x-notification-webhook-secret") ?? ""
+
+    if (!webhookSecret || requestSecret !== webhookSecret) {
+        return new Response("Unauthorized", { status: 401 })
     }
 
     const supabase = createClient(
@@ -54,7 +86,49 @@ Deno.serve(async (req: Request) => {
         return new Response("Invalid JSON", { status: 400 })
     }
 
-    const { notificationId, recipientId, channels } = body
+    let notificationId = body.notificationId
+    let recipientId = body.recipientId
+    let channels = body.channels ?? []
+    let deliveryJobId: string | null = body.jobId ?? null
+
+    if (deliveryJobId) {
+        const { data: claimedJob, error: claimError } = await supabase.rpc(
+            "begin_notification_delivery_job",
+            {
+                p_job_id: deliveryJobId,
+            }
+        )
+
+        if (claimError) {
+            console.error("[send-notification] failed to claim job", claimError)
+            return new Response("Failed to claim delivery job", { status: 500 })
+        }
+
+        const job = ((claimedJob ?? [])[0] ?? null) as
+            | ClaimedNotificationDeliveryJobRow
+            | null
+
+        if (!job) {
+            return new Response(
+                JSON.stringify({ ok: true, skipped: true, reason: "job-not-claimable" }),
+                {
+                    headers: { "Content-Type": "application/json" },
+                }
+            )
+        }
+
+        notificationId = job.notification_id
+        recipientId = job.recipient_id
+        channels = (job.channels ?? []).filter(
+            (channel): channel is "push" | "email" =>
+                channel === "push" || channel === "email"
+        )
+        deliveryJobId = job.id
+    }
+
+    if (!notificationId || !recipientId) {
+        return new Response("Missing notification target", { status: 400 })
+    }
 
     // 알림 레코드 조회
     const { data: notif, error: notifErr } = await supabase
@@ -68,6 +142,14 @@ Deno.serve(async (req: Request) => {
     if (notifErr || !notif) {
         return new Response("Notification not found", { status: 404 })
     }
+
+    const { data: preferenceRow } = await supabase
+        .from("user_notification_preferences")
+        .select("push_enabled, email_enabled, type_settings, email_digest, quiet_hours")
+        .eq("user_id", recipientId)
+        .maybeSingle()
+
+    const preferences = (preferenceRow ?? null) as NotificationPreferenceRow | null
 
     // 수신자 이메일 조회
     const { data: authUser } =
@@ -85,38 +167,120 @@ Deno.serve(async (req: Request) => {
         notif.calendar_id
     )
 
-    const results = await Promise.allSettled([
-        channels.includes("push")
-            ? sendPushNotifications(supabase, recipientId, {
-                  title,
-                  message: bodyText,
-                  url: notifUrl,
-                  tag: notif.digest_key ?? notificationId,
-              })
-            : Promise.resolve(),
+    const effectiveChannels = filterChannelsByPreferences(
+        channels,
+        notif.notification_type,
+        preferences
+    )
 
-        channels.includes("email") && recipientEmail
-            ? sendEmail(recipientEmail, title, bodyText, notifUrl)
-            : Promise.resolve(),
-    ])
-
-    const updatePatch: Record<string, string> = {}
-    if (channels.includes("push") && results[0]?.status === "fulfilled") {
-        updatePatch.push_sent_at = new Date().toISOString()
-    }
-    if (channels.includes("email") && results[1]?.status === "fulfilled") {
-        updatePatch.email_sent_at = new Date().toISOString()
-    }
-    if (Object.keys(updatePatch).length > 0) {
-        await supabase
-            .from("notifications")
-            .update(updatePatch)
-            .eq("id", notificationId)
+    if (effectiveChannels.length === 0) {
+        await finalizeDeliveryJob(supabase, deliveryJobId, "noop", null)
+        return new Response(
+            JSON.stringify({
+                ok: true,
+                channels: [],
+                status: "noop",
+                reason: "preferences-disabled-or-no-deliverable-channel",
+            }),
+            {
+                headers: { "Content-Type": "application/json" },
+            }
+        )
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-        headers: { "Content-Type": "application/json" },
-    })
+    try {
+        const pushRequested = effectiveChannels.includes("push")
+        const emailRequested = effectiveChannels.includes("email")
+
+        const results = await Promise.allSettled([
+            pushRequested
+                ? sendPushNotifications(supabase, recipientId, {
+                      title,
+                      message: bodyText,
+                      url: notifUrl,
+                      tag: notif.digest_key ?? notificationId,
+                  })
+                : Promise.resolve<PushDeliveryResult>({
+                      attempted: 0,
+                      delivered: 0,
+                      expiredEndpoints: [],
+                  }),
+
+            emailRequested && recipientEmail
+                ? sendEmail(recipientEmail, title, bodyText, notifUrl)
+                : Promise.resolve(false),
+        ])
+
+        const pushResult =
+            results[0]?.status === "fulfilled" ? results[0].value : null
+        const emailResult =
+            results[1]?.status === "fulfilled" ? results[1].value : false
+
+        const updatePatch: Record<string, string> = {}
+        if (pushRequested && (pushResult?.delivered ?? 0) > 0) {
+            updatePatch.push_sent_at = new Date().toISOString()
+        }
+        if (emailRequested && emailResult === true) {
+            updatePatch.email_sent_at = new Date().toISOString()
+        }
+        if (Object.keys(updatePatch).length > 0) {
+            await supabase
+                .from("notifications")
+                .update(updatePatch)
+                .eq("id", notificationId)
+        }
+
+        const failures = results
+            .filter((result) => result.status === "rejected")
+            .map((result) => (result as PromiseRejectedResult).reason)
+
+        const jobStatus = resolveDeliveryJobStatus({
+            pushRequested,
+            emailRequested,
+            pushResult,
+            emailResult,
+            recipientEmail,
+            failures,
+        })
+
+        await finalizeDeliveryJob(
+            supabase,
+            deliveryJobId,
+            jobStatus,
+            failures.length > 0
+                ? failures
+                      .map((failure) =>
+                          failure instanceof Error ? failure.message : String(failure)
+                      )
+                      .join(" | ")
+                : null
+        )
+
+        return new Response(
+            JSON.stringify({
+                ok: jobStatus !== "failed",
+                channels: effectiveChannels,
+                status: jobStatus,
+                failedCount: failures.length,
+                push: pushResult,
+                emailDelivered: emailResult === true,
+            }),
+            {
+                headers: { "Content-Type": "application/json" },
+                status: jobStatus === "failed" ? 500 : 200,
+            }
+        )
+    } catch (error) {
+        await finalizeDeliveryJob(
+            supabase,
+            deliveryJobId,
+            "failed",
+            error instanceof Error ? error.message : String(error)
+        )
+
+        console.error("[send-notification] unexpected failure", error)
+        return new Response("Notification delivery failed", { status: 500 })
+    }
 })
 
 // ─────────────────────────────────────────
@@ -126,17 +290,105 @@ async function sendPushNotifications(
     supabase: ReturnType<typeof createClient>,
     userId: string,
     payload: { title: string; message: string; url: string; tag?: string }
-): Promise<void> {
+): Promise<{ attempted: number; delivered: number; expiredEndpoints: string[] }> {
     const { data: subs } = await supabase
         .from("push_subscriptions")
         .select("endpoint, p256dh, auth_key")
         .eq("user_id", userId)
 
-    if (!subs?.length) return
+    if (!subs?.length) {
+        return { attempted: 0, delivered: 0, expiredEndpoints: [] }
+    }
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
         subs.map((sub: PushSubscriptionRow) => sendWebPush(sub, payload))
     )
+
+    const expiredEndpoints = results
+        .filter(
+            (result): result is PromiseFulfilledResult<{ expired: boolean; endpoint: string }> =>
+                result.status === "fulfilled" && result.value.expired
+        )
+        .map((result) => result.value.endpoint)
+
+    if (expiredEndpoints.length > 0) {
+        await supabase
+            .from("push_subscriptions")
+            .delete()
+            .in("endpoint", expiredEndpoints)
+    }
+
+    const delivered = results.filter(
+        (result) => result.status === "fulfilled" && !result.value.expired
+    ).length
+
+    return {
+        attempted: subs.length,
+        delivered,
+        expiredEndpoints,
+    }
+}
+
+function resolveDeliveryJobStatus({
+    pushRequested,
+    emailRequested,
+    pushResult,
+    emailResult,
+    recipientEmail,
+    failures,
+}: {
+    pushRequested: boolean
+    emailRequested: boolean
+    pushResult: PushDeliveryResult | null
+    emailResult: boolean
+    recipientEmail: string | undefined
+    failures: unknown[]
+}): DeliveryJobStatus {
+    if (failures.length > 0) {
+        return "failed"
+    }
+
+    const pushDelivered = (pushResult?.delivered ?? 0) > 0
+    const emailDelivered = emailResult === true
+
+    if (pushDelivered || emailDelivered) {
+        return "sent"
+    }
+
+    const pushUnavailable =
+        !pushRequested ||
+        !pushResult ||
+        pushResult.attempted === 0 ||
+        pushResult.expiredEndpoints.length === pushResult.attempted
+
+    const emailUnavailable = !emailRequested || !recipientEmail
+
+    if (pushUnavailable && emailUnavailable) {
+        return "noop"
+    }
+
+    return "failed"
+}
+
+async function finalizeDeliveryJob(
+    supabase: ReturnType<typeof createClient>,
+    deliveryJobId: string | null,
+    status: DeliveryJobStatus,
+    errorMessage: string | null
+) {
+    if (!deliveryJobId) {
+        return
+    }
+
+    const { error } = await supabase.rpc("finalize_notification_delivery_job", {
+        p_job_id: deliveryJobId,
+        p_status: status,
+        p_error: errorMessage,
+    })
+
+    if (error) {
+        console.error("[send-notification] failed to finalize job", error)
+    }
 }
 
 /**
@@ -146,7 +398,7 @@ async function sendPushNotifications(
 async function sendWebPush(
     sub: PushSubscriptionRow,
     payload: { title: string; message: string; url: string; tag?: string }
-): Promise<void> {
+): Promise<{ expired: boolean; endpoint: string }> {
     const vapidPublicRaw = Deno.env.get("VAPID_PUBLIC_KEY") ?? ""
     const vapidPrivateRaw = Deno.env.get("VAPID_PRIVATE_KEY") ?? ""
     const vapidSubject =
@@ -154,7 +406,7 @@ async function sendWebPush(
 
     if (!vapidPublicRaw || !vapidPrivateRaw) {
         console.warn("[push] VAPID keys not configured")
-        return
+        throw new Error("[push] VAPID keys not configured")
     }
 
     const jwt = await buildVapidJwt(sub.endpoint, vapidPrivateRaw, vapidSubject)
@@ -185,16 +437,13 @@ async function sendWebPush(
 
     if (!res.ok && res.status !== 201) {
         const errText = await res.text().catch(() => String(res.status))
-        // 410 Gone / 404 = 구독 만료 — 정상 처리
         if (res.status === 410 || res.status === 404) {
-            console.info(
-                "[push] subscription expired:",
-                sub.endpoint.slice(0, 40)
-            )
-        } else {
-            throw new Error(`[push] send failed ${res.status}: ${errText}`)
+            return { expired: true, endpoint: sub.endpoint }
         }
+        throw new Error(`[push] send failed ${res.status}: ${errText}`)
     }
+
+    return { expired: false, endpoint: sub.endpoint }
 }
 
 // ─────────────────────────────────────────
@@ -334,11 +583,11 @@ async function sendEmail(
     subject: string,
     text: string,
     url: string
-): Promise<void> {
+): Promise<boolean> {
     const apiKey = Deno.env.get("RESEND_API_KEY")
     if (!apiKey) {
         console.warn("[email] RESEND_API_KEY not set")
-        return
+        return false
     }
 
     const html = `
@@ -373,6 +622,8 @@ async function sendEmail(
         const err = await res.text()
         throw new Error(`[email] Resend error: ${err}`)
     }
+
+    return true
 }
 
 // ─────────────────────────────────────────
@@ -404,22 +655,23 @@ function buildPushTitle(
 
 function buildPushBody(type: string, metadata: Record<string, string>): string {
     const actor = metadata.actorName ?? "누군가"
-    const title = metadata.title ?? ""
+    const title = metadata.title?.trim() || "제목 없는 일정"
+    const calendarName = metadata.calendarName?.trim() || "캘린더"
     switch (type) {
         case "calendar_joined":
-            return `${actor}님이 가입했습니다`
+            return `${actor}님이 ${calendarName}에 가입했습니다`
         case "calendar_settings_changed":
-            return `${actor}님이 설정을 변경했습니다`
+            return `${actor}님이 ${calendarName} 설정을 변경했습니다`
         case "event_created":
-            return `${actor}님이 "${title}" 일정을 추가했습니다`
+            return `${actor}님이 ${calendarName}에 ${title} 일정을 추가했습니다`
         case "event_updated":
-            return `${actor}님이 "${title}" 일정을 수정했습니다`
+            return `${actor}님이 ${calendarName}의 ${title} 일정을 수정했습니다`
         case "event_deleted":
-            return `${actor}님이 "${title}" 일정을 삭제했습니다`
+            return `${actor}님이 ${calendarName}의 ${title} 일정을 삭제했습니다`
         case "event_tagged":
-            return `${actor}님이 "${title}"에서 회원님을 언급했습니다`
+            return `${actor}님이 ${calendarName}의 ${title} 일정에서 회원님을 언급했습니다`
         case "event_participant_added":
-            return `${actor}님이 "${title}" 일정에 초대했습니다`
+            return `${actor}님이 ${calendarName}의 ${title} 일정에 회원님을 초대했습니다`
         default:
             return "새 알림이 있습니다"
     }
@@ -503,4 +755,36 @@ async function hkdf(
         length * 8
     )
     return new Uint8Array(bits)
+}
+
+function filterChannelsByPreferences(
+    requestedChannels: ("push" | "email")[],
+    notificationType: string,
+    preferences: NotificationPreferenceRow | null
+): ("push" | "email")[] {
+    const typeEnabled =
+        preferences?.type_settings?.[notificationType] !== false
+
+    if (!typeEnabled) {
+        return []
+    }
+
+    return requestedChannels.filter((channel) => {
+        if (channel === "push") {
+            if (!(preferences?.push_enabled ?? true)) {
+                return false
+            }
+        }
+
+        if (channel === "email") {
+            if (!(preferences?.email_enabled ?? false)) {
+                return false
+            }
+            if ((preferences?.email_digest ?? "realtime") !== "realtime") {
+                return false
+            }
+        }
+
+        return true
+    })
 }

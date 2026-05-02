@@ -1,439 +1,429 @@
-# Calenber 알림 시스템 스펙
+# Calenber Notification System Spec
 
-> AI(Codex / Cursor 등)에게 넘기기 위한 설계 문서.  
-> DB 스키마, 파일 구조, 타입, 함수 시그니처, 흐름을 모두 포함한다.
+> Last updated: 2026-05-02
+> Purpose: This document is the AI-facing source of truth for the current notification architecture, recent fixes, remaining risks, and deployment expectations.
+> Human-readable companion doc: `docs/NOTIFICATION_GUIDE.md`
 
----
+## 1. Current Architecture
 
-## 1. 전체 구조
-
-```
-알림 발생 원천
-  ├─ 캘린더 뮤테이션 (가입, 설정 변경)
-  ├─ 이벤트 뮤테이션 (생성, 수정, 삭제)
-  └─ 참가자·태그 변경
-
-         ↓ (명시적 액션)
-
-/api/notifications/trigger  (Next.js API Route)
-  ├─ 인증 확인 (서버 Supabase)
-  ├─ 30초 dedup 체크
-  └─ create_notification RPC (service_role)
-       ↓
-  notifications 테이블 삽입
-  notification_digests 테이블 업서트 (같은 digest_key 집계)
-       ↓
-  Supabase Realtime → 클라이언트 수신
-       ↓
-  useNotificationRealtime 훅 → upsertDigest
-       ↓
-  NotificationStoreState.digests 갱신
-
-  └─ (별도) supabase/functions/send-notification
-        ├─ Web Push (VAPID) — RFC 8292 JWT + RFC 8291 aes128gcm 암호화
-        └─ 이메일 (Resend API)
-
-알림 발생 원천 B — DB Trigger (event_history 기반)
-  event_history INSERT
-    → notify_event_history_insert() 트리거
-    → calendar_members 활성 멤버 순회
-    → create_notification RPC (actor 제외)
-    → notifications INSERT + notification_digests UPSERT
-    → Supabase Realtime → 클라이언트 수신
-```
-
----
-
-## 2. DB 스키마
-
-### 마이그레이션 파일
-
-`supabase/migrations/20260506100000_add_notification_system.sql`
-
-### 테이블
-
-#### `user_notification_preferences`
-
-| 컬럼          | 타입    | 설명                                 |
-| ------------- | ------- | ------------------------------------ |
-| user_id       | uuid PK | auth.users FK                        |
-| push_enabled  | boolean | 푸시 알림 on/off                     |
-| email_enabled | boolean | 이메일 알림 on/off                   |
-| type_settings | jsonb   | `{ "calendar_joined": true, ... }`   |
-| email_digest  | text    | `realtime \| daily \| weekly \| off` |
-| quiet_hours   | jsonb   | `{ start: "23:00", end: "07:00" }`   |
-
-#### `push_subscriptions`
-
-| 컬럼         | 타입                | 설명                  |
-| ------------ | ------------------- | --------------------- |
-| id           | uuid PK             |                       |
-| user_id      | uuid                | auth.users FK         |
-| endpoint     | text                | Web Push endpoint URL |
-| p256dh       | text                | VAPID 공개키          |
-| auth_key     | text                | VAPID auth            |
-| device_label | text?               | UA 문자열 (선택)      |
-| expires_at   | timestamptz?        | 만료일                |
-| UNIQUE       | (user_id, endpoint) |                       |
-
-#### `notifications`
-
-| 컬럼              | 타입         | 설명                                       |
-| ----------------- | ------------ | ------------------------------------------ |
-| id                | uuid PK      |                                            |
-| recipient_id      | uuid         | 수신자                                     |
-| actor_id          | uuid?        | 발신자 (시스템 = null)                     |
-| notification_type | text CHECK   | 아래 타입 목록 참고                        |
-| entity_type       | text CHECK   | `calendar \| event \| comment \| reaction` |
-| entity_id         | text         | 연관 엔티티 ID                             |
-| calendar_id       | uuid?        | 빠른 필터용 역정규화                       |
-| metadata          | jsonb        | 렌더링용 스냅샷                            |
-| digest_key        | text         | `"{type}:{entityType}:{entityId}"`         |
-| is_read           | boolean      |                                            |
-| push_sent_at      | timestamptz? |                                            |
-| email_sent_at     | timestamptz? |                                            |
-
-#### `notification_digests`
-
-| 컬럼                   | 타입                       | 설명                   |
-| ---------------------- | -------------------------- | ---------------------- |
-| id                     | uuid PK                    |                        |
-| recipient_id           | uuid                       |                        |
-| digest_key             | text                       | notifications 와 동일  |
-| latest_notification_id | uuid?                      | 대표 알림 FK           |
-| count                  | int                        | 집계 총 수             |
-| actor_ids              | uuid[]                     | 최대 5명 저장 (표시용) |
-| unread_count           | int                        | 읽지 않은 수           |
-| last_occurred_at       | timestamptz                | 마지막 발생 시각       |
-| UNIQUE                 | (recipient_id, digest_key) |                        |
-
-### 알림 타입 목록
-
-```
-calendar_joined
-calendar_settings_changed
-event_created
-event_updated
-event_deleted
-event_tagged
-event_participant_added
-event_comment_added      (미래)
-event_comment_replied    (미래)
-event_reaction           (미래)
+```text
+[Notification Producers]
+  A. Explicit app/API actions
+  B. DB-triggered event history notifications
+            |
+            v
+public.create_notification(...) / public.create_notification_if_absent(...)
+  1) insert into notifications
+  2) upsert notification_digests
+  3) enqueue notification_delivery_queue
+            |
+            +--> Realtime on notification_digests
+            |      |
+            |      v
+            |   useNotificationRealtime()
+            |      |
+            |      v
+            |   Zustand notification store
+            |      |
+            |      v
+            |   badge / dropdown / notifications page
+            |
+            +--> DB trigger on notification_delivery_queue
+                   |
+                   v
+                 pg_net net.http_post(...)
+                   |
+                   v
+      Supabase Edge Function: send-notification
+        1) verify webhook secret
+        2) claim job via begin_notification_delivery_job(jobId)
+        3) read notification + preferences + subscriptions
+        4) deliver push/email
+        5) finalize job as sent / failed / noop
+                   |
+                   v
+             pg_cron fallback
+               - re-dispatch pending/failed jobs every minute
 ```
 
-### RPC 함수
-
-| 함수                                                  | 권한              | 설명                      |
-| ----------------------------------------------------- | ----------------- | ------------------------- |
-| `get_notifications(p_limit, p_cursor, p_unread_only)` | authenticated     | 알림 목록 (페이지네이션)  |
-| `mark_notifications_read(p_digest_keys)`              | authenticated     | 읽음 처리 (null = 전체)   |
-| `get_unread_notification_count()`                     | authenticated     | 읽지 않은 수              |
-| `create_notification(...)`                            | service_role 전용 | 알림 생성 + digest 업서트 |
-
----
-
-## 3. 파일 구조
-
-```
-apps/web/
-├── store/
-│   ├── notification-store.types.ts     # 도메인 타입 단일 소스
-│   └── useNotificationStore.ts         # Zustand 스토어
-│
-├── lib/notification/
-│   ├── queries.ts      # fetchNotifications, fetchUnreadNotificationCount, fetchNotificationPreferences
-│   ├── mutations.ts    # markNotificationsRead, saveNotificationPreferences, savePushSubscription
-│   ├── trigger.ts      # triggerNotification (fetch /api/notifications/trigger)
-│   │                   # + buildCalendarJoinedPayload, buildEventCreatedPayload, ...
-│   ├── push.ts         # subscribePushNotifications, unsubscribePushNotifications
-│   ├── realtime.ts     # mapRealtimeDigestRow, getNotificationRealtimeTopic
-│   └── format.ts       # formatNotificationBody, resolveNotificationAvatar, resolveNotificationHref
-│
-├── hooks/
-│   └── use-notification-realtime.ts    # Supabase Realtime 구독 훅
-│
-├── components/notifications/
-│   ├── notification-avatar.tsx         # 알림 아바타 (캘린더 or 유저)
-│   ├── notification-item.tsx           # 알림 아이템 (드롭다운 / 페이지 공용)
-│   └── notification-dropdown.tsx       # nav-actions에 마운트되는 Bell + 드롭다운
-│
-├── app/
-│   ├── notifications/
-│   │   ├── page.tsx                    # 서버 컴포넌트 (SSR 초기 데이터)
-│   │   └── notifications-page-client.tsx
-│   └── api/notifications/
-│       └── trigger/route.ts            # POST /api/notifications/trigger
-│
-├── components/settings/panels/
-│   └── profile-notification-settings-panel.tsx
-│
-├── messages/
-│   ├── ko.json   # notification.*, settings.profileNotification.*
-│   └── en.json   # 동일 구조
-│
-└── worker/index.ts   # push + notificationclick 핸들러
-
-supabase/
-├── migrations/
-│   ├── 20260506100000_add_notification_system.sql
-│   └── 20260506200000_add_event_history_notification_trigger.sql   # event_history INSERT 트리거
-└── functions/send-notification/
-    ├── index.ts      # Edge Function — VAPID Web Push + Resend 이메일
-    └── deno.json     # Deno 컴파일러 옵션 (lib: deno.ns)
-```
-
----
-
-## 4. 핵심 타입
-
-```typescript
-// store/notification-store.types.ts
-
-type NotificationType =
-  | "calendar_joined" | "calendar_settings_changed"
-  | "event_created" | "event_updated" | "event_deleted"
-  | "event_tagged" | "event_participant_added"
-  | "event_comment_added" | "event_comment_replied" | "event_reaction"
-
-type NotificationDigest = {
-  digestKey: string           // "{type}:{entityType}:{entityId}"
-  count: number
-  unreadCount: number
-  actorIds: string[]          // 최대 5명
-  lastOccurredAt: number      // ms timestamp
-  notificationId: string
-  notificationType: NotificationType
-  entityType: "calendar" | "event" | "comment" | "reaction"
-  entityId: string
-  calendarId: string | null
-  metadata: NotificationMetadata
-  isRead: boolean
-  createdAt: number
-}
-
-type NotificationMetadata = {
-  title?: string
-  calendarName?: string
-  calendarAvatarUrl?: string
-  actorName?: string
-  actorAvatarUrl?: string
-  eventStart?: string
-  eventAllDay?: boolean
-  changedFields?: string[]
-  previousTitle?: string
-}
+## 2. Design Goals
 
-type UserNotificationPreferences = {
-  userId: string
-  pushEnabled: boolean
-  emailEnabled: boolean
-  typeSettings: Partial<Record<NotificationType, boolean>>
-  emailDigest: "realtime" | "daily" | "weekly" | "off"
-  quietHours: { start: string; end: string } | null
-}
-```
+- Separate inbox creation from external delivery.
+- Keep client reads cheap via `notification_digests`.
+- Allow DB-triggered notifications to use the same delivery pipeline as API-triggered notifications.
+- Make delivery asynchronous and retryable.
+- Avoid browser-session dependence for push/email dispatch.
+- Keep unread badge and notification list realtime-synced.
 
----
+## 3. Main Data Model
 
-## 5. 함수 시그니처
+### `public.notifications`
 
-### lib/notification/queries.ts
+Raw notification log.
 
-```typescript
-fetchNotifications(
-  supabase: SupabaseClient,
-  options?: { limit?: number; cursor?: string | null; unreadOnly?: boolean }
-): Promise<{ digests: NotificationDigest[]; hasMore: boolean }>
+- One row per recipient.
+- Source of truth for individual notification events.
+- Tracks `push_sent_at` and `email_sent_at` when a channel actually delivers.
 
-fetchUnreadNotificationCount(supabase: SupabaseClient): Promise<number>
+### `public.notification_digests`
 
-fetchNotificationPreferences(supabase: SupabaseClient): Promise<UserNotificationPreferences | null>
-```
+Client read model.
 
-### lib/notification/mutations.ts
+- One row per `(recipient_id, digest_key)`.
+- Used for bell badge, dropdown, and notifications page.
+- Stores denormalized snapshot data so the client can render from one row.
 
-```typescript
-markNotificationsRead(supabase, digestKeys: string[] | null): Promise<void>
+Important columns:
 
-saveNotificationPreferences(supabase, userId: string, patch: PreferencesPatch): Promise<void>
+- `latest_notification_id`
+- `count`
+- `unread_count`
+- `actor_ids`
+- `last_occurred_at`
+- `notification_type`
+- `entity_type`
+- `entity_id`
+- `calendar_id`
+- `metadata`
+- `is_read`
 
-savePushSubscription(supabase, userId: string, subscription: PushSubscription, deviceLabel?: string): Promise<void>
+Expected event-oriented metadata keys:
 
-deletePushSubscription(supabase, endpoint: string): Promise<void>
-```
+- `title`
+- `calendarName`
+- `actorName`
+- `actorAvatarUrl`
+- `changedFields`
 
-### lib/notification/trigger.ts
+### `public.user_notification_preferences`
 
-```typescript
-triggerNotification(payload: TriggerNotificationPayload): Promise<void>
+Recipient delivery preferences.
 
-// 편의 빌더
-buildCalendarJoinedPayload(opts): TriggerNotificationPayload
-buildCalendarSettingsChangedPayload(opts): TriggerNotificationPayload
-buildEventCreatedPayload(opts): TriggerNotificationPayload
-buildEventUpdatedPayload(opts): TriggerNotificationPayload
-buildEventTaggedPayload(opts): TriggerNotificationPayload
-buildEventParticipantAddedPayload(opts): TriggerNotificationPayload
-```
+- `push_enabled`
+- `email_enabled`
+- `type_settings`
+- `email_digest`
+- `quiet_hours`
 
-### lib/notification/push.ts
+Important note:
 
-```typescript
-subscribePushNotifications(userId: string): Promise<PushSubscription | null>
-unsubscribePushNotifications(): Promise<void>
-getPushSubscriptionStatus(): Promise<{ permission: NotificationPermission; isSubscribed: boolean }>
-```
+- Missing preference row is treated as defaults in the app.
 
-### store/useNotificationStore.ts
+### `public.push_subscriptions`
 
-```typescript
-useNotificationStore(selector?): T | U
+Web Push subscriptions per user/device.
 
-// 주요 액션
-loadNotifications(): Promise<void>
-loadMoreNotifications(): Promise<void>
-upsertDigest(digest: NotificationDigest): void
-markRead(digestKeys: string[]): Promise<void>
-markAllRead(): Promise<void>
-loadPreferences(): Promise<void>
-savePreferences(patch: Partial<UserNotificationPreferences>): Promise<void>
-```
+- `endpoint`
+- `p256dh`
+- `auth_key`
+- `device_label`
+- `expires_at`
 
----
+### `public.notification_delivery_queue`
 
-## 6. 알림 발생 → 수신 흐름
+Outbox / delivery queue.
 
-### A. 명시적 액션 (캘린더 가입, 참가자 추가 등)
+Important columns:
 
-```
-뮤테이션 함수 (mutations.ts / useCalendarStore)
-  → triggerNotification(buildCalendarJoinedPayload(...))
-  → POST /api/notifications/trigger
-      → 인증 확인
-      → 30초 dedup 체크
-      → create_notification RPC (×수신자 수)
-          → notifications INSERT
-          → notification_digests UPSERT
-  → Realtime postgres_changes → use-notification-realtime.ts
-  → upsertDigest → NotificationStore.digests 갱신
-  → Bell 배지 숫자 업데이트
-```
+- `notification_id uuid unique`
+- `recipient_id uuid`
+- `channels text[]`
+- `status text`
+  - `pending`
+  - `processing`
+  - `sent`
+  - `failed`
+  - `noop`
+- `attempt_count int`
+- `last_attempted_at`
+- `processed_at`
+- `locked_at`
+- `last_error text`
 
-### B. debounce 실시간 수정 (일정 제목·내용·참가자 변경) ✅ 구현됨
+Semantics:
 
-debounce 입력에서는 클라이언트 트리거 대신 DB Trigger를 사용한다:
+- `pending`: ready to dispatch
+- `processing`: claimed by a worker
+- `sent`: at least one requested channel actually delivered
+- `failed`: transport failure happened
+- `noop`: notification was processed but nothing was deliverable
 
-- **구현**: `supabase/migrations/20260506200000_add_event_history_notification_trigger.sql`
-- `AFTER INSERT ON public.event_history` 트리거 → `notify_event_history_insert()` 함수 호출
-- `event_history.action` → `event_created / event_updated / event_deleted` 알림 타입으로 매핑
-- 트리거 내에서 `calendar_members` 활성 멤버 전원에게 `create_notification` RPC 호출 (actor 본인 제외)
-- digest_key = `event_updated:event:{eventId}` 이므로 30초 내 연속 수정은 1개 알림으로 묶임
-- `EXCEPTION WHEN OTHERS` 내부 처리로 알림 실패가 원본 이벤트 쓰기 트랜잭션을 롤백하지 않음
+## 4. Core DB Functions
 
-### C. 알림 표시 집계 ("A님 외 2명이 가입했습니다")
+### Read-side
 
-- 같은 `digest_key`를 가진 알림이 들어오면 `notification_digests.count++`, `actor_ids` 배열 갱신
-- `buildBodyText()` 함수에서 `count > 1`이면 "외 N명" 형식으로 표시
-- `actor_ids[0]`이 가장 최근 actor
+- `get_notifications(p_limit, p_cursor, p_unread_only)`
+- `get_unread_notification_count()`
+- `mark_notifications_read(p_digest_keys)`
 
----
+Current behavior:
 
-## 7. 알람 중복 방지 전략
+- `get_notifications()` reads `notification_digests`, not `notifications`.
+- `mark_notifications_read()` updates both `notifications` and `notification_digests`.
 
-| 상황                          | 방법                                       |
-| ----------------------------- | ------------------------------------------ |
-| 30초 내 동일 actor+digest_key | `/api/notifications/trigger` 서버에서 스킵 |
-| debounce 실시간 수정          | digest_key로 자동 집계 (count++ 만 됨)     |
-| 자기 자신 제외                | `recipientId === actorId` 필터링           |
-| 동일 push 중복 발송           | tag 값으로 서비스워커 알림 대치            |
+### Write-side
 
----
+#### `create_notification(...)`
 
-## 8. 환경 변수
+Responsibilities:
 
-### apps/web/.env
+1. Insert raw notification row into `notifications`
+2. Upsert aggregated read model row into `notification_digests`
+3. Enqueue external delivery into `notification_delivery_queue`
 
-```
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=   # Web Push VAPID 공개키
-SUPABASE_SERVICE_ROLE_KEY=      # /api/notifications/trigger 서버 전용
-```
+This function is service-role only.
 
-### Supabase Edge Function Secrets
+#### `create_notification_if_absent(...)`
 
-```
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-VAPID_PUBLIC_KEY
-VAPID_PRIVATE_KEY
-VAPID_SUBJECT                   # "mailto:admin@calenber.com"
-RESEND_API_KEY
-APP_URL                         # "https://calenber.com"
-```
+Added in `20260506250000_harden_notification_delivery_and_idempotency.sql`.
 
----
+Purpose:
 
-## 9. 알림 설정 패널 위치
+- Atomic debounce/idempotency wrapper for explicit route-triggered notifications.
+- Prevent duplicate creation under concurrent requests.
 
-`apps/web/components/settings/panels/profile-notification-settings-panel.tsx`
+How it works:
 
-설정 모달 탭: `profile_notification` (기존 settings-modal.tsx 에 이미 연결됨)
+1. Builds the digest key
+2. Acquires transaction advisory lock on `(recipient_id, actor_id, digest_key)`
+3. Checks for a recent matching notification inside the dedupe window
+4. Returns existing id if found
+5. Otherwise calls `create_notification(...)`
 
-항목:
+This replaces the older route-level pre-read dedupe logic.
 
-- 푸시 알림 on/off
-- 이메일 알림 on/off + 빈도 (즉시/일간/주간/끄기)
-- 알림 종류별 개별 on/off
+### Delivery-side
 
----
+#### `resolve_notification_delivery_channels(...)`
 
-## 10. 구현 현황 및 확장 포인트
+Computes target channels from:
 
-| 항목                                 | 상태        | 비고                                                                                      |
-| ------------------------------------ | ----------- | ----------------------------------------------------------------------------------------- |
-| VAPID Web Push 실제 발송             | ✅ 구현됨   | RFC 8292 VAPID JWT + RFC 8291 aes128gcm 암호화, 외부 패키지 없이 Deno SubtleCrypto만 사용 |
-| 이메일 발송 (Resend)                 | ✅ 구현됨   | RESEND_API_KEY 설정 후 즉시 동작                                                          |
-| DB Trigger (event_history 기반 알림) | ✅ 구현됨   | `20260506200000_add_event_history_notification_trigger.sql`                               |
-| 조용한 시간대(quiet_hours) 적용      | DB 저장만   | Edge Function에서 체크 필요                                                               |
-| 이메일 다이제스트 집계 발송          | 미구현      | Supabase Cron + Edge Function으로 구현                                                    |
-| 댓글·반응 알림                       | 타입만 정의 | 댓글 기능 추가 시 바로 연결 가능                                                          |
+- notification type settings
+- push enabled flag
+- email enabled flag
+- email digest mode
+- presence of push subscriptions
 
----
+#### `enqueue_notification_delivery(...)`
 
-## 11. 배포 체크리스트
+Creates or refreshes one queue job for a notification.
 
-### Edge Function 배포
+- `channels = []` becomes `status = 'noop'`
+- non-empty channels become `status = 'pending'`
 
-```bash
-supabase functions deploy send-notification
-```
+#### `begin_notification_delivery_job(job_id)`
 
-### Supabase Edge Function Secrets 설정
+Atomically claims one job by:
 
-```bash
-supabase secrets set VAPID_PUBLIC_KEY=<공개키>
-supabase secrets set VAPID_PRIVATE_KEY=<비밀키>   # raw Base64url P-256 스칼라
-supabase secrets set VAPID_SUBJECT=mailto:admin@calenber.com
-supabase secrets set RESEND_API_KEY=<키>
-supabase secrets set APP_URL=https://calenber.com
-```
+- moving `pending` or `failed` -> `processing`
+- incrementing attempt count
+- setting `locked_at` and `last_attempted_at`
 
-> **주의**: `VAPID_PRIVATE_KEY`는 raw Base64url P-256 스칼라 값을 그대로 설정한다.  
-> Edge Function의 `buildVapidJwt`는 `importKey("pkcs8", ...)` 포맷을 사용하므로,  
-> 키가 raw 스칼라인 경우 PKCS#8 DER 변환이 필요하거나 `importKey` 포맷을 `"raw"`로 변경해야 한다.  
-> 배포 전 키 포맷을 확인할 것.
+#### `finalize_notification_delivery_job(job_id, status, error)`
 
-### DB 마이그레이션 적용
+Added in `20260506250000_harden_notification_delivery_and_idempotency.sql`.
 
-```bash
-supabase db push
-```
+Purpose:
 
-또는 Supabase Dashboard > SQL Editor에서 직접 실행.
+- Finalize queue jobs with exact status rather than only boolean success/failure.
 
-### apps/web 환경 변수 확인
+Behavior:
 
-```
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=<공개키>
-SUPABASE_SERVICE_ROLE_KEY=<서비스롤키>
-```
+- `sent`: delivered through at least one requested channel
+- `failed`: transport error or unexpected processing failure
+- `noop`: preferences/subscriptions/email target left nothing deliverable
+
+#### `dispatch_notification_delivery_job(job_id)`
+
+Calls the Edge Function webhook through `pg_net`.
+
+Requires Vault secrets:
+
+- `notification_delivery_function_url`
+- `notification_delivery_webhook_secret`
+
+#### `dispatch_pending_notification_delivery_jobs(limit)`
+
+Fallback dispatcher used by cron to re-kick stuck or failed jobs.
+
+## 5. Delivery Execution Flow
+
+### API-triggered path
+
+1. App calls `/api/notifications/trigger`
+2. Route authenticates requester
+3. Route filters out self-notifications
+4. Route calls `create_notification_if_absent(...)` for each recipient
+5. DB creates notification, digest, queue
+6. Queue trigger dispatches Edge Function via `pg_net`
+7. Edge Function claims and delivers
+8. Job is finalized as `sent`, `failed`, or `noop`
+
+### DB-triggered path
+
+1. `event_history` insert fires notification trigger
+2. Trigger decides recipient list
+3. Trigger calls `create_notification(...)`
+4. From that point the flow is identical to the API-triggered path
+
+## 6. Client Sync Flow
+
+### Global sync
+
+Mounted in:
+
+- `apps/web/app/layout.tsx`
+- `apps/web/components/provider/notification-sync.tsx`
+
+Responsibilities:
+
+- seed initial notification state from SSR when possible
+- mount realtime subscription once at app level
+- reset notification state on logout
+- avoid redundant client fetches immediately after SSR hydration
+- run unread count sync on login only when store is not already hydrated
+- run throttled unread count resync on `focus` and `visibilitychange`
+
+SSR behavior:
+
+- `RootLayout` preloads a small notification digest slice and unread count on the server.
+- The preloaded state is injected into `NotificationStoreProvider`.
+- This allows the bell badge to render immediately on first paint instead of waiting for client-side fetch.
+- If unread count RPC fails during SSR, the store falls back to the sum of preloaded digest unread counts.
+
+### Realtime
+
+`apps/web/hooks/use-notification-realtime.ts`
+
+- subscribes to `notification_digests` for the current user
+- maps changed row into client digest format
+- upserts directly into the Zustand store
+
+### Zustand store
+
+`apps/web/store/useNotificationStore.ts`
+
+Responsibilities:
+
+- load notification digests
+- prime a lightweight initial digest slice for badge/dropdown fallback
+- compute initial unread count from loaded digests
+- append paginated data
+- upsert realtime updates
+- optimistic mark-read / mark-all-read
+- load/save notification preferences
+- resync unread count from RPC
+- fall back to digest-summed unread count if unread RPC times out
+
+## 7. Edge Function Behavior
+
+File:
+
+- `supabase/functions/send-notification/index.ts`
+
+Current behavior:
+
+1. Accepts webhook POST
+2. Verifies `x-notification-webhook-secret`
+3. Claims queue job via `begin_notification_delivery_job(jobId)`
+4. Loads notification record
+5. Loads recipient preferences
+6. Loads recipient email
+7. Builds title/body/url
+8. Filters requested channels by current preferences
+9. Sends push and/or email
+10. Cleans expired push endpoints
+11. Updates `push_sent_at` / `email_sent_at` only on actual channel delivery
+12. Finalizes queue job:
+   - `sent` when at least one requested channel delivered
+   - `noop` when no requested channel is still deliverable
+   - `failed` on transport or processing failure
+
+Important note:
+
+- `quiet_hours` is currently persisted but not enforced in delivery decisions because the preference model does not yet store a per-user timezone. Incorrectly suppressing notifications is considered worse than temporarily not enforcing quiet hours.
+
+## 8. Recent Fixes Applied
+
+### UI / read model
+
+- Added global notification sync provider
+- Moved realtime subscription to app-level mount
+- Fixed unread badge not appearing until a later event
+- Fixed initial unread count calculation during digest load
+- Fixed `is_read` projection drift in notification reads
+- Added default preference fallback for users without preference rows
+- Added SSR preload of unread count and a small digest slice in `RootLayout`
+- Updated notification store hydration so the bell badge can render immediately on first paint
+- Reduced redundant post-hydration client calls to `get_notifications` / `get_unread_notification_count`
+- Added timeout fallback for unread sync so badge state can recover from slow RPC responses
+
+### Delivery / backend
+
+- Added `notification_delivery_queue` outbox table
+- Moved external channel orchestration behind queue
+- Added `pg_net` webhook dispatch trigger
+- Added `pg_cron` re-dispatch fallback
+- Updated Edge Function to clean expired push subscriptions
+- Added exact queue finalization with `sent/failed/noop`
+- Replaced route-level non-atomic dedupe with DB-level `create_notification_if_absent(...)`
+- Scoped noisy event update notifications to interested recipients
+
+## 9. Remaining Known Risks
+
+- Delivery depends on Supabase extensions and secrets being configured correctly:
+  - `pg_net`
+  - `pg_cron`
+  - Vault secrets
+  - Edge secret `NOTIFICATION_WEBHOOK_SECRET`
+- `quiet_hours` is not actively enforced yet. To support it safely, the preference model needs a reliable timezone source per user.
+- Email digest modes `daily` and `weekly` are stored, but digest batching infrastructure is not implemented yet.
+- Some notification types exist in settings/UI but may not yet have all producer paths wired.
+- `process-pending` route exists as a manual/debug fallback, but primary operation should rely on DB trigger + cron.
+
+## 10. Files to Inspect First
+
+### DB / backend
+
+- `supabase/migrations/20260506100000_add_notification_system.sql`
+- `supabase/migrations/20260506200000_add_event_history_notification_trigger.sql`
+- `supabase/migrations/20260506215000_scope_event_update_notification_recipients.sql`
+- `supabase/migrations/20260506220000_denormalize_notification_digest_snapshot.sql`
+- `supabase/migrations/20260506230000_add_notification_delivery_queue.sql`
+- `supabase/migrations/20260506240000_add_pg_net_notification_delivery_webhook.sql`
+- `supabase/migrations/20260506250000_harden_notification_delivery_and_idempotency.sql`
+- `supabase/migrations/20260506260000_add_calendar_name_to_event_notification_metadata.sql`
+- `supabase/functions/send-notification/index.ts`
+
+### Web app
+
+- `apps/web/app/layout.tsx`
+- `apps/web/app/api/notifications/trigger/route.ts`
+- `apps/web/app/api/notifications/process-pending/route.ts`
+- `apps/web/components/provider/notification-sync.tsx`
+- `apps/web/hooks/use-notification-realtime.ts`
+- `apps/web/store/useNotificationStore.ts`
+- `apps/web/lib/notification/queries.ts`
+- `apps/web/lib/notification/mutations.ts`
+- `apps/web/lib/notification/push.ts`
+
+## 11. Deployment Checklist
+
+1. Run new migrations, including `20260506250000_harden_notification_delivery_and_idempotency.sql`
+2. Configure Vault secret `notification_delivery_function_url`
+3. Configure Vault secret `notification_delivery_webhook_secret`
+4. Configure Edge secret `NOTIFICATION_WEBHOOK_SECRET`
+5. Ensure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` are set for the Edge Function
+6. Ensure `RESEND_API_KEY` is set if email delivery is required
+7. Deploy `supabase/functions/send-notification`
+8. Verify `pg_net` and `pg_cron` are enabled in the target Supabase project
+
+## 12. Operational Interpretation
+
+Use queue status like this:
+
+- `sent`: successfully delivered through at least one actual external channel
+- `failed`: processing/transport failed and cron may retry
+- `noop`: notification was valid but no current deliverable channel existed
+
+Do not interpret `noop` as a system error.

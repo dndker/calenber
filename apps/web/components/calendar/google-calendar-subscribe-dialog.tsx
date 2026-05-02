@@ -85,6 +85,7 @@ type GoogleCalendarEntry = {
     accessRole: string
     backgroundColor?: string
     primary?: boolean
+    timeZone?: string
 }
 
 function getGoogleCalendarDefaultCollectionName(
@@ -485,6 +486,7 @@ export function GoogleCalendarSubscribeForm({
                     calendarId: activeCalendarId,
                     googleAccountId: selectedAccountId,
                     googleCalendarId: selectedCalendarId,
+                    googleCalendarTimeZone: calendarEntry.timeZone,
                     googleCalendarName,
                     collectionName: nextCollectionName,
                     collectionColor: selectedColor,

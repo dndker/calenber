@@ -90,6 +90,19 @@ export function mapNotificationPreferencesRow(
     }
 }
 
+export function buildDefaultNotificationPreferences(
+    userId: string
+): UserNotificationPreferences {
+    return {
+        userId,
+        pushEnabled: true,
+        emailEnabled: false,
+        typeSettings: {},
+        emailDigest: "realtime",
+        quietHours: null,
+    }
+}
+
 // ─────────────────────────────────────────
 // 알림 목록 조회 (RPC: get_notifications)
 // ─────────────────────────────────────────
@@ -149,7 +162,12 @@ export async function fetchNotificationPreferences(
         .single()
 
     if (error) {
-        if (error.code === "PGRST116") return null // no rows
+        if (error.code === "PGRST116") {
+            const {
+                data: { user },
+            } = await supabase.auth.getUser()
+            return user ? buildDefaultNotificationPreferences(user.id) : null
+        }
         throw error
     }
 
