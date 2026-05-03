@@ -17,7 +17,7 @@ const I18nDebugRevealContext = createContext(false)
 
 /**
  * dev + NEXT_PUBLIC_I18N_DEBUG=true 일 때만 동작.
- * ⌘(Mac·iOS) 또는 Alt(Windows·Linux 등)를 누르고 있는 동안
+ * ⌘(Mac·iOS) 또는 Ctrl(Windows 등 비 Mac)를 누르고 있는 동안
  * `useDebugTranslations`는 `namespace.key` 형태를 반환한다.
  * 평소에는 일반 번역 문자열만 반환한다.
  */
@@ -27,18 +27,19 @@ export function I18nDebugProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!IS_DEBUG) return
 
-        const useMeta =
+        /** Mac/iOS는 Command(⌘), 그 외 플랫폼은 Control로 locale 키 노출 */
+        const useCommandKey =
             typeof navigator !== "undefined" &&
             /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
 
         const isRevealModifier = (e: KeyboardEvent) =>
-            useMeta
+            useCommandKey
                 ? e.key === "Meta" ||
                   e.code === "MetaLeft" ||
                   e.code === "MetaRight"
-                : e.key === "Alt" ||
-                  e.code === "AltLeft" ||
-                  e.code === "AltRight"
+                : e.key === "Control" ||
+                  e.code === "ControlLeft" ||
+                  e.code === "ControlRight"
 
         const onKeyDown = (e: KeyboardEvent) => {
             if (isRevealModifier(e)) setRevealKeys(true)
@@ -76,12 +77,12 @@ export function I18nDebugProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * dev에서만 `I18nDebugProvider`와 함께 쓰면, ⌘/Alt 홀드 시 `namespace.key`를 반환.
+ * dev에서만 `I18nDebugProvider`와 함께 쓰면, ⌘(Mac) / Ctrl(Windows 등) 홀드 시 `namespace.key`를 반환.
  * prod에서는 `useTranslations`와 동일하게 동작.
  *
  * @example
  * const t = useDebugTranslations("event.form")
- * t("titlePlaceholder") // → 평소: 번역문, ⌘/Alt 누름: "event.form.titlePlaceholder"
+ * t("titlePlaceholder") // → 평소: 번역문, ⌘/Ctrl 누름: "event.form.titlePlaceholder"
  */
 export function useDebugTranslations(namespace: string) {
     const t = useTranslations(namespace)

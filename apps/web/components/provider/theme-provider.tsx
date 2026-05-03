@@ -1,12 +1,10 @@
 "use client"
 
-import { usePathname } from "next/navigation"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 import * as React from "react"
 
 function ThemeColorSync() {
-    const { resolvedTheme } = useTheme() // Provider 안이므로 정상 동작
-    const pathname = usePathname()
+    const { resolvedTheme } = useTheme()
 
     React.useEffect(() => {
         if (!resolvedTheme) return
@@ -15,35 +13,53 @@ function ThemeColorSync() {
             light: "#ffffff",
             dark: "#0c0d0e",
         }
-        const color = colorMap[resolvedTheme] || "#ffffff"
-
+        const color = colorMap[resolvedTheme] ?? "#ffffff"
+        /**
+         * theme-color는 단일 메타 하나만 유지하고 content만 갱신한다.
+         * head 자식을 제거하지 않아야 라우트 전환 중 Next.js head diff와 충돌하지 않는다.
+         */
         const applyThemeColor = () => {
-            const metas = Array.from(
-                document.querySelectorAll<HTMLMetaElement>(
-                    'meta[name="theme-color"]'
-                )
+            const themeMeta = document.querySelector<HTMLMetaElement>(
+                'meta[name="theme-color"]:not([media])'
             )
 
-            if (metas.length === 0) {
+            if (themeMeta) {
+                themeMeta.content = color
+            } else {
                 const meta = document.createElement("meta")
                 meta.name = "theme-color"
                 meta.content = color
                 document.head.appendChild(meta)
-                return
-            }
-
-            for (const meta of metas) {
-                meta.content = color
             }
         }
 
         applyThemeColor()
 
-        // 라우트 전환이나 iOS/Safari 복귀 시 head 메타가 다시 써지는 경우를 보정.
+        // router.refresh() / 라우트 전환 / iOS Safari 복귀 시 Next.js가
+        // head를 다시 쓰는 경우를 감지해 즉시 재적용한다.
+        const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (
+                        node instanceof HTMLMetaElement &&
+                        node.name === "theme-color"
+                    ) {
+                        applyThemeColor()
+                        return
+                    }
+                }
+            }
+        })
+        observer.observe(document.head, { childList: true })
+
         const onVis = () => applyThemeColor()
         document.addEventListener("visibilitychange", onVis)
-        return () => document.removeEventListener("visibilitychange", onVis)
-    }, [pathname, resolvedTheme])
+
+        return () => {
+            observer.disconnect()
+            document.removeEventListener("visibilitychange", onVis)
+        }
+    }, [resolvedTheme])
 
     return null
 }

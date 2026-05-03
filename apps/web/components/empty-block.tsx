@@ -12,7 +12,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 type EmptyBlockProps = {
     title: string
-    description: string
+    description?: string
     icon?: LucideIcon
     action?: React.ReactNode
     footer?: React.ReactNode
@@ -28,13 +28,15 @@ export function EmptyBlock({
     className,
 }: EmptyBlockProps) {
     return (
-        <Empty className={cn("border", className)}>
+        <Empty className={cn(className)}>
             <EmptyHeader>
                 <EmptyMedia variant="icon">
                     <Icon />
                 </EmptyMedia>
                 <EmptyTitle>{title}</EmptyTitle>
-                <EmptyDescription>{description}</EmptyDescription>
+                {description && (
+                    <EmptyDescription>{description}</EmptyDescription>
+                )}
             </EmptyHeader>
             {action ? (
                 <EmptyContent className="flex-row justify-center gap-2">

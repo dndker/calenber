@@ -1,8 +1,8 @@
-import type { CalendarEventLayout } from "@/lib/calendar/types"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
+import type { CalendarEventLayout } from "@/lib/calendar/types"
 import { toCalendarDay } from "@/lib/date"
 import dayjs from "@/lib/dayjs"
-import { getCalendarEventRenderId } from "@/lib/calendar/recurrence"
 import { shallow } from "@/store/createSSRStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Button } from "@workspace/ui/components/button"
@@ -13,9 +13,12 @@ import {
 } from "@workspace/ui/components/popover"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { memo, useCallback, useMemo, useState } from "react"
-import type { PositionedCalendarEvent } from "./event-positioning"
-import { CALENDAR_EVENT_ITEM_STRIDE_PX } from "./event-item-layout.constants"
 import { EventItem, getEventPosition } from "./event-item"
+import {
+    getCalendarEventItemMetrics,
+    type CalendarEventItemMetrics,
+} from "./event-item-layout.constants"
+import type { PositionedCalendarEvent } from "./event-positioning"
 
 type PositionedSegment = {
     renderId: string
@@ -29,21 +32,18 @@ type PositionedSegment = {
     dragOffsetStart: number
 }
 
-const EVENT_ROW_TOP_OFFSET = 56
-const EVENT_ROW_BOTTOM_OFFSET = 4
-const EVENT_ROW_HEIGHT = 28
-const EVENT_ROW_GAP = 4
-const EVENT_ROW_STRIDE = CALENDAR_EVENT_ITEM_STRIDE_PX
 const SPLIT_VISIBLE_EVENT_LIMIT = 3
 const DAY_MS = 1000 * 60 * 60 * 24
 
 export const EventRow = memo(function EventRow({
     events,
+    isMobile,
     week,
     size,
     assumeWeekScoped = false,
 }: {
     events: PositionedCalendarEvent[]
+    isMobile: boolean
     week: Date[]
     size?: number
     assumeWeekScoped?: boolean
@@ -83,15 +83,22 @@ export const EventRow = memo(function EventRow({
         [week, calendarTz]
     )
 
+    const eventItemMetrics = useMemo(
+        () => getCalendarEventItemMetrics(isMobile),
+        [isMobile]
+    )
+
     const segments: PositionedSegment[] = useMemo(() => {
-        const visible = (assumeWeekScoped
-            ? events
-            : events.filter((event) => {
-                  return (
-                      event.endCalExclusive > weekStart &&
-                      event.startCal < weekEndExclusive
-                  )
-              }))
+        const visible = (
+            assumeWeekScoped
+                ? events
+                : events.filter((event) => {
+                      return (
+                          event.endCalExclusive > weekStart &&
+                          event.startCal < weekEndExclusive
+                      )
+                  })
+        )
             .map((event) => {
                 const segmentStart = Math.max(event.startCal, weekStart)
                 const segmentEndExclusive = Math.min(
@@ -102,9 +109,8 @@ export const EventRow = memo(function EventRow({
                 const startIndex = Math.floor(
                     (segmentStart - weekStart) / DAY_MS
                 )
-                const endIndex = Math.floor(
-                    (segmentEndExclusive - weekStart) / DAY_MS
-                ) - 1
+                const endIndex =
+                    Math.floor((segmentEndExclusive - weekStart) / DAY_MS) - 1
 
                 return {
                     renderId: getCalendarEventRenderId(event),
@@ -166,10 +172,7 @@ export const EventRow = memo(function EventRow({
                 (dragMode === "resize-start" || dragMode === "resize-end")
 
             const pinnedInGroup = isResizePinForThisWeek
-                ? group.find(
-                  (segment) =>
-                          segment.renderId === dragRenderId
-                  )
+                ? group.find((segment) => segment.renderId === dragRenderId)
                 : null
 
             const pinLane = resizePinnedLane ?? 0
@@ -255,14 +258,26 @@ export const EventRow = memo(function EventRow({
         const weekHeight = size ?? 0
         const availableHeight = Math.max(
             0,
-            weekHeight - EVENT_ROW_TOP_OFFSET - EVENT_ROW_BOTTOM_OFFSET
+            weekHeight -
+                eventItemMetrics.rowTopOffset -
+                eventItemMetrics.rowBottomOffset
         )
 
         return Math.max(
             1,
-            Math.floor((availableHeight + EVENT_ROW_GAP) / EVENT_ROW_STRIDE)
+            Math.floor(
+                (availableHeight + eventItemMetrics.laneGap) /
+                    eventItemMetrics.stride
+            )
         )
-    }, [eventLayout, size])
+    }, [
+        eventItemMetrics.laneGap,
+        eventItemMetrics.rowBottomOffset,
+        eventItemMetrics.rowTopOffset,
+        eventItemMetrics.stride,
+        eventLayout,
+        size,
+    ])
 
     const maxLaneCount = useMemo(() => {
         return segments.reduce((max, segment) => {
@@ -319,24 +334,26 @@ export const EventRow = memo(function EventRow({
     }, [segments, visibleLaneLimit, week.length])
 
     return (
-        <div className={memoEventRowClass()}>
+        <div
+            className="pointer-events-none absolute inset-x-0"
+            style={getEventRowStyle(eventItemMetrics)}
+        >
             {visibleSegments.map(
-                (
-                    {
-                        renderId,
-                        event,
-                        lane,
-                        laneCount,
-                        startIndex,
-                        endIndex,
-                        continuesFromPrevWeek,
-                        continuesToNextWeek,
-                        dragOffsetStart,
-                    }
-                ) => (
+                ({
+                    renderId,
+                    event,
+                    lane,
+                    laneCount,
+                    startIndex,
+                    endIndex,
+                    continuesFromPrevWeek,
+                    continuesToNextWeek,
+                    dragOffsetStart,
+                }) => (
                     <EventItem
                         key={`w${weekStart}-${renderId}-o${dragOffsetStart}-L${lane}`}
                         event={event}
+                        isMobile={isMobile}
                         top={lane}
                         startIndex={startIndex}
                         endIndex={endIndex}
@@ -361,10 +378,12 @@ export const EventRow = memo(function EventRow({
                         dayIndex={dayIndex}
                         dayCount={week.length}
                         hiddenSegments={hiddenSegments}
+                        isMobile={isMobile}
                         eventLayout={eventLayout}
                         topIndex={visibleLaneLimit}
                         splitDisplayLaneCount={splitDisplayLaneCount}
                         weekStart={weekStart}
+                        eventItemMetrics={eventItemMetrics}
                     />
                 )
             })}
@@ -372,30 +391,37 @@ export const EventRow = memo(function EventRow({
     )
 })
 
-function memoEventRowClass() {
-    return "pointer-events-none absolute inset-x-0 top-14 bottom-1"
+function getEventRowStyle(eventItemMetrics: CalendarEventItemMetrics) {
+    return {
+        top: `${eventItemMetrics.rowTopOffset}px`,
+        bottom: `${eventItemMetrics.rowBottomOffset}px`,
+    }
 }
 
 const OverflowButton = memo(function OverflowButton({
     dayIndex,
     dayCount,
     hiddenSegments,
+    isMobile,
     eventLayout,
     topIndex,
     splitDisplayLaneCount,
     weekStart,
+    eventItemMetrics,
 }: {
     dayIndex: number
     dayCount: number
     hiddenSegments: PositionedSegment[]
+    isMobile: boolean
     eventLayout: CalendarEventLayout
     topIndex: number
     splitDisplayLaneCount: number
     weekStart: number
+    eventItemMetrics: CalendarEventItemMetrics
 }) {
     const t = useDebugTranslations("event.row")
     const [open, setOpen] = useState(false)
-    const pos = getOverflowPosition(dayIndex, dayCount)
+    const pos = getOverflowPosition(dayIndex, dayCount, isMobile)
     const handleDragStateChange = useCallback((isDragging: boolean) => {
         if (!isDragging) {
             return
@@ -410,13 +436,13 @@ const OverflowButton = memo(function OverflowButton({
         eventLayout === "split"
             ? {
                   ...pos,
-                  top: `calc(${(topIndex / splitDisplayLaneCount) * 100}% + 2px)`,
-                  height: `calc(${100 / splitDisplayLaneCount}% - 4px)`,
+                  top: `calc(${(topIndex / splitDisplayLaneCount) * 100}% + ${eventItemMetrics.laneGap}px)`,
+                  height: `calc(${100 / splitDisplayLaneCount}% - ${eventItemMetrics.laneGap * 2}px)`,
               }
             : {
                   ...pos,
-                  top: `${topIndex * EVENT_ROW_STRIDE}px`,
-                  height: `${EVENT_ROW_HEIGHT}px`,
+                  top: `${topIndex * eventItemMetrics.stride}px`,
+                  height: `${eventItemMetrics.height}px`,
               }
 
     return (
@@ -445,23 +471,22 @@ const OverflowButton = memo(function OverflowButton({
                     <div className="max-h-30">
                         <div className="flex flex-col gap-1 p-1.5 pt-0">
                             {hiddenSegments.map(
-                                (
-                                    {
-                                        renderId,
-                                        event,
-                                        startIndex,
-                                        endIndex,
-                                        continuesFromPrevWeek,
-                                        continuesToNextWeek,
-                                        dragOffsetStart,
-                                    }
-                                ) => (
+                                ({
+                                    renderId,
+                                    event,
+                                    startIndex,
+                                    endIndex,
+                                    continuesFromPrevWeek,
+                                    continuesToNextWeek,
+                                    dragOffsetStart,
+                                }) => (
                                     <div
                                         key={`w${weekStart}-${renderId}-o${dragOffsetStart}-hidden`}
                                         className="relative"
                                     >
                                         <EventItem
                                             event={event}
+                                            isMobile={isMobile}
                                             top={0}
                                             startIndex={startIndex}
                                             endIndex={endIndex}
@@ -491,6 +516,10 @@ const OverflowButton = memo(function OverflowButton({
     )
 })
 
-function getOverflowPosition(dayIndex: number, dayCount: number) {
-    return getEventPosition(dayIndex, dayIndex, dayCount)
+function getOverflowPosition(
+    dayIndex: number,
+    dayCount: number,
+    isMobile: boolean
+) {
+    return getEventPosition(dayIndex, dayIndex, isMobile, dayCount)
 }

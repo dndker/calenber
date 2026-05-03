@@ -424,7 +424,44 @@
             "shared": "Shared",
             "subscribed": "Subscribed",
             "linkRequired": "Link required",
-            "subscribe": "Subscribe"
+            "subscribe": "Subscribe",
+            "addSharedCalendar": "Subscribe to shared calendar",
+            "addGoogleCalendar": "Google Calendar",
+            "dialogTitle": "Add Subscription",
+            "tabShared": "Shared Calendar",
+            "tabGoogle": "Google Calendar"
+        },
+        "googleCalendarSubscribe": {
+            "dialogTitle": "Add Google Calendar",
+            "dialogDescription": "Connect your Google account and select a calendar.",
+            "accountLabel": "Google Account",
+            "noAccounts": "No Google accounts connected.",
+            "loadingAccounts": "Loading accounts...",
+            "connectAccount": "Connect Google Account",
+            "addAnotherAccount": "Add another Google account",
+            "disconnect": "Disconnect",
+            "disconnectConfirm": "Disconnect this Google account? Linked Google subscriptions will also be removed.",
+            "disconnectSuccess": "Google account disconnected.",
+            "disconnectFailed": "Failed to disconnect Google account.",
+            "accountConnected": "Google account ({email}) connected.",
+            "calendarLabel": "Select Calendar",
+            "calendarPlaceholder": "Select a calendar",
+            "primaryCalendar": "Primary",
+            "noCalendars": "No calendars available.",
+            "loadingCalendars": "Loading calendars...",
+            "loadCalendarsFailed": "Failed to load Google calendars.",
+            "insufficientPermission": "Google Calendar permission is missing. Reconnect your account and allow all requested permissions.",
+            "refresh": "Refresh",
+            "collectionNameLabel": "Collection name to add",
+            "collectionNamePlaceholder": "Enter a collection name",
+            "alreadyAddedBadge": "Already added",
+            "alreadyAddedDescription": "This Google Calendar has already been added to the current calendar.",
+            "allCalendarsAlreadyAdded": "All Google Calendars in this account have already been added.",
+            "colorLabel": "Color",
+            "description": "Events from the selected Google Calendar will appear in this calendar.",
+            "submit": "Add",
+            "subscribeSuccess": "Google Calendar ''{name}'' has been added.",
+            "subscribeFailed": "Failed to add Google Calendar."
         },
         "sidebarEvents": {
             "favorites": "Favorites",
@@ -551,7 +588,8 @@
         "collection": {
             "emptyText": "Type a collection name to create it.",
             "searchOrCreate": "Search or create",
-            "createNew": "Create new collection"
+            "createNew": "Create new collection",
+            "googleCalendarLabel": "Google Calendar"
         },
         "status": {
             "scheduled": "Scheduled",
@@ -713,6 +751,21 @@
             "languageDescription": "Choose the language to use in Calenber.",
             "timezoneLabel": "Time zone",
             "timezoneDescription": "Select a time zone"
+        },
+        "profileNotification": {
+            "loading": "Loading settings...",
+            "channelSection": "Notification Channels",
+            "pushNotifications": "Push Notifications",
+            "pushNotificationsDescription": "Receive notifications in your browser and app (PWA)",
+            "emailNotifications": "Email Notifications",
+            "emailNotificationsDescription": "Receive notifications via email",
+            "emailFrequency": "Email Frequency",
+            "emailFrequencyDescription": "How often you want to receive email notifications",
+            "frequencyRealtime": "Instant",
+            "frequencyDaily": "Daily digest",
+            "frequencyWeekly": "Weekly digest",
+            "frequencyOff": "Off",
+            "typeSection": "Notification Types"
         },
         "calendarData": {
             "fieldSettingsPermissionDenied": "Only managers or owners can change event field settings.",
@@ -931,6 +984,21 @@
             "deleteAccountConfirmSuffix": ".",
             "deleteAccountConfirmAria": "Account deletion confirmation",
             "deleting": "Deleting..."
+        }
+    },
+    "notification": {
+        "unknownUser": "Unknown user",
+        "dropdown": {
+            "trigger": "Notifications",
+            "title": "Notifications",
+            "markAllRead": "Mark all read",
+            "empty": "No new notifications",
+            "loadMore": "Load more",
+            "viewAll": "View all notifications"
+        },
+        "page": {
+            "title": "Notifications",
+            "empty": "No new notifications"
         }
     }
 }

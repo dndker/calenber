@@ -116,7 +116,23 @@ export type CalendarSubscriptionAuthority = "system" | "admin" | "user"
 export type CalendarSubscriptionSourceType =
     | "system_holiday"
     | "shared_collection"
+    | "google_calendar"
     | "custom"
+
+/** google_calendar 타입 구독의 config 구조 */
+export type GoogleCalendarSubscriptionConfig = {
+    provider: "google_calendar_v1"
+    /** Google Calendar API의 캘린더 ID (e.g. "primary", "xxx@group.calendar.google.com") */
+    googleCalendarId: string
+    /** Google Calendar 자체의 기본 timezone */
+    googleCalendarTimeZone?: string
+    /** user_google_integrations.google_account_id */
+    googleAccountId: string
+    /** user_google_integrations.google_email */
+    googleEmail?: string
+    /** 증분 동기화 토큰 (Google Calendar API nextSyncToken) */
+    syncToken?: string
+}
 
 export type CalendarSubscriptionCalendarInfo = {
     id: string | null
@@ -160,6 +176,7 @@ export type EventSubscriptionItem = {
     authority?: CalendarSubscriptionAuthority
     providerName?: string | null
     calendar?: CalendarSubscriptionCalendarInfo | null
+    googleEmail?: string | null
 }
 
 export type CalendarEvent = {
@@ -187,6 +204,8 @@ export type CalendarEvent = {
     updatedBy: CalendarEventAuthor | null
     subscription?: EventSubscriptionItem
     isLocked: boolean
+    /** 구글 캘린더에도 저장한 경우의 구글 이벤트 ID. webhook 수신 시 중복 표시 방지에 사용. */
+    googleEventId?: string
     createdAt: number
     updatedAt: number
 }

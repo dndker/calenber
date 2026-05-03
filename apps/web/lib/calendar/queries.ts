@@ -10,6 +10,14 @@ import {
     parseSubscriptionCompositeEventId,
 } from "@/lib/calendar/event-id"
 import {
+    getValidAccessToken,
+    getGoogleCalendarEvent,
+} from "@/lib/google/calendar-api"
+import {
+    mapGoogleEventToCalendarEvent,
+    parseGoogleCalendarEventId,
+} from "@/lib/google/calendar-event-mapper"
+import {
     calendarEventFromSharedCollectionRow,
     parseSharedCollectionRpcRow,
     type SharedCollectionRpcRow,
@@ -20,6 +28,7 @@ import type {
     CalendarEvent,
     CalendarEventFieldSettings,
     EventSubscriptionItem,
+    GoogleCalendarSubscriptionConfig,
 } from "@/store/calendar-store.types"
 import type {
     CalendarAccessMode,
@@ -148,7 +157,11 @@ export type CalendarSubscriptionCatalog = {
     slug: string
     name: string
     description: string
-    sourceType: "system_holiday" | "shared_collection" | "custom"
+    sourceType:
+        | "system_holiday"
+        | "shared_collection"
+        | "google_calendar"
+        | "custom"
     verified: boolean
     status: "active" | "source_deleted" | "archived"
     sourceDeletedAt: string | null
@@ -320,6 +333,11 @@ type SourceCalendarMetaRow = {
     id: string
     name: string
     avatar_url: string | null
+}
+
+type GoogleIntegrationMetaRow = {
+    google_account_id: string
+    google_email: string
 }
 
 function normalizeCalendarSubscriptionSourceType(
@@ -719,6 +737,18 @@ export async function getCalendarSubscriptionCatalog(
         return []
     }
     const rows = data as CalendarSubscriptionCatalogRow[]
+    const googleAccountIds = Array.from(
+        new Set(
+            rows
+                .map((row) => {
+                    const config = (row.config ?? {}) as Record<string, unknown>
+                    return typeof config.googleAccountId === "string"
+                        ? config.googleAccountId
+                        : null
+                })
+                .filter((id): id is string => Boolean(id))
+        )
+    )
     const sourceCalendarIds = Array.from(
         new Set(
             rows
@@ -731,6 +761,7 @@ export async function getCalendarSubscriptionCatalog(
         string,
         { name: string; avatarUrl: string | null }
     >()
+    let googleEmailByAccountId = new Map<string, string>()
 
     if (sourceCalendarIds.length > 0) {
         const { data: sourceCalendars, error: sourceCalendarError } = await supabase
@@ -756,10 +787,46 @@ export async function getCalendarSubscriptionCatalog(
         }
     }
 
+    if (googleAccountIds.length > 0) {
+        const { data: googleIntegrations, error: googleIntegrationError } =
+            await supabase
+                .from("user_google_integrations")
+                .select("google_account_id, google_email")
+                .in("google_account_id", googleAccountIds)
+
+        if (googleIntegrationError) {
+            console.error(
+                "Failed to load Google integration emails for subscriptions:",
+                googleIntegrationError
+            )
+        } else {
+            googleEmailByAccountId = new Map(
+                ((googleIntegrations ?? []) as GoogleIntegrationMetaRow[]).map(
+                    (row) => [row.google_account_id, row.google_email]
+                )
+            )
+        }
+    }
+
     return rows.map((row) => {
         const meta = row.source_calendar_id
             ? sourceCalendarMetaById.get(row.source_calendar_id)
             : undefined
+        const config = (row.config ?? {}) as Record<string, unknown>
+        const googleAccountId =
+            typeof config.googleAccountId === "string"
+                ? config.googleAccountId
+                : null
+        const googleEmail = googleAccountId
+            ? googleEmailByAccountId.get(googleAccountId) ?? null
+            : null
+        const normalizedConfig =
+            googleEmail && config.provider === "google_calendar_v1"
+                ? ({
+                      ...(config as GoogleCalendarSubscriptionConfig),
+                      googleEmail,
+                  } as Record<string, unknown>)
+                : config
 
         return {
             id: row.id,
@@ -781,7 +848,7 @@ export async function getCalendarSubscriptionCatalog(
             sourceDeletedAt: row.source_deleted_at,
             sourceDeletedReason: row.source_deleted_reason,
             collectionColor: normalizeCalendarCollectionColor(row.collection_color),
-            config: (row.config ?? {}) as Record<string, unknown>,
+            config: normalizedConfig,
             installed: row.installed,
             isVisible: row.is_visible,
             visibility:
@@ -790,6 +857,68 @@ export async function getCalendarSubscriptionCatalog(
                     : null,
         }
     })
+}
+
+/**
+ * 구독 카탈로그 raw 데이터를 스토어용 CalendarSubscriptionCatalogItem 배열로 변환.
+ * getCalendarInitialData와 동일한 매핑 로직을 공유한다.
+ */
+export function normalizeSubscriptionCatalogs(
+    catalogs: CalendarSubscriptionCatalog[]
+): CalendarSubscriptionCatalogItem[] {
+    return catalogs.map((subscription) => ({
+        id: subscription.id,
+        slug: subscription.slug,
+        name: subscription.name,
+        description: subscription.description,
+        authority: subscription.verified ? "system" : "user",
+        ownerName:
+            subscription.providerName ??
+            (subscription.verified ? "Calenber" : "Shared user"),
+        providerName: subscription.providerName,
+        verified: subscription.verified,
+        tags: [],
+        collectionColor: subscription.collectionColor ?? undefined,
+        sourceType: subscription.sourceType,
+        calendar: subscription.sourceCalendar
+            ? {
+                  id: subscription.sourceCalendar.id,
+                  name: subscription.sourceCalendar.name,
+                  avatarUrl: subscription.sourceCalendar.avatarUrl,
+              }
+            : null,
+        status: subscription.status,
+        sourceDeletedAt: subscription.sourceDeletedAt,
+        sourceDeletedReason: subscription.sourceDeletedReason,
+        config: subscription.config,
+        visibility: subscription.visibility,
+    }))
+}
+
+/**
+ * 구독 카탈로그를 DB에서 다시 읽어 스토어용 형태로 반환.
+ * 구독 추가/삭제 후 스토어를 갱신할 때 사용한다.
+ */
+export async function fetchAndNormalizeSubscriptionCatalogs(
+    supabase: SupabaseClient,
+    calendarId: string
+): Promise<{
+    catalogs: CalendarSubscriptionCatalogItem[]
+    installedIds: string[]
+    hiddenIds: string[]
+}> {
+    const raw = await getCalendarSubscriptionCatalog(supabase, calendarId)
+    const merged = mergeBuiltinSystemSubscriptionCatalog(raw)
+    const catalogs = normalizeSubscriptionCatalogs(merged)
+    return {
+        catalogs,
+        installedIds: merged
+            .filter((s) => s.installed)
+            .map((s) => s.id),
+        hiddenIds: merged
+            .filter((s) => s.installed && !s.isVisible)
+            .map((s) => s.id),
+    }
 }
 
 export async function getCalendarMembership(
@@ -982,6 +1111,9 @@ function mapSharedCollectionRowToEventMetadata(
 function calendarCatalogRowToEventSubscriptionItem(
     row: CalendarSubscriptionCatalog
 ): EventSubscriptionItem {
+    const googleEmail =
+        typeof row.config.googleEmail === "string" ? row.config.googleEmail : null
+
     return {
         id: row.id,
         slug: row.slug,
@@ -996,6 +1128,7 @@ function calendarCatalogRowToEventSubscriptionItem(
                   avatarUrl: row.sourceCalendar.avatarUrl,
               }
             : null,
+        googleEmail,
     }
 }
 
@@ -1057,6 +1190,90 @@ async function fetchSharedCollectionEventRowForViewer(
     return null
 }
 
+async function fetchGoogleCalendarEventForViewer(
+    supabase: SupabaseClient,
+    viewerCalendarId: string,
+    viewerUserId: string,
+    eventId: string
+): Promise<CalendarEvent | null> {
+    const parsedGoogleEvent = parseGoogleCalendarEventId(eventId)
+
+    if (!parsedGoogleEvent) {
+        return null
+    }
+
+    const catalogs = await getCalendarSubscriptionCatalog(supabase, viewerCalendarId)
+    const catalog = catalogs.find(
+        (item) =>
+            item.id === parsedGoogleEvent.catalogId &&
+            item.sourceType === "google_calendar" &&
+            item.installed &&
+            item.status === "active"
+    )
+
+    if (!catalog) {
+        return null
+    }
+
+    const config = catalog.config as Partial<GoogleCalendarSubscriptionConfig>
+    const googleCalendarId =
+        typeof config.googleCalendarId === "string" ? config.googleCalendarId : null
+    const googleAccountId =
+        typeof config.googleAccountId === "string" ? config.googleAccountId : null
+
+    if (!googleCalendarId || !googleAccountId) {
+        return null
+    }
+
+    const accessToken = await getValidAccessToken(
+        supabase,
+        viewerUserId,
+        googleAccountId
+    )
+
+    if (!accessToken) {
+        return null
+    }
+
+    const googleEvent = await getGoogleCalendarEvent(
+        accessToken,
+        googleCalendarId,
+        parsedGoogleEvent.googleEventId
+    )
+
+    if (!googleEvent) {
+        return null
+    }
+
+    return mapGoogleEventToCalendarEvent(googleEvent, {
+        catalogId: catalog.id,
+        catalogName: catalog.name,
+        collectionColor: catalog.collectionColor,
+        defaultTimezone:
+            typeof config.googleCalendarTimeZone === "string"
+                ? config.googleCalendarTimeZone
+                : null,
+        isLocked: false,
+        subscriptionMeta: {
+            id: catalog.id,
+            slug: catalog.slug,
+            name: catalog.name,
+            sourceType: catalog.sourceType,
+            authority: "user",
+            providerName: catalog.providerName ?? "Google Calendar",
+            calendar: catalog.sourceCalendar?.id
+                ? {
+                      id: catalog.sourceCalendar.id,
+                      name: catalog.sourceCalendar.name ?? catalog.name,
+                      avatarUrl: catalog.sourceCalendar.avatarUrl,
+                  }
+                : null,
+            googleEmail:
+                typeof config.googleEmail === "string" ? config.googleEmail : null,
+        },
+    })
+}
+
 export async function getEventById(
     supabase: SupabaseClient,
     eventId: string,
@@ -1064,6 +1281,8 @@ export async function getEventById(
         silentMissing?: boolean
         /** 구독 복합 ID(`sub:…`) 조회 시 설치된 캘린더(보는 사용자 워크스페이스) */
         viewerCalendarId?: string
+        /** gcal: 이벤트를 서버에서 직접 조회할 때 사용하는 현재 사용자 ID */
+        viewerUserId?: string
     }
 ) {
     const parsedSub = parseSubscriptionCompositeEventId(eventId)
@@ -1102,6 +1321,22 @@ export async function getEventById(
             row,
             eventId,
             subscriptionMeta
+        )
+    }
+
+    if (parseGoogleCalendarEventId(eventId)) {
+        const viewerCal = options?.viewerCalendarId
+        const viewerUserId = options?.viewerUserId
+
+        if (!viewerCal || !viewerUserId) {
+            return null
+        }
+
+        return fetchGoogleCalendarEventForViewer(
+            supabase,
+            viewerCal,
+            viewerUserId,
+            eventId
         )
     }
 
@@ -1144,6 +1379,7 @@ export async function getEventMetadataByCalendarId(
     eventId: string,
     options?: {
         silentMissing?: boolean
+        viewerUserId?: string
     }
 ): Promise<{
     calendar: CalendarSummary | null
@@ -1176,6 +1412,53 @@ export async function getEventMetadataByCalendarId(
         return {
             calendar,
             event: mapSharedCollectionRowToEventMetadata(row, eventId),
+        }
+    }
+
+    if (parseGoogleCalendarEventId(eventId)) {
+        const calendar = await getCalendarById(supabase, calendarId)
+        const viewerUserId = options?.viewerUserId
+
+        if (!calendar || !viewerUserId) {
+            return {
+                calendar: calendar ?? null,
+                event: null,
+            }
+        }
+
+        const event = await fetchGoogleCalendarEventForViewer(
+            supabase,
+            calendarId,
+            viewerUserId,
+            eventId
+        )
+
+        if (!event) {
+            if (!options?.silentMissing) {
+                console.warn("Calendar event metadata not found:", eventId)
+            }
+
+            return {
+                calendar,
+                event: null,
+            }
+        }
+
+        return {
+            calendar,
+            event: {
+                id: event.id,
+                title: event.title,
+                content: event.content,
+                start: event.start,
+                end: event.end,
+                status: event.status,
+                author: event.author
+                    ? {
+                          name: event.author.name,
+                      }
+                    : null,
+            },
         }
     }
 
@@ -1257,6 +1540,7 @@ export async function getEventPageDataByCalendarId(
     eventId: string,
     options?: {
         silentMissing?: boolean
+        viewerUserId?: string
     }
 ): Promise<{
     calendar: CalendarSummary | null

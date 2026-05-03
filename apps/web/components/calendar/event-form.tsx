@@ -36,9 +36,18 @@ import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
 import { useEventFormDraftCollectionColor } from "@/hooks/use-event-form-draft-collection-color"
+import {
+    makeGoogleCalendarEventId,
+    parseGoogleCalendarEventId,
+} from "@/lib/google/calendar-event-mapper"
 import { EventChipsCombobox } from "./event-chips-combobox"
 import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
-import { EventFormCollectionChipsField } from "./event-form-collection-field"
+import {
+    EventFormCollectionChipsField,
+    isGoogleCollectionOptionValue,
+    makeGoogleCollectionOptionValue,
+    parseGoogleCollectionOptionValue,
+} from "./event-form-collection-field"
 import {
     EventFormPropertyRow,
     type EventFormPropertyMenuItem,
@@ -68,6 +77,8 @@ import {
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import { type Locale } from "@/lib/i18n/config"
 import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
 import { formatIntlDate } from "@/lib/i18n/intl-date"
@@ -75,8 +86,10 @@ import {
     defaultContent,
     eventStatus,
     type CalendarEvent,
+    type CalendarEventCollection,
     type CalendarEventParticipant,
     type CalendarEventPatch,
+    type CalendarSubscriptionCatalogItem,
     type EditorContent,
 } from "@/store/calendar-store.types"
 import { useAuthStore } from "@/store/useAuthStore"
@@ -119,6 +132,7 @@ import {
 import { Switch } from "@workspace/ui/components/switch"
 import { useLocale } from "next-intl"
 import dynamic from "next/dynamic"
+import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
 import {
@@ -645,6 +659,20 @@ function getDefaultParticipantIds({
     return fallbackUserId ? [fallbackUserId] : []
 }
 
+function getEventFormCollectionNames(event?: CalendarEvent) {
+    if (!event) {
+        return []
+    }
+
+    const parsedGoogleEvent = parseGoogleCalendarEventId(event.id)
+
+    if (parsedGoogleEvent) {
+        return [makeGoogleCollectionOptionValue(parsedGoogleEvent.catalogId)]
+    }
+
+    return event.collections.map((collection) => collection.name)
+}
+
 export function EventForm({
     event,
     onChange,
@@ -668,6 +696,7 @@ export function EventForm({
     const tCommonLabels = useDebugTranslations("common.labels")
     const tField = useDebugTranslations("event.fieldDefinition")
     const locale = useLocale() as Locale
+    const pathname = usePathname()
     const calendarEventFieldDefinitions = useMemo(
         () => getCalendarEventFieldDefinitions(tField),
         [tField]
@@ -685,6 +714,9 @@ export function EventForm({
         () => getDefaultParticipantIds({ event, currentUserId: user?.id }),
         [event, user?.id]
     )
+    const createEvent = useCalendarStore((s) => s.createEvent)
+    const setActiveEventId = useCalendarStore((s) => s.setActiveEventId)
+    const setViewEvent = useCalendarStore((s) => s.setViewEvent)
 
     const form = useForm<EventFormValues>({
         resolver: zodResolver(eventFormSchema) as Resolver<EventFormValues>,
@@ -695,9 +727,7 @@ export function EventForm({
                   start: new Date(event.start),
                   end: new Date(event.end),
                   timezone: event.timezone || calendarTimezone || "Asia/Seoul",
-                  collectionNames: event.collections.map(
-                      (collection) => collection.name
-                  ),
+                  collectionNames: getEventFormCollectionNames(event),
                   participantIds: defaultParticipantIds,
                   allDay: event.allDay ?? false,
                   recurrence: event.recurrence,
@@ -726,6 +756,13 @@ export function EventForm({
     const eventCollections = useCalendarStore((s) => s.eventCollections)
     const upsertEventCollectionSnapshot = useCalendarStore(
         (s) => s.upsertEventCollectionSnapshot
+    )
+    const installedGoogleCalendarCatalogs = useCalendarStore((s) =>
+        s.subscriptionCatalogs.filter(
+            (c) =>
+                c.sourceType === "google_calendar" &&
+                s.subscriptionState.installedSubscriptionIds.includes(c.id)
+        )
     )
     const { eventFieldSettings, saveEventFieldSettings } =
         useCalendarEventFieldSettings()
@@ -815,9 +852,7 @@ export function EventForm({
                 end: new Date(targetEvent.end),
                 timezone:
                     targetEvent.timezone || calendarTimezone || "Asia/Seoul",
-                collectionNames: targetEvent.collections.map(
-                    (collection) => collection.name
-                ),
+                collectionNames: getEventFormCollectionNames(targetEvent),
                 participantIds: getDefaultParticipantIds({
                     event: targetEvent,
                     currentUserId: user?.id,
@@ -829,6 +864,191 @@ export function EventForm({
             })
         },
         [calendarTimezone, form, user?.id]
+    )
+
+    const resolveParticipantsFromValues = useCallback(
+        (
+            sourceEvent: CalendarEvent,
+            participantIds: string[]
+        ): CalendarEventParticipant[] => {
+            const nextParticipantIds = normalizeIds(participantIds)
+            const memberMap = new Map(
+                memberDirectory.map((member) => [member.userId, member])
+            )
+
+            return nextParticipantIds.flatMap(
+                (participantId): CalendarEventParticipant[] => {
+                    const sourceParticipant = sourceEvent.participants.find(
+                        (participant) => participant.userId === participantId
+                    )
+
+                    if (sourceParticipant) {
+                        return [sourceParticipant]
+                    }
+
+                    const member = memberMap.get(participantId)
+
+                    if (member) {
+                        return [
+                            {
+                                id: member.id,
+                                eventId: sourceEvent.id,
+                                userId: member.userId,
+                                role: "participant",
+                                createdAt: Date.now(),
+                                user: {
+                                    id: member.userId,
+                                    name: member.name,
+                                    email: member.email,
+                                    avatarUrl: member.avatarUrl,
+                                },
+                            },
+                        ]
+                    }
+
+                    if (participantId === user?.id) {
+                        return [
+                            {
+                                id: `local:${participantId}`,
+                                eventId: sourceEvent.id,
+                                userId: participantId,
+                                role: "participant",
+                                createdAt: Date.now(),
+                                user: {
+                                    id: participantId,
+                                    name: user.name,
+                                    email: user.email,
+                                    avatarUrl: user.avatarUrl,
+                                },
+                            },
+                        ]
+                    }
+
+                    return []
+                }
+            )
+        },
+        [memberDirectory, user]
+    )
+
+    const buildCollectionsFromNames = useCallback(
+        (
+            collectionNames: string[],
+            collectionSource: CalendarEventCollection[]
+        ): CalendarEvent["collections"] => {
+            const collectionMap = new Map(
+                collectionSource.map((collection) => [
+                    normalizeCollectionName(collection.name),
+                    collection,
+                ])
+            )
+
+            return normalizeNames(collectionNames).map((name) => {
+                const matched = collectionMap.get(normalizeCollectionName(name))
+
+                if (matched) {
+                    return matched
+                }
+
+                return {
+                    id: "",
+                    calendarId: activeCalendar?.id ?? "",
+                    name,
+                    options: {
+                        visibleByDefault: true,
+                        color: getDraftCollectionColor(name),
+                    },
+                    createdById: user?.id ?? null,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                }
+            })
+        },
+        [activeCalendar?.id, getDraftCollectionColor, user?.id]
+    )
+
+    const buildGoogleEventViewSnapshot = useCallback(
+        ({
+            sourceEvent,
+            targetCatalog,
+            targetGoogleEventId,
+            values,
+        }: {
+            sourceEvent: CalendarEvent
+            targetCatalog: CalendarSubscriptionCatalogItem
+            targetGoogleEventId: string
+            values: EventFormValues
+        }): CalendarEvent => {
+            const color =
+                targetCatalog.collectionColor ??
+                sourceEvent.primaryCollection?.options.color ??
+                "blue"
+            const collectionId = `collection.subscription.google.${targetCatalog.id}`
+            const googleEmail =
+                typeof targetCatalog.config?.googleEmail === "string"
+                    ? targetCatalog.config.googleEmail
+                    : (sourceEvent.subscription?.googleEmail ?? null)
+
+            return {
+                ...sourceEvent,
+                id: makeGoogleCalendarEventId(
+                    targetCatalog.id,
+                    targetGoogleEventId
+                ),
+                title: values.title,
+                content: values.content,
+                start: values.start.getTime(),
+                end: values.end.getTime(),
+                allDay: values.allDay ?? false,
+                timezone: values.timezone,
+                recurrence: values.recurrence,
+                exceptions: values.exceptions,
+                status: values.status ?? sourceEvent.status,
+                collections: [
+                    {
+                        id: collectionId,
+                        calendarId: "subscriptions",
+                        name: targetCatalog.name,
+                        options: {
+                            visibleByDefault: true,
+                            color,
+                        },
+                        createdById: null,
+                        createdAt: 0,
+                        updatedAt: 0,
+                    },
+                ],
+                collectionIds: [collectionId],
+                primaryCollectionId: collectionId,
+                primaryCollection: {
+                    id: collectionId,
+                    calendarId: "subscriptions",
+                    name: targetCatalog.name,
+                    options: {
+                        visibleByDefault: true,
+                        color,
+                    },
+                    createdById: null,
+                    createdAt: 0,
+                    updatedAt: 0,
+                },
+                participants: resolveParticipantsFromValues(
+                    sourceEvent,
+                    values.participantIds
+                ),
+                subscription: {
+                    id: targetCatalog.id,
+                    name: targetCatalog.name,
+                    sourceType: "google_calendar",
+                    authority: "user",
+                    providerName: "Google Calendar",
+                    calendar: null,
+                    googleEmail,
+                },
+                updatedAt: Date.now(),
+            }
+        },
+        [resolveParticipantsFromValues]
     )
 
     const isSameValue = (
@@ -1101,20 +1321,298 @@ export function EventForm({
                 }
             }
 
-            const nextCollectionNames = normalizeNames(
-                normalizedValues.collectionNames
+            // collectionNames에서 구글 캘린더 옵션(__gcal__:xxx)과 일반 컬렉션을 분리
+            const allCollectionNames = normalizedValues.collectionNames
+            const googleCatalogId =
+                allCollectionNames
+                    .filter(isGoogleCollectionOptionValue)
+                    .map((v) => parseGoogleCollectionOptionValue(v))
+                    .find((id): id is string => id !== null) ?? null
+            const plainCollectionNames = normalizeNames(
+                allCollectionNames.filter(
+                    (v) => !isGoogleCollectionOptionValue(v)
+                )
             )
+
+            // gcal:<catalogId>:<googleEventId> 이벤트는 저장 대상 선택에 따라 이동/수정 처리
+            const gcalParsed = parseGoogleCalendarEventId(event.id)
+            if (gcalParsed) {
+                const sourceCatalog = installedGoogleCalendarCatalogs.find(
+                    (c) => c.id === gcalParsed.catalogId
+                )
+                const sourceConfig = sourceCatalog?.config as
+                    | { googleCalendarId?: string; googleAccountId?: string }
+                    | undefined
+
+                const deleteSourceGoogleEvent = async () => {
+                    if (
+                        !sourceConfig?.googleCalendarId ||
+                        !sourceConfig?.googleAccountId
+                    ) {
+                        return false
+                    }
+
+                    const response = await fetch(
+                        "/api/google-calendar/events",
+                        {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                googleCalendarId: sourceConfig.googleCalendarId,
+                                googleAccountId: sourceConfig.googleAccountId,
+                                googleEventId: gcalParsed.googleEventId,
+                            }),
+                        }
+                    )
+
+                    return response.ok
+                }
+
+                if (
+                    googleCatalogId === gcalParsed.catalogId &&
+                    plainCollectionNames.length === 0
+                ) {
+                    if (
+                        sourceConfig?.googleCalendarId &&
+                        sourceConfig?.googleAccountId
+                    ) {
+                        void fetch("/api/google-calendar/events", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                googleCalendarId: sourceConfig.googleCalendarId,
+                                googleAccountId: sourceConfig.googleAccountId,
+                                googleEventId: gcalParsed.googleEventId,
+                                title: normalizedValues.title,
+                                start: normalizedValues.start.toISOString(),
+                                end: normalizedValues.end.toISOString(),
+                                allDay: normalizedValues.allDay ?? false,
+                                timezone: normalizedValues.timezone,
+                            }),
+                        })
+                    }
+                    return
+                }
+
+                if (googleCatalogId) {
+                    const targetCatalog = installedGoogleCalendarCatalogs.find(
+                        (c) => c.id === googleCatalogId
+                    )
+                    const targetConfig = targetCatalog?.config as
+                        | {
+                              googleCalendarId?: string
+                              googleAccountId?: string
+                          }
+                        | undefined
+
+                    if (
+                        targetCatalog &&
+                        targetConfig?.googleCalendarId &&
+                        targetConfig?.googleAccountId
+                    ) {
+                        const createResponse = await fetch(
+                            "/api/google-calendar/events",
+                            {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    eventId: "",
+                                    title: normalizedValues.title,
+                                    start: normalizedValues.start.toISOString(),
+                                    end: normalizedValues.end.toISOString(),
+                                    allDay: normalizedValues.allDay ?? false,
+                                    timezone: normalizedValues.timezone,
+                                    googleCatalogs: [
+                                        {
+                                            catalogId: targetCatalog.id,
+                                            googleCalendarId:
+                                                targetConfig.googleCalendarId,
+                                            googleAccountId:
+                                                targetConfig.googleAccountId,
+                                        },
+                                    ],
+                                }),
+                            }
+                        )
+
+                        if (!createResponse.ok) {
+                            return
+                        }
+
+                        const createPayload = (await createResponse.json()) as {
+                            succeeded?: Array<{
+                                catalogId: string
+                                googleEventId: string
+                            }>
+                        }
+                        const createdGoogleEventId =
+                            createPayload.succeeded?.find(
+                                (item) => item.catalogId === targetCatalog.id
+                            )?.googleEventId ?? null
+
+                        if (!createdGoogleEventId) {
+                            return
+                        }
+
+                        await deleteSourceGoogleEvent()
+
+                        const nextViewEvent = buildGoogleEventViewSnapshot({
+                            sourceEvent: event,
+                            targetCatalog,
+                            targetGoogleEventId: createdGoogleEventId,
+                            values: normalizedValues,
+                        })
+
+                        setActiveEventId(nextViewEvent.id)
+                        setViewEvent(nextViewEvent)
+                        navigateCalendarModal(
+                            getCalendarModalOpenPath({
+                                pathname,
+                                eventId: nextViewEvent.id,
+                            }),
+                            { replace: true }
+                        )
+                    }
+
+                    return
+                }
+
+                const resolvedCollections =
+                    plainCollectionNames.length > 0
+                        ? await ensureEventCollections(plainCollectionNames)
+                        : eventCollections
+                const nextCollections = buildCollectionsFromNames(
+                    plainCollectionNames,
+                    resolvedCollections
+                )
+                const localEventId = crypto.randomUUID()
+                const localEvent: CalendarEvent = {
+                    id: localEventId,
+                    title: normalizedValues.title,
+                    content: normalizedValues.content,
+                    start: normalizedValues.start.getTime(),
+                    end: normalizedValues.end.getTime(),
+                    allDay: normalizedValues.allDay ?? false,
+                    timezone: normalizedValues.timezone,
+                    collectionIds: nextCollections.map(
+                        (collection) => collection.id
+                    ),
+                    collections: nextCollections,
+                    primaryCollectionId: nextCollections[0]?.id ?? null,
+                    primaryCollection: nextCollections[0] ?? null,
+                    recurrence: normalizedValues.recurrence,
+                    exceptions: normalizedValues.exceptions,
+                    participants: resolveParticipantsFromValues(
+                        event,
+                        normalizedValues.participantIds
+                    ).map((participant) => ({
+                        ...participant,
+                        eventId: localEventId,
+                    })),
+                    isFavorite: event.isFavorite,
+                    favoritedAt: event.favoritedAt,
+                    status: normalizedValues.status ?? event.status,
+                    authorId: user?.id ?? event.authorId,
+                    author: user
+                        ? {
+                              id: user.id,
+                              name: user.name,
+                              email: user.email,
+                              avatarUrl: user.avatarUrl,
+                          }
+                        : event.author,
+                    updatedById: user?.id ?? event.updatedById,
+                    updatedBy: user
+                        ? {
+                              id: user.id,
+                              name: user.name,
+                              email: user.email,
+                              avatarUrl: user.avatarUrl,
+                          }
+                        : event.updatedBy,
+                    isLocked: false,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                }
+
+                const createdEventId = createEvent(localEvent)
+
+                if (!createdEventId) {
+                    return
+                }
+
+                await deleteSourceGoogleEvent()
+
+                const createdEvent =
+                    useCalendarStore
+                        .getState()
+                        .events.find((item) => item.id === createdEventId) ??
+                    localEvent
+
+                setActiveEventId(createdEventId)
+                setViewEvent(createdEvent)
+                navigateCalendarModal(
+                    getCalendarModalOpenPath({
+                        pathname,
+                        eventId: createdEventId,
+                    }),
+                    { replace: true }
+                )
+                return
+            }
+
+            // 구글 캘린더 단일 저장 (일반 컬렉션과 상호 배타)
+            if (googleCatalogId) {
+                const catalog = installedGoogleCalendarCatalogs.find(
+                    (c) => c.id === googleCatalogId
+                )
+                const config = catalog?.config as
+                    | { googleCalendarId?: string; googleAccountId?: string }
+                    | undefined
+                if (config?.googleCalendarId && config?.googleAccountId) {
+                    void fetch("/api/google-calendar/events", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            eventId: event.id,
+                            title: normalizedValues.title,
+                            start: normalizedValues.start.toISOString(),
+                            end: normalizedValues.end.toISOString(),
+                            allDay: normalizedValues.allDay ?? false,
+                            timezone: normalizedValues.timezone,
+                            googleCatalogs: [
+                                {
+                                    catalogId: catalog!.id,
+                                    googleCalendarId: config.googleCalendarId,
+                                    googleAccountId: config.googleAccountId,
+                                },
+                            ],
+                        }),
+                    })
+                }
+                return
+            }
+
+            // 구글 미선택: Calenber에만 저장
+            if (plainCollectionNames.length === 0) {
+                // 컬렉션 없이 Calenber에 저장 (컬렉션 필드가 비어있는 경우)
+            }
+
+            const valuesForPatch = {
+                ...normalizedValues,
+                collectionNames: plainCollectionNames,
+            }
             const sourceCollectionNames = normalizeNames(
                 event.collections.map((collection) => collection.name)
             )
             const resolvedCollections =
                 JSON.stringify(sourceCollectionNames) ===
-                JSON.stringify(nextCollectionNames)
+                JSON.stringify(plainCollectionNames)
                     ? eventCollections
-                    : await ensureEventCollections(nextCollectionNames)
+                    : await ensureEventCollections(plainCollectionNames)
             const patch = buildPatchFromValues(
                 event,
-                normalizedValues,
+                valuesForPatch,
                 resolvedCollections
             )
 
@@ -1128,13 +1626,22 @@ export function EventForm({
         },
         [
             activeCalendar?.id,
+            buildCollectionsFromNames,
             buildPatchFromValues,
+            buildGoogleEventViewSnapshot,
+            createEvent,
             disabled,
             ensureEventCollections,
             event,
             eventCollections,
             form,
+            installedGoogleCalendarCatalogs,
             onChange,
+            pathname,
+            resolveParticipantsFromValues,
+            setActiveEventId,
+            setViewEvent,
+            user,
         ]
     )
 
@@ -1377,50 +1884,52 @@ export function EventForm({
 
     const handleAllDayToggle = useCallback(
         (checked: boolean) => {
+            const currentValues = form.getValues()
             const timezone =
-                form.getValues("timezone") || calendarTimezone || "Asia/Seoul"
+                currentValues.timezone || calendarTimezone || "Asia/Seoul"
+            let nextStart = currentValues.start
+            let nextEnd = currentValues.end
 
             if (checked) {
-                const currentStart = form.getValues("start")
-                const currentEnd = form.getValues("end")
                 const normalized = normalizeAllDaySchedule(
-                    currentStart,
-                    currentEnd,
+                    currentValues.start,
+                    currentValues.end,
                     timezone
                 )
-                form.setValue("start", normalized.start, {
-                    shouldDirty: true,
-                    shouldTouch: true,
-                })
-                form.setValue("end", normalized.end, {
-                    shouldDirty: true,
-                    shouldTouch: true,
-                })
+                nextStart = normalized.start
+                nextEnd = normalized.end
             } else {
                 setSchedulePickerPanel("date")
-                const { start: nextStart, end: nextEnd } =
-                    getTimedScheduleRangeAfterAllDayOff(
-                        timezone,
-                        form.getValues("start")
-                    )
-
-                form.setValue("start", nextStart, {
-                    shouldDirty: true,
-                    shouldTouch: true,
-                })
-                form.setValue("end", nextEnd, {
-                    shouldDirty: true,
-                    shouldTouch: true,
-                })
+                const timedRange = getTimedScheduleRangeAfterAllDayOff(
+                    timezone,
+                    currentValues.start,
+                    currentValues.end
+                )
+                nextStart = timedRange.start
+                nextEnd = timedRange.end
             }
 
+            form.setValue("start", nextStart, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
+            form.setValue("end", nextEnd, {
+                shouldDirty: true,
+                shouldTouch: true,
+            })
             form.setValue("allDay", checked, {
                 shouldDirty: true,
                 shouldTouch: true,
             })
-            autoSave()
+
+            void saveNow({
+                ...currentValues,
+                start: nextStart,
+                end: nextEnd,
+                allDay: checked,
+            })
         },
-        [autoSave, calendarTimezone, form]
+        [calendarTimezone, form, saveNow]
     )
 
     useEffect(() => {
@@ -1889,7 +2398,7 @@ export function EventForm({
                     return []
             }
         },
-        [activeCalendar?.id, disabled]
+        [activeCalendar?.id, disabled, tForm]
     )
 
     const renderPropertyField = (
@@ -2352,6 +2861,9 @@ export function EventForm({
                                     getDraftCollectionColor={
                                         getDraftCollectionColor
                                     }
+                                    googleCalendarCatalogs={
+                                        installedGoogleCalendarCatalogs
+                                    }
                                     onChange={(nextCollectionNames) => {
                                         field.onChange(nextCollectionNames)
                                         void saveNow({
@@ -2627,7 +3139,7 @@ export function EventForm({
             className="flex flex-col gap-6"
             onSubmit={(e) => e.preventDefault()}
         >
-            <FieldGroup className="gap-7">
+            <FieldGroup className="gap-4 md:gap-7">
                 {/* 제목 */}
                 <Controller
                     name="title"
@@ -2647,7 +3159,7 @@ export function EventForm({
                                     field.onChange(e.target.value)
                                     autoSave()
                                 }}
-                                className="h-auto w-full border-0 bg-transparent p-0 font-bold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl"
+                                className="h-auto w-full border-0 bg-transparent p-0 text-2xl font-semibold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl md:font-bold"
                                 disabled={disabled}
                             />
                             {/* <Input
@@ -2671,6 +3183,7 @@ export function EventForm({
                     <EventSubscriptionCard
                         subscription={event.subscription}
                         className="-my-1"
+                        editable={Boolean(parseGoogleCalendarEventId(event.id))}
                     />
                 ) : null}
 

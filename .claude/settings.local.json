@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun run *)"
+      "Bash(bun run *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(python3 -c \"import json; f=open\\('/c/workspace/calenber/apps/web/messages/en.json'\\); json.load\\(f\\); print\\('JSON valid'\\)\")"
     ]
   }
 }

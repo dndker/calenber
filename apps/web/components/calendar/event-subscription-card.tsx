@@ -1,3 +1,4 @@
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import type { EventSubscriptionItem } from "@/store/calendar-store.types"
 import {
     Alert,
@@ -20,21 +21,32 @@ import {
     TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { memo } from "react"
+import { GoogleCalendarIcon } from "../icon/google-calendar-icon"
 import { VerifiedIcon } from "../icon/verified-icon"
 
 export const EventSubscriptionCard = memo(function EventSubscriptionCard({
     subscription,
     className,
     size = "default",
+    /** gcal: 이벤트처럼 편집 가능한 구독 이벤트일 때 true — 읽기 전용 배지를 숨긴다 */
+    editable = false,
 }: {
     subscription: EventSubscriptionItem
     className?: string
     size?: "default" | "sm"
+    editable?: boolean
 }) {
     const t = useDebugTranslations("event.subscription")
     const isSystem = subscription.authority === "system"
+    const isGoogleCalendar = subscription.sourceType === "google_calendar"
+    const description = isSystem
+        ? null
+        : isGoogleCalendar
+          ? (subscription.googleEmail ??
+            subscription.calendar?.name ??
+            subscription.providerName)
+          : (subscription.calendar?.name ?? subscription.providerName)
 
     return (
         <Alert
@@ -53,32 +65,40 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                                 size === "sm" && "size-8.5"
                             )}
                         >
-                            <AvatarImage
-                                src={
-                                    isSystem
-                                        ? "/symbol.svg"
-                                        : (subscription.calendar?.avatarUrl ??
-                                          undefined)
-                                }
-                                alt={
-                                    subscription.calendar?.name ??
-                                    subscription.name
-                                }
-                                className={cn(
-                                    "rounded-lg",
-                                    isSystem && "size-6 object-none",
-                                    size === "sm" && "size-5.5"
-                                )}
-                            />
-                            <AvatarFallback className="rounded-lg bg-background text-base">
-                                {(
-                                    subscription.calendar?.name ??
-                                    subscription.name
-                                )
-                                    .trim()
-                                    .charAt(0)
-                                    .toUpperCase() || "?"}
-                            </AvatarFallback>
+                            {isGoogleCalendar ? (
+                                <div className="size-5.5">
+                                    <GoogleCalendarIcon />
+                                </div>
+                            ) : (
+                                <>
+                                    <AvatarImage
+                                        src={
+                                            isSystem
+                                                ? "/symbol.svg"
+                                                : (subscription.calendar
+                                                      ?.avatarUrl ?? undefined)
+                                        }
+                                        alt={
+                                            subscription.calendar?.name ??
+                                            subscription.name
+                                        }
+                                        className={cn(
+                                            "rounded-lg",
+                                            isSystem && "size-6 object-none",
+                                            size === "sm" && "size-5.5"
+                                        )}
+                                    />
+                                    <AvatarFallback className="rounded-lg bg-background text-base">
+                                        {(
+                                            subscription.calendar?.name ??
+                                            subscription.name
+                                        )
+                                            .trim()
+                                            .charAt(0)
+                                            .toUpperCase() || "?"}
+                                    </AvatarFallback>
+                                </>
+                            )}
                         </Avatar>
                     </HoverCardTrigger>
                     {/* <HoverCardContent
@@ -102,7 +122,7 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                         </Button>
                     </HoverCardContent> */}
                 </HoverCard>
-                <div className="flex flex-1 flex-col justify-center gap-0.25">
+                <div className="flex flex-1 flex-col justify-center gap-px">
                     <AlertTitle
                         className={cn("flex-1", size === "sm" && "text-xs")}
                     >
@@ -114,22 +134,23 @@ export const EventSubscriptionCard = memo(function EventSubscriptionCard({
                                 Calenber <VerifiedIcon size="sm" />
                             </>
                         ) : (
-                            (subscription.calendar?.name ??
-                            subscription.providerName)
+                            description
                         )}
                     </AlertDescription>
                 </div>
             </div>
-            <div className="flex shrink-0 items-center justify-center gap-1">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Badge variant="outline">{t("badge")}</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                        <p>{t("readOnly")}</p>
-                    </TooltipContent>
-                </Tooltip>
-            </div>
+            {!editable && (
+                <div className="flex shrink-0 items-center justify-center gap-1">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Badge variant="outline">{t("badge")}</Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                            <p>{t("readOnly")}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </div>
+            )}
         </Alert>
     )
 })

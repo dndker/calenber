@@ -90,7 +90,7 @@ export function SignInForm({
         }
 
         if (result.ok) {
-            await routeToPostAuthCalendar(result.user)
+            void routeToPostAuthCalendar(result.user)
         }
     }
 
@@ -188,6 +188,7 @@ export function SignInForm({
             <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
+                label={t("google")}
                 onComplete={(result, nextPath) => {
                     if (result !== "success") return
 

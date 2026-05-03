@@ -72,7 +72,7 @@ export function SignUpForm() {
         }
 
         if (result.ok && !result.requiresEmailVerification) {
-            await routeToPostAuthCalendar(result.user)
+            void routeToPostAuthCalendar(result.user)
         }
     }
 
@@ -198,6 +198,7 @@ export function SignUpForm() {
             <FieldSeparator>{t("divider")}</FieldSeparator>
 
             <GoogleButton
+                label={t("google")}
                 onComplete={(result, nextPath) => {
                     if (result !== "success") return
 

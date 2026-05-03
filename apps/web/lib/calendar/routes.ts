@@ -164,6 +164,8 @@ export function encodeCalendarIdForPath(calendarId: string) {
     return encodeBase64Url(bytes)
 }
 
+import { createShortCalendarEventToken } from "./short-link"
+
 export function getCalendarPath(calendarId: string) {
     return `/calendar/${encodeCalendarIdForPath(calendarId)}`
 }
@@ -173,7 +175,13 @@ export function getCalendarEventModalPath(calendarId: string, eventId: string) {
 }
 
 export function getCalendarEventPagePath(calendarId: string, eventId: string) {
-    return `${getCalendarPath(calendarId)}/${encodeURIComponent(eventId)}`
+    const token = createShortCalendarEventToken({
+        calendarId,
+        eventId,
+        modal: false,
+    })
+
+    return `${getCalendarPath(calendarId)}/${encodeURIComponent(token)}`
 }
 
 export function getCalendarBasePath(pathname: string) {

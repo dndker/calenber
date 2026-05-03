@@ -113,7 +113,13 @@ function HighlightText({
 function ResultMeta({ result }: { result: CalendarSearchResult }) {
     const t = useDebugTranslations("calendar.searchDialog")
     const tCalendar = useDebugTranslations("calendar")
-    const parts = [formatSearchDateRange(result.start, result.end, tCalendar("dateFormatMonthDay"))]
+    const parts = [
+        formatSearchDateRange(
+            result.start,
+            result.end,
+            tCalendar("dateFormatMonthDay")
+        ),
+    ]
 
     if (result.author?.name) {
         parts.push(result.author.name)
@@ -263,11 +269,19 @@ export function CalendarSearchDialog() {
         ? memberDirectory
         : fallbackMembers
     const eventDocuments = useMemo(
-        () => buildCalendarEventSearchDocuments(events, tCommonLabels("newEvent")),
+        () =>
+            buildCalendarEventSearchDocuments(
+                events,
+                tCommonLabels("newEvent")
+            ),
         [events, tCommonLabels]
     )
     const memberDocuments = useMemo(
-        () => buildCalendarMemberSearchDocuments(memberSource, tCommonLabels("noName")),
+        () =>
+            buildCalendarMemberSearchDocuments(
+                memberSource,
+                tCommonLabels("noName")
+            ),
         [memberSource, tCommonLabels]
     )
     const eventResults = useMemo<CalendarSearchResult[]>(() => {
@@ -432,7 +446,10 @@ export function CalendarSearchDialog() {
             } catch (error) {
                 if (
                     !isCancelled &&
-                    !(error instanceof DOMException && error.name === "AbortError")
+                    !(
+                        error instanceof DOMException &&
+                        error.name === "AbortError"
+                    )
                 ) {
                     setErrorMessage(t("memberDirectorySyncFailed"))
                 }
@@ -455,6 +472,7 @@ export function CalendarSearchDialog() {
         isDemoCalendar,
         isHydratingMembers,
         open,
+        t,
     ])
 
     const handleEventSelect = (eventId: string) => {
@@ -497,7 +515,7 @@ export function CalendarSearchDialog() {
                 variant="outline"
                 size="default"
                 disabled={!canSearch}
-                className="relative inline-flex h-8 w-full shrink-0 items-center justify-between gap-2 rounded-lg border px-2 py-2 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none transition-all outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:w-48 lg:w-40 xl:w-64"
+                className="relative inline-flex h-8 w-40 shrink-0 items-center justify-between gap-2 rounded-lg border px-2 py-2 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none transition-all outline-none hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:w-48 lg:w-40 xl:w-64"
                 onClick={() => setOpen(true)}
             >
                 <div className="flex items-center gap-2">
@@ -543,7 +561,10 @@ export function CalendarSearchDialog() {
                                                 className="block truncate text-sm font-medium text-foreground"
                                             />
                                             <HighlightText
-                                                text={result.excerpt || t("noContent")}
+                                                text={
+                                                    result.excerpt ||
+                                                    t("noContent")
+                                                }
                                                 query={trimmedQuery}
                                                 className="mt-1 line-clamp-2 block text-sm text-muted-foreground"
                                             />
@@ -585,7 +606,8 @@ export function CalendarSearchDialog() {
                                             />
                                             <HighlightText
                                                 text={
-                                                    member.email ?? t("applyAuthorFilter")
+                                                    member.email ??
+                                                    t("applyAuthorFilter")
                                                 }
                                                 query={trimmedQuery}
                                                 className="block truncate text-xs text-muted-foreground"
@@ -614,7 +636,9 @@ export function CalendarSearchDialog() {
                                                     {author.name}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    {t("expandableAuthorFilter")}
+                                                    {t(
+                                                        "expandableAuthorFilter"
+                                                    )}
                                                 </div>
                                             </div>
                                         </CommandItem>

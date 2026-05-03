@@ -2,7 +2,10 @@
 
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import type { CalendarEvent, EventSubscriptionItem } from "@/store/calendar-store.types"
+import type {
+    CalendarEvent,
+    EventSubscriptionItem,
+} from "@/store/calendar-store.types"
 import {
     calendarEventFromSharedCollectionRow,
     parseSharedCollectionRpcRow,
@@ -12,7 +15,7 @@ import {
     isSubscriptionCatalogChangePayload,
     isSubscriptionEventChangePayload,
 } from "@/lib/calendar/realtime"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
 /**
@@ -36,21 +39,29 @@ export function useSharedCollectionSubscriptionEvents(options: {
         Map<string, CalendarEvent[]>
     >(new Map())
 
-    // 설치·가시·shared_collection·active 조건 필터
-    const sharedCatalogs = (() => {
+    const installedSharedCatalogs = useMemo(() => {
         const installedSet = new Set(subscriptionState.installedSubscriptionIds)
-        const hiddenSet = new Set(subscriptionState.hiddenSubscriptionIds)
+
         return subscriptionCatalogs.filter(
             (c) =>
                 c.sourceType === "shared_collection" &&
                 installedSet.has(c.id) &&
-                !hiddenSet.has(c.id) &&
                 c.status === "active"
         )
-    })()
+    }, [subscriptionCatalogs, subscriptionState.installedSubscriptionIds])
 
-    const sharedCatalogsRef = useRef(sharedCatalogs)
-    sharedCatalogsRef.current = sharedCatalogs
+    const visibleSharedCatalogIdSet = useMemo(() => {
+        const hiddenSet = new Set(subscriptionState.hiddenSubscriptionIds)
+
+        return new Set(
+            installedSharedCatalogs
+                .filter((catalog) => !hiddenSet.has(catalog.id))
+                .map((catalog) => catalog.id)
+        )
+    }, [installedSharedCatalogs, subscriptionState.hiddenSubscriptionIds])
+
+    const sharedCatalogsRef = useRef(installedSharedCatalogs)
+    sharedCatalogsRef.current = installedSharedCatalogs
 
     const optionsRef = useRef(options)
     optionsRef.current = options
@@ -61,7 +72,9 @@ export function useSharedCollectionSubscriptionEvents(options: {
     const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map())
 
     // 특정 카탈로그의 이벤트 조회
-    const fetchForCatalog = async (catalogId: string): Promise<CalendarEvent[]> => {
+    const fetchForCatalog = async (
+        catalogId: string
+    ): Promise<CalendarEvent[]> => {
         const calId = activeCalendarIdRef.current
         if (!calId || calId === "demo") return []
 
@@ -108,7 +121,9 @@ export function useSharedCollectionSubscriptionEvents(options: {
             return []
         }
 
-        const catalog = sharedCatalogsRef.current.find((c) => c.id === catalogId)
+        const catalog = sharedCatalogsRef.current.find(
+            (c) => c.id === catalogId
+        )
         const meta: EventSubscriptionItem = {
             id: catalogId,
             name: catalog?.name ?? "",
@@ -125,7 +140,11 @@ export function useSharedCollectionSubscriptionEvents(options: {
         return data.map((raw) => {
             const parsed = parseSharedCollectionRpcRow(raw)
             const compositeId = `sub:${catalogId}:${parsed.event_id}`
-            return calendarEventFromSharedCollectionRow(parsed, compositeId, meta)
+            return calendarEventFromSharedCollectionRow(
+                parsed,
+                compositeId,
+                meta
+            )
         })
     }
 
@@ -136,7 +155,7 @@ export function useSharedCollectionSubscriptionEvents(options: {
             return
         }
 
-        if (sharedCatalogs.length === 0) {
+        if (installedSharedCatalogs.length === 0) {
             for (const ch of channelsRef.current.values()) {
                 void createBrowserSupabase().removeChannel(ch)
             }
@@ -152,20 +171,37 @@ export function useSharedCollectionSubscriptionEvents(options: {
         const loadAll = async () => {
             if (disposed) return
             const results = await Promise.all(
-                sharedCatalogsRef.current.map((c) => fetchForCatalog(c.id))
+                sharedCatalogsRef.current.map(async (catalog) => ({
+                    catalogId: catalog.id,
+                    events: await fetchForCatalog(catalog.id),
+                }))
             )
             if (disposed) return
-            const nextMap = new Map<string, CalendarEvent[]>()
-            sharedCatalogsRef.current.forEach((c, i) => {
-                nextMap.set(c.id, results[i] ?? [])
+            setEventsByCatalogId((prev) => {
+                const nextMap = new Map(prev)
+
+                for (const { catalogId, events } of results) {
+                    nextMap.set(catalogId, events)
+                }
+
+                for (const existingCatalogId of nextMap.keys()) {
+                    if (
+                        !sharedCatalogsRef.current.some(
+                            (catalog) => catalog.id === existingCatalogId
+                        )
+                    ) {
+                        nextMap.delete(existingCatalogId)
+                    }
+                }
+
+                return nextMap
             })
-            setEventsByCatalogId(nextMap)
         }
 
         void loadAll()
 
         // 더 이상 필요 없는 채널 정리
-        const nextIds = new Set(sharedCatalogs.map((c) => c.id))
+        const nextIds = new Set(installedSharedCatalogs.map((c) => c.id))
         for (const [cid, ch] of channelsRef.current.entries()) {
             if (!nextIds.has(cid)) {
                 void supabase.removeChannel(ch)
@@ -174,7 +210,7 @@ export function useSharedCollectionSubscriptionEvents(options: {
         }
 
         // 신규 카탈로그 채널 구독
-        for (const catalog of sharedCatalogs) {
+        for (const catalog of installedSharedCatalogs) {
             if (channelsRef.current.has(catalog.id)) continue
 
             const topic = getSubscriptionCatalogTopic(catalog.id)
@@ -185,7 +221,8 @@ export function useSharedCollectionSubscriptionEvents(options: {
                     { event: "calendar.event.created" },
                     (msg: { payload?: unknown }) => {
                         if (disposed) return
-                        if (!isSubscriptionEventChangePayload(msg.payload)) return
+                        if (!isSubscriptionEventChangePayload(msg.payload))
+                            return
                         void fetchForCatalog(catalog.id).then((events) => {
                             if (disposed) return
                             setEventsByCatalogId((prev) => {
@@ -201,7 +238,8 @@ export function useSharedCollectionSubscriptionEvents(options: {
                     { event: "calendar.event.updated" },
                     (msg: { payload?: unknown }) => {
                         if (disposed) return
-                        if (!isSubscriptionEventChangePayload(msg.payload)) return
+                        if (!isSubscriptionEventChangePayload(msg.payload))
+                            return
                         void fetchForCatalog(catalog.id).then((events) => {
                             if (disposed) return
                             setEventsByCatalogId((prev) => {
@@ -217,7 +255,8 @@ export function useSharedCollectionSubscriptionEvents(options: {
                     { event: "calendar.event.deleted" },
                     (msg: { payload?: unknown }) => {
                         if (disposed) return
-                        if (!isSubscriptionEventChangePayload(msg.payload)) return
+                        if (!isSubscriptionEventChangePayload(msg.payload))
+                            return
                         void fetchForCatalog(catalog.id).then((events) => {
                             if (disposed) return
                             setEventsByCatalogId((prev) => {
@@ -267,25 +306,35 @@ export function useSharedCollectionSubscriptionEvents(options: {
     }, [
         activeCalendarId,
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        sharedCatalogs.map((c) => c.id).join(","),
+        installedSharedCatalogs.map((c) => c.id).join(","),
         options.rangeStart,
         options.rangeEnd,
     ])
 
     // 언마운트 시 채널 전체 정리
     useEffect(() => {
+        const channels = channelsRef.current
+
         return () => {
             const supabase = createBrowserSupabase()
-            for (const ch of channelsRef.current.values()) {
+            for (const ch of channels.values()) {
                 void supabase.removeChannel(ch)
             }
-            channelsRef.current.clear()
+            channels.clear()
         }
     }, [])
 
-    const allEvents: CalendarEvent[] = []
-    for (const events of eventsByCatalogId.values()) {
-        allEvents.push(...events)
-    }
-    return allEvents
+    return useMemo(() => {
+        const allEvents: CalendarEvent[] = []
+
+        for (const [catalogId, events] of eventsByCatalogId.entries()) {
+            if (!visibleSharedCatalogIdSet.has(catalogId)) {
+                continue
+            }
+
+            allEvents.push(...events)
+        }
+
+        return allEvents
+    }, [eventsByCatalogId, visibleSharedCatalogIdSet])
 }

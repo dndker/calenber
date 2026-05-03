@@ -85,9 +85,11 @@ export const NavUser = memo(function NavUser() {
     )
 
     const handleSignOut = async () => {
+        setIsMenuOpen(false)
         const result = await signOut()
+
         if (result.ok) {
-            router.push("/signin")
+            window.location.replace("/signin")
         }
     }
 

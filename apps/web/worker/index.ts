@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 
 import { clientsClaim } from "workbox-core"
-import { precacheAndRoute } from "workbox-precaching"
+import { precacheAndRoute, createHandlerBoundToURL } from "workbox-precaching"
+import { registerRoute, NavigationRoute } from "workbox-routing"
 
 declare let self: ServiceWorkerGlobalScope
 
@@ -9,6 +10,17 @@ self.skipWaiting()
 clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
+
+/**
+ * 페이지 탐색(navigate) 요청은 프리캐시된 루트 URL로 응답한다.
+ * 이렇게 하면 PWA 첫 오픈 시 캐시에서 즉시 HTML을 반환해 흰 화면 시간을 줄인다.
+ * API, _next/static 같은 non-navigate 요청은 제외한다.
+ */
+registerRoute(
+    new NavigationRoute(createHandlerBoundToURL("/"), {
+        denylist: [/^\/api\//, /^\/_next\//],
+    })
+)
 
 // 🛠 설치(install) 단계 에러 핸들링 및 자동 업데이트 시도
 self.addEventListener("install", (event) => {
@@ -58,12 +70,45 @@ self.addEventListener("message", () => {
 })
 
 self.addEventListener("push", (event) => {
-    const data = event.data?.json() || {}
+    const data: {
+        title?: string
+        message?: string
+        icon?: string
+        badge?: string
+        url?: string
+        tag?: string
+        data?: Record<string, unknown>
+    } = event.data?.json() ?? {}
 
-    event?.waitUntil(
-        self.registration.showNotification(data.title, {
-            body: data.message,
-            icon: "/icons/android-chrome-192x192.png",
-        })
+    const title = data.title ?? "Calenber"
+    const options: NotificationOptions = {
+        body: data.message ?? "",
+        icon: data.icon ?? "/icons/android-chrome-192x192.png",
+        badge: data.badge ?? "/icons/badge-72x72.png",
+        tag: data.tag,           // 같은 tag 끼리 대치 (중복 방지)
+        data: { url: data.url ?? "/" },
+    }
+
+    event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close()
+
+    const url: string = (event.notification.data as { url?: string })?.url ?? "/"
+
+    event.waitUntil(
+        (self as unknown as ServiceWorkerGlobalScope).clients
+            .matchAll({ type: "window", includeUncontrolled: true })
+            .then((clientList) => {
+                // 이미 열린 창이 있으면 포커스 후 navigate
+                for (const client of clientList) {
+                    if ("navigate" in client && "focus" in client) {
+                        return (client as WindowClient).focus().then((c) => c.navigate(url))
+                    }
+                }
+                // 없으면 새 창 열기
+                return (self as unknown as ServiceWorkerGlobalScope).clients.openWindow(url)
+            })
     )
 })

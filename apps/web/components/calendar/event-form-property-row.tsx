@@ -1,6 +1,7 @@
 "use client"
 
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { CalendarEventFieldId } from "@/store/calendar-store.types"
 import { useSortable } from "@dnd-kit/sortable"
 import { Button } from "@workspace/ui/components/button"
@@ -210,6 +211,7 @@ export function EventFormPropertyRow({
     propertyMenuItemsPlacement?: "before-common" | "after-common"
     children: ReactNode
 }) {
+    const isMobile = useIsMobile()
     const {
         attributes,
         listeners,
@@ -307,22 +309,24 @@ export function EventFormPropertyRow({
                 isDragging && "z-10 cursor-grabbing bg-muted"
             )}
         >
-            <Field className="md:flex-row md:gap-3">
-                <div className="flex h-8.5 items-center gap-1 md:w-32.5">
-                    <div className="group/property-row flex h-8.5 min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 text-sm font-medium text-foreground hover:bg-muted has-data-open:bg-muted">
+            <Field className="flex-row gap-1 md:gap-3">
+                <div className="flex h-8.5 w-8.5! shrink-0 items-center justify-center gap-1 md:w-32.5!">
+                    <div className="group/property-row flex h-8.5 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-1.5 text-sm font-medium text-foreground hover:bg-muted has-data-open:bg-muted">
                         <Button
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            className="hidden h-7 w-4 cursor-grab text-muted-foreground group-hover/property-row:flex active:cursor-grabbing"
+                            className="hidden h-7 w-4 cursor-grab text-muted-foreground active:cursor-grabbing md:group-hover/property-row:flex"
                             disabled={disabled}
-                            aria-label={tEventForm("propertyOrderAria", { label })}
+                            aria-label={tEventForm("propertyOrderAria", {
+                                label,
+                            })}
                             {...attributes}
                             {...listeners}
                         >
                             <GripVerticalIcon className="size-4" />
                         </Button>
-                        <Icon className="inline-flex size-4 shrink-0 group-hover/property-row:hidden" />
+                        <Icon className="hidden size-4 shrink-0 group-hover/property-row:hidden md:inline-flex" />
                         <DropdownMenu
                             open={isMenuOpen}
                             onOpenChange={(nextOpen) => {
@@ -334,12 +338,16 @@ export function EventFormPropertyRow({
                             }}
                         >
                             <DropdownMenuTrigger asChild>
-                                <span className="flex h-full flex-1 cursor-pointer items-center truncate">
-                                    {label}
-                                </span>
+                                <div>
+                                    <Icon className="inline-flex size-4.5 shrink-0 md:hidden" />
+                                    <span className="hidden h-full flex-1 cursor-pointer items-center truncate md:flex">
+                                        {label}
+                                    </span>
+                                </div>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
-                                alignOffset={-28}
+                                alignOffset={isMobile ? -7 : -28}
+                                sideOffset={isMobile ? 10 : 0}
                                 align="start"
                                 className={cn(
                                     activePanel
@@ -363,7 +371,9 @@ export function EventFormPropertyRow({
                         </DropdownMenu>
                     </div>
                 </div>
-                <div className="min-w-0 flex-1">{children}</div>
+                <div className="flex min-w-0 flex-1 items-center">
+                    {children}
+                </div>
             </Field>
         </div>
     )

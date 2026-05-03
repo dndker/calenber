@@ -1,6 +1,7 @@
 import { EventCollaboratorsHoverCard } from "@/components/calendar/event-collaborators-hover-card"
 import { EventHistoryDrawer } from "@/components/calendar/event-history-drawer"
 import { useAdjacentEvents } from "@/hooks/use-adjacent-events"
+import { primeCalendarEventDetail } from "@/hooks/use-calendar-event-detail"
 import { useCopyCalendarEventLink } from "@/hooks/use-copy-calendar-event-link"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { isGeneratedSubscriptionEventId } from "@/lib/calendar/event-id"
@@ -238,6 +239,15 @@ export const EventHeader = memo(function EventHeader({
         }
     }, [isDropdownOpen])
 
+    useEffect(() => {
+        primeCalendarEventDetail(event)
+    }, [event])
+
+    useEffect(() => {
+        primeCalendarEventDetail(prevEvent)
+        primeCalendarEventDetail(nextEvent)
+    }, [nextEvent, prevEvent])
+
     if (!eventId || !event) return null
 
     const isGeneratedSubscriptionEvent = isGeneratedSubscriptionEventId(event.id)
@@ -269,6 +279,7 @@ export const EventHeader = memo(function EventHeader({
 
             setActiveEventId(eventId)
             if (targetEvent) {
+                primeCalendarEventDetail(targetEvent)
                 setViewEvent(targetEvent)
             }
             navigateCalendarModal(

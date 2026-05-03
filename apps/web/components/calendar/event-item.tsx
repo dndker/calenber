@@ -68,8 +68,7 @@ import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
-    CALENDAR_EVENT_ITEM_HEIGHT_PX,
-    CALENDAR_EVENT_ITEM_STRIDE_PX,
+    getCalendarEventItemMetrics,
 } from "./event-item-layout.constants"
 
 /**
@@ -107,6 +106,7 @@ function areStringArraysEqual(a: string[], b: string[]) {
 export function getEventPosition(
     startIndex: number,
     endIndex: number,
+    isMobile: boolean,
     columnCount = 7,
     continuesFromPrevWeek = false,
     continuesToNextWeek = false
@@ -119,16 +119,16 @@ export function getEventPosition(
     const e = Math.max(safeStart, safeEnd)
     const span = e - s + 1
 
-    const GAP = 4
-    const COLUMN_GAP = 1
-    const TOTAL_COLUMN_GAPS = COLUMN_GAP * Math.max(0, columnCount - 1)
-    const leftGap = continuesFromPrevWeek ? 0 : GAP
-    const rightGap = continuesToNextWeek ? 0 : GAP
-    const dayWidth = `(100% - ${TOTAL_COLUMN_GAPS}px) / ${Math.max(1, columnCount)}`
+    const eventItemMetrics = getCalendarEventItemMetrics(isMobile)
+    const totalColumnGaps =
+        eventItemMetrics.columnGap * Math.max(0, columnCount - 1)
+    const leftGap = continuesFromPrevWeek ? 0 : eventItemMetrics.sideGap
+    const rightGap = continuesToNextWeek ? 0 : eventItemMetrics.sideGap
+    const dayWidth = `(100% - ${totalColumnGaps}px) / ${Math.max(1, columnCount)}`
     const left = s
-        ? `calc(${s} * (${dayWidth} + ${COLUMN_GAP}px) + ${leftGap}px)`
+        ? `calc(${s} * (${dayWidth} + ${eventItemMetrics.columnGap}px) + ${leftGap}px)`
         : `${leftGap}px`
-    const width = `calc(${span} * ${dayWidth} + ${(span - 1) * COLUMN_GAP}px - ${leftGap + rightGap}px)`
+    const width = `calc(${span} * ${dayWidth} + ${(span - 1) * eventItemMetrics.columnGap}px - ${leftGap + rightGap}px)`
 
     return {
         left,
@@ -139,6 +139,7 @@ export function getEventPosition(
 export const EventItem = memo(
     function EventItem({
         event,
+        isMobile,
         top,
         startIndex,
         endIndex,
@@ -156,6 +157,7 @@ export const EventItem = memo(
         layoutWeekStart,
     }: {
         event: CalendarEvent
+        isMobile: boolean
         top: number
         startIndex: number
         endIndex: number
@@ -222,7 +224,7 @@ export const EventItem = memo(
         const suppressClickRef = useRef(false)
         const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
             id: getCalendarEventRenderId(event),
-            disabled: !interactive || overlay,
+            disabled: isMobile || !interactive || overlay,
         })
         const resolvedSourceEvent = toCalendarEventSource(event)
 
@@ -247,10 +249,12 @@ export const EventItem = memo(
         const pos = getEventPosition(
             startIndex,
             endIndex,
+            isMobile,
             columnCount,
             continuesFromPrevWeek,
             continuesToNextWeek
         )
+        // isSubscriptionStyleEventId: 공휴일·공유컬렉션(sub:)만 해당. gcal: 이벤트는 미포함이므로 편집/삭제 허용
         const canEdit = isGeneratedSubscriptionEvent
             ? false
             : activeCalendar?.id === "demo" ||
@@ -267,7 +271,8 @@ export const EventItem = memo(
                   activeCalendarMembership,
                   user?.id
               )
-        const canDragResize = canEdit && !resolvedSourceEvent.isLocked
+        const canDragResize =
+            !isMobile && canEdit && !resolvedSourceEvent.isLocked
         const {
             handleDeleteEvent,
             isRecurringDeleteDialogOpen,
@@ -297,12 +302,18 @@ export const EventItem = memo(
             activeCalendar?.id === "demo" || activeCalendarMembership.isMember
 
         /** 닫을 때 `main`으로 바꾸면 닫힘 애니메이션 도중 한 프레임 메인 메뉴가 보인다. 열릴 때만 초기화한다. */
-        const handleRootCtxOpenChange = useCallback((open: boolean) => {
-            setIsCtxOpen(open)
-            if (open) {
-                setCtxRootView("main")
-            }
-        }, [])
+        const handleRootCtxOpenChange = useCallback(
+            (open: boolean) => {
+                if (isMobile && open) {
+                    return
+                }
+                setIsCtxOpen(open)
+                if (open) {
+                    setCtxRootView("main")
+                }
+            },
+            [isMobile]
+        )
 
         const {
             saveStatus,
@@ -375,6 +386,7 @@ export const EventItem = memo(
             isFavoritePending,
             sourceEventId,
             toggleEventFavorite,
+            tHeader,
         ])
 
         const handleMoveStart = (e: React.PointerEvent) => {
@@ -564,12 +576,13 @@ export const EventItem = memo(
         const resolvedDisplayLaneCount = displayLaneCount ?? laneCount
         const useSplitLayout =
             !overlay && eventLayout === "split" && resolvedDisplayLaneCount > 0
+        const eventItemMetrics = getCalendarEventItemMetrics(isMobile)
         const itemTop = useSplitLayout
-            ? `calc(${(top / resolvedDisplayLaneCount) * 100}% + 2px)`
-            : `${top * CALENDAR_EVENT_ITEM_STRIDE_PX}px`
+            ? `calc(${(top / resolvedDisplayLaneCount) * 100}% + ${eventItemMetrics.laneGap}px)`
+            : `${top * eventItemMetrics.stride}px`
         const itemHeight = useSplitLayout
-            ? `calc(${100 / resolvedDisplayLaneCount}% - 4px)`
-            : `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`
+            ? `calc(${100 / resolvedDisplayLaneCount}% - ${eventItemMetrics.laneGap * 2}px)`
+            : `${eventItemMetrics.height}px`
 
         const eventMembers = useEventMembers(sourceEventId, user?.id)
         const isCompleted = event.status === "completed"
@@ -609,13 +622,30 @@ export const EventItem = memo(
             isCtxOpen,
             primaryCollectionColor,
         ])
+        const resolvedCollectionEventClassName =
+            displayPrimaryCollectionColor && event.allDay
+                ? getCalendarCollectionEventClassName(
+                      displayPrimaryCollectionColor
+                  )
+                : undefined
+        const resolvedCollectionHoverClassName = displayPrimaryCollectionColor
+            ? getCalendarCollectionEventHoverClassName(
+                  displayPrimaryCollectionColor
+              )
+            : "bg-muted text-foreground dark:bg-input/50"
+        const resolvedDefaultHoverClassName =
+            "bg-muted text-foreground dark:bg-input/50"
         const resolvedSeriesHoverClassName =
-            isSeriesHover && !isDragging && event.allDay
-                ? displayPrimaryCollectionColor
-                    ? getCalendarCollectionEventHoverClassName(
-                          displayPrimaryCollectionColor
-                      )
-                    : "bg-muted text-foreground dark:bg-input/50"
+            isSeriesHover && !isDragging
+                ? event.allDay
+                    ? resolvedCollectionHoverClassName
+                    : resolvedDefaultHoverClassName
+                : undefined
+        const resolvedInteractiveStateClassName =
+            isResizingThis || isCtxOpen
+                ? event.allDay
+                    ? resolvedCollectionHoverClassName
+                    : resolvedDefaultHoverClassName
                 : undefined
         const eventRadiusClass = cn(
             continuesFromPrevWeek
@@ -628,7 +658,7 @@ export const EventItem = memo(
             ? {
                   position: "relative" as const,
                   width: "100%",
-                  height: `${CALENDAR_EVENT_ITEM_HEIGHT_PX}px`,
+                  height: `${eventItemMetrics.height}px`,
                   zIndex: isDragging ? 10 : 1,
               }
             : {
@@ -640,162 +670,197 @@ export const EventItem = memo(
                   zIndex: isDragging ? 10 : isResizingThis ? 16 : 1,
               }
 
-        return (
-            <ContextMenu onOpenChange={handleRootCtxOpenChange}>
-                <ContextMenuTrigger asChild>
+        const eventContent = (
+            <div
+                {...mergedListeners}
+                {...attributes}
+                className={clsx(
+                    "absolute flex items-center will-change-transform select-none",
+                    {
+                        "event-drag-row opacity-50":
+                            isDragging && !event.isLocked,
+                        "pointer-events-none": isDragging && !overlay,
+                        "cursor-grab! active:cursor-grabbing!":
+                            overlay && canEdit && !isMobile,
+                    }
+                )}
+                style={wrapperStyle}
+            >
+                {!isMobile && !inline && !continuesFromPrevWeek && (
                     <div
-                        {...mergedListeners}
-                        {...attributes}
-                        className={clsx(
-                            "absolute will-change-transform select-none",
-                            {
-                                "event-drag-row opacity-50":
-                                    isDragging && !event.isLocked,
-                                "pointer-events-none": isDragging && !overlay,
-                                "cursor-grab! active:cursor-grabbing!":
-                                    overlay && canEdit,
-                            }
+                        onPointerDown={handleResizeStart}
+                        className={cn(
+                            "pointer-events-auto absolute top-0 left-0 z-10 h-full w-1 bg-transparent hover:bg-border/65 dark:hover:bg-border",
+                            !interactive && "pointer-events-none",
+                            "rounded-s-md",
+                            canEdit && "cursor-ew-resize",
+                            activeResizeEdge === "start" && RESIZE_HANDLE_GLOW
                         )}
-                        style={wrapperStyle}
-                    >
-                        {!inline && !continuesFromPrevWeek && (
-                            <div
-                                onPointerDown={handleResizeStart}
-                                className={cn(
-                                    "pointer-events-auto absolute top-0 left-0 z-10 h-full w-1 bg-transparent hover:bg-border/65 dark:hover:bg-border",
-                                    !interactive && "pointer-events-none",
-                                    "rounded-s-md",
-                                    canEdit && "cursor-ew-resize",
-                                    activeResizeEdge === "start" &&
-                                        RESIZE_HANDLE_GLOW
-                                )}
-                                style={{ touchAction: "none" }}
-                            />
+                        style={{ touchAction: "none" }}
+                    />
+                )}
+                <Button
+                    ref={!canDragResize ? null : setNodeRef}
+                    variant="outline"
+                    className={cn(
+                        "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1 text-left text-xs transition-none will-change-transform md:px-1.5 md:text-sm dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [body[data-scroll-locked='1']_&]:pointer-events-none",
+                        !event.allDay && "pl-1.75",
+                        !interactive && "pointer-events-none",
+                        useSplitLayout ? "items-start py-1.5 text-left" : "",
+                        inline &&
+                            canDragResize &&
+                            "cursor-grab active:cursor-grabbing",
+                        eventLayout === "split" &&
+                            "items-center justify-center text-center",
+                        (isCompleted || isCancelled) &&
+                            "text-muted-foreground line-through",
+                        eventMembers.length > 0 && "shadow-lg/7",
+                        eventRadiusClass,
+                        resolvedCollectionEventClassName,
+                        resolvedSeriesHoverClassName,
+                        resolvedInteractiveStateClassName
+                    )}
+                    onPointerEnter={() => {
+                        if (overlay || isDragging || isMobile) {
+                            return
+                        }
+
+                        setHoveredSeriesEventId(sourceEventId)
+                    }}
+                    onPointerLeave={() => {
+                        if (overlay || isMobile) {
+                            return
+                        }
+
+                        setHoveredSeriesEventId(null)
+                    }}
+                    onClick={() => {
+                        if (!interactive || suppressClickRef.current) {
+                            return
+                        }
+                        onOpen?.()
+                        setActiveEventId(sourceEventId)
+                        setViewEvent(event)
+                        navigateCalendarModal(
+                            getCalendarModalOpenPath({
+                                pathname,
+                                eventId: sourceEventId,
+                                occurrenceStart:
+                                    event.recurrenceInstance?.occurrenceStart,
+                            })
+                        )
+                    }}
+                >
+                    {event.isLocked &&
+                        !isCompleted &&
+                        !isCancelled &&
+                        !event.subscription && (
+                            <LockIcon className="ml-0.5 size-3.5 shrink-0" />
                         )}
-                        <Button
-                            ref={!canDragResize ? null : setNodeRef}
-                            variant="outline"
+                    {isCompleted && (
+                        <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    {isCancelled && (
+                        <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+
+                    {!event.allDay && !continuesFromPrevWeek && (
+                        <span
                             className={cn(
-                                "pointer-events-auto relative h-full w-full justify-start gap-0.75 overflow-hidden border px-1.5 text-left transition-none will-change-transform dark:bg-[#151515] dark:hover:bg-[#1c1c1c] [&>span]:leading-normal [body[data-scroll-locked='1']_&]:pointer-events-none",
-                                !event.allDay && "pl-1.75",
-                                !interactive && "pointer-events-none",
-                                useSplitLayout
-                                    ? "items-start py-1.5 text-left"
-                                    : "",
-                                inline &&
-                                    canDragResize &&
-                                    "cursor-grab active:cursor-grabbing",
-                                eventLayout === "split" &&
-                                    "items-center justify-center text-center",
-                                (isCompleted || isCancelled) &&
-                                    "text-muted-foreground line-through",
-                                eventMembers.length > 0 && "shadow-lg/7",
-                                eventRadiusClass,
-                                // primaryCollectionColor && "pl-2.25",
-                                displayPrimaryCollectionColor &&
-                                    event.allDay &&
-                                    getCalendarCollectionEventClassName(
-                                        displayPrimaryCollectionColor
-                                    ),
-                                resolvedSeriesHoverClassName,
-                                (isResizingThis || isCtxOpen) && "bg-muted",
-                                (isResizingThis || isCtxOpen) &&
-                                    event.allDay &&
-                                    displayPrimaryCollectionColor &&
-                                    getCalendarCollectionEventHoverClassName(
-                                        displayPrimaryCollectionColor
-                                    )
-                                // eventMembers.length > 0 &&
-                                //     "after:absolute after:top-1/2 after:left-0.5 after:inline-block after:h-[calc(100%-6px)] after:w-0.75 after:-translate-y-1/2 after:rounded-full after:bg-primary/80"
-                            )}
-                            onPointerEnter={() => {
-                                if (overlay || isDragging) {
-                                    return
-                                }
-
-                                setHoveredSeriesEventId(sourceEventId)
-                            }}
-                            onPointerLeave={() => {
-                                if (overlay) {
-                                    return
-                                }
-
-                                setHoveredSeriesEventId(null)
-                            }}
-                            onClick={() => {
-                                if (!interactive || suppressClickRef.current) {
-                                    return
-                                }
-                                onOpen?.()
-                                setActiveEventId(sourceEventId)
-                                setViewEvent(event)
-                                navigateCalendarModal(
-                                    getCalendarModalOpenPath({
-                                        pathname,
-                                        eventId: sourceEventId,
-                                        occurrenceStart:
-                                            event.recurrenceInstance
-                                                ?.occurrenceStart,
-                                    })
+                                "absolute top-1/2 left-0.5 inline-block h-[calc(100%-7.5px)] w-0.5 -translate-y-1/2 rounded-full bg-primary/70",
+                                getCalendarCollectionDotClassName(
+                                    displayPrimaryCollectionColor
                                 )
+                            )}
+                        ></span>
+                    )}
+                    <span className="flex-initial truncate overflow-hidden leading-3">
+                        {event.title === "" ? tLabels("newEvent") : event.title}
+                    </span>
+
+                    {event.subscription && (
+                        <span className="ml-px hidden text-[8px] leading-normal tracking-tight opacity-40 [word-spacing:-1px] md:flex md:text-xs">
+                            {event.subscription.name}
+                        </span>
+                    )}
+                </Button>
+                {!isMobile && !inline && !continuesToNextWeek && (
+                    <div
+                        onPointerDown={handleResizeEnd}
+                        className={cn(
+                            "pointer-events-auto absolute top-0 right-0 z-10 h-full w-1 bg-transparent hover:bg-border",
+                            !interactive && "pointer-events-none",
+                            "rounded-e-md",
+                            canEdit && "cursor-ew-resize",
+                            activeResizeEdge === "end" && RESIZE_HANDLE_GLOW
+                        )}
+                        style={{ touchAction: "none" }}
+                    />
+                )}
+            </div>
+        )
+
+        const deleteDialog = (
+            <AlertDialog
+                open={isRecurringDeleteDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeRecurringDeleteDialog()
+                    }
+                }}
+            >
+                <AlertDialogContent size="sm">
+                    <AlertDialogCancel
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 z-100 size-7!"
+                    >
+                        <XIcon />
+                    </AlertDialogCancel>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {tDialog("recurringDeleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {tDialog("recurringDeleteDescription")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogAction
+                            disabled={!canDeleteSingleOccurrence}
+                            onClick={(dialogEvent) => {
+                                dialogEvent.preventDefault()
+                                void confirmDeleteOnlyThis()
                             }}
                         >
-                            {/* {event.subscription && (
-                                <BadgeCheckIcon className="ml-0.5 size-3.5 shrink-0" />
-                            )} */}
-                            {event.isLocked &&
-                                !isCompleted &&
-                                !isCancelled &&
-                                !event.subscription && (
-                                    <LockIcon className="ml-0.5 size-3.5 shrink-0" />
-                                )}
-                            {isCompleted && (
-                                <CheckIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                            )}
-                            {isCancelled && (
-                                <XIcon className="ml-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                            )}
+                            {tActions("deleteThis")}
+                        </AlertDialogAction>
+                        <AlertDialogAction
+                            variant="destructive"
+                            onClick={(dialogEvent) => {
+                                dialogEvent.preventDefault()
+                                void confirmDeleteSeries()
+                            }}
+                        >
+                            {tActions("deleteAll")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )
 
-                            {displayPrimaryCollectionColor &&
-                                !event.allDay &&
-                                !continuesFromPrevWeek && (
-                                    <span
-                                        className={cn(
-                                            "absolute top-1/2 -left-1.25 inline-block h-[calc(100%-2.5px)] w-0.5 -translate-y-1/2 rounded-lg",
-                                            getCalendarCollectionDotClassName(
-                                                displayPrimaryCollectionColor
-                                            )
-                                        )}
-                                    ></span>
-                                )}
-                            <span className="flex-initial truncate overflow-hidden">
-                                {event.title === ""
-                                    ? tLabels("newEvent")
-                                    : event.title}
-                            </span>
+        if (isMobile) {
+            return (
+                <>
+                    {eventContent}
+                    {deleteDialog}
+                </>
+            )
+        }
 
-                            {event.subscription && (
-                                <span className="ml-px text-xs tracking-tight opacity-40 [word-spacing:-1px]">
-                                    {event.subscription.name}
-                                </span>
-                            )}
-                        </Button>
-                        {!inline && !continuesToNextWeek && (
-                            <div
-                                onPointerDown={handleResizeEnd}
-                                className={cn(
-                                    "pointer-events-auto absolute top-0 right-0 z-10 h-full w-1 bg-transparent hover:bg-border",
-                                    !interactive && "pointer-events-none",
-                                    "rounded-e-md",
-                                    canEdit && "cursor-ew-resize",
-                                    activeResizeEdge === "end" &&
-                                        RESIZE_HANDLE_GLOW
-                                )}
-                                style={{ touchAction: "none" }}
-                            />
-                        )}
-                    </div>
-                </ContextMenuTrigger>
+        return (
+            <ContextMenu onOpenChange={handleRootCtxOpenChange}>
+                <ContextMenuTrigger asChild>{eventContent}</ContextMenuTrigger>
                 <ContextMenuContent
                     className={cn(
                         ctxRootView === "main"
@@ -906,52 +971,7 @@ export const EventItem = memo(
                         </ContextMenuGroup>
                     ) : null}
                 </ContextMenuContent>
-                <AlertDialog
-                    open={isRecurringDeleteDialogOpen}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            closeRecurringDeleteDialog()
-                        }
-                    }}
-                >
-                    <AlertDialogContent size="sm">
-                        <AlertDialogCancel
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 z-100 size-7!"
-                        >
-                            <XIcon />
-                        </AlertDialogCancel>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {tDialog("recurringDeleteTitle")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {tDialog("recurringDeleteDescription")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogAction
-                                disabled={!canDeleteSingleOccurrence}
-                                onClick={(dialogEvent) => {
-                                    dialogEvent.preventDefault()
-                                    void confirmDeleteOnlyThis()
-                                }}
-                            >
-                                {tActions("deleteThis")}
-                            </AlertDialogAction>
-                            <AlertDialogAction
-                                variant="destructive"
-                                onClick={(dialogEvent) => {
-                                    dialogEvent.preventDefault()
-                                    void confirmDeleteSeries()
-                                }}
-                            >
-                                {tActions("deleteAll")}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                {deleteDialog}
             </ContextMenu>
         )
     },
@@ -976,6 +996,7 @@ export const EventItem = memo(
                 next.event.collectionIds
             ) &&
             prev.event.status === next.event.status &&
+            prev.isMobile === next.isMobile &&
             prev.top === next.top &&
             prev.startIndex === next.startIndex &&
             prev.endIndex === next.endIndex &&

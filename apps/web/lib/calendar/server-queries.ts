@@ -17,10 +17,12 @@ export const getServerCalendarById = cache(async (calendarId: string) => {
 
 export const getServerEventMetadataByCalendarId = cache(
     async (calendarId: string, eventId: string, silentMissing = false) => {
+        const user = await getServerUser()
         const supabase = await createServerSupabase()
 
         return getEventMetadataByCalendarId(supabase, calendarId, eventId, {
             silentMissing,
+            viewerUserId: user?.id,
         })
     }
 )
@@ -47,10 +49,12 @@ export const getServerMyCalendars = cache(async () => {
 
 export const getServerEventPageDataByCalendarId = cache(
     async (calendarId: string, eventId: string, silentMissing = false) => {
+        const user = await getServerUser()
         const supabase = await createServerSupabase()
 
         return getEventPageDataByCalendarId(supabase, calendarId, eventId, {
             silentMissing,
+            viewerUserId: user?.id,
         })
     }
 )

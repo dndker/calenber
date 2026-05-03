@@ -24,16 +24,14 @@ export function CalendarLayoutContent({
                         className="data-vertical:h-4 data-vertical:self-auto"
                     />
                 </div>
-                <div className="relative flex flex-1 items-center justify-between">
+                <div className="flex flex-1 items-center justify-between">
                     <CalendarBreadcrumb />
 
                     <div className="absolute top-1/2 left-1/2 -translate-1/2">
                         <CalendarSearchDialog />
                     </div>
 
-                    <div className="px-3">
-                        <NavActions />
-                    </div>
+                    <NavActions />
                 </div>
             </header>
             <main className="relative box-border flex flex-1 flex-col overflow-hidden">

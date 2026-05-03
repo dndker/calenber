@@ -1,16 +1,19 @@
 import dayjs from "@/lib/dayjs"
 
 /**
- * Matches "하루종일" → timed toggle in the event form: wall-clock +1h / +2h from
- * "now" in `timezoneId`, placed on the calendar day of `anchorDaySource` in that zone.
+ * Matches "하루종일" → timed toggle in the event form: preserve the original
+ * start/end calendar dates, while applying wall-clock +1h / +2h from "now"
+ * in `timezoneId` to the start and end boundaries.
  */
 export function getTimedScheduleRangeAfterAllDayOff(
     timezoneId: string,
-    anchorDaySource: Date
+    startDaySource: Date,
+    endDaySource: Date
 ): { start: Date; end: Date } {
     const tz = timezoneId?.trim() || "Asia/Seoul"
     const toggleNow = dayjs().tz(tz)
-    const currentStartDay = dayjs(anchorDaySource).tz(tz).startOf("day")
+    const startDay = dayjs(startDaySource).tz(tz).startOf("day")
+    const endDay = dayjs(endDaySource).tz(tz).startOf("day")
     const nextStartSlot = toggleNow
         .add(1, "hour")
         .minute(0)
@@ -22,10 +25,10 @@ export function getTimedScheduleRangeAfterAllDayOff(
         .second(0)
         .millisecond(0)
     const dayStart = toggleNow.startOf("day")
-    const start = currentStartDay
+    const start = startDay
         .add(nextStartSlot.diff(dayStart, "minute"), "minute")
         .toDate()
-    const end = currentStartDay
+    const end = endDay
         .add(nextEndSlot.diff(dayStart, "minute"), "minute")
         .toDate()
     return {

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process"
+const { execSync } = require("node:child_process")
 
 const msg = (process.env.VERCEL_GIT_COMMIT_MESSAGE || "").toLowerCase()
 

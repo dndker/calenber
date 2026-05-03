@@ -424,7 +424,44 @@
             "shared": "공유중",
             "subscribed": "구독중",
             "linkRequired": "링크 필요",
-            "subscribe": "구독"
+            "subscribe": "구독",
+            "addSharedCalendar": "공유 캘린더 구독",
+            "addGoogleCalendar": "구글 캘린더",
+            "dialogTitle": "구독 추가",
+            "tabShared": "공유 캘린더",
+            "tabGoogle": "Google 캘린더"
+        },
+        "googleCalendarSubscribe": {
+            "dialogTitle": "Google 캘린더 추가",
+            "dialogDescription": "Google 계정을 연결하고 캘린더를 선택하세요.",
+            "accountLabel": "연결된 구글 계정",
+            "noAccounts": "연결된 Google 계정이 없습니다.",
+            "loadingAccounts": "계정 불러오는 중...",
+            "connectAccount": "Google 계정 연결",
+            "addAnotherAccount": "다른 Google 계정 추가",
+            "disconnect": "연결 해제",
+            "disconnectConfirm": "이 Google 계정 연동을 해제하시겠습니까? 연결된 Google 구독도 함께 삭제됩니다.",
+            "disconnectSuccess": "Google 계정 연결을 해제했습니다.",
+            "disconnectFailed": "Google 계정 연결 해제 중 오류가 발생했습니다.",
+            "accountConnected": "Google 계정({email})이 연결되었습니다.",
+            "calendarLabel": "캘린더 선택",
+            "calendarPlaceholder": "캘린더를 선택하세요",
+            "primaryCalendar": "기본",
+            "noCalendars": "사용 가능한 캘린더가 없습니다.",
+            "loadingCalendars": "캘린더 불러오는 중...",
+            "loadCalendarsFailed": "Google 캘린더 목록을 불러오지 못했습니다.",
+            "insufficientPermission": "Google Calendar 권한이 부족합니다. 계정을 다시 연결하고 모든 권한에 동의해 주세요.",
+            "refresh": "새로고침",
+            "collectionNameLabel": "추가할 컬렉션 이름",
+            "collectionNamePlaceholder": "컬렉션 이름을 입력해주세요",
+            "alreadyAddedBadge": "이미 추가됨",
+            "alreadyAddedDescription": "이미 현재 캘린더에 추가된 Google 캘린더입니다.",
+            "allCalendarsAlreadyAdded": "이 계정의 Google 캘린더는 이미 모두 추가되어 있습니다.",
+            "colorLabel": "색상",
+            "description": "선택한 Google 캘린더의 일정이 이 캘린더에 표시됩니다.",
+            "submit": "추가",
+            "subscribeSuccess": "Google 캘린더 ''{name}''이 추가되었습니다.",
+            "subscribeFailed": "Google 캘린더 추가 중 오류가 발생했습니다."
         },
         "sidebarEvents": {
             "favorites": "즐겨찾기",
@@ -546,7 +583,8 @@
         "collection": {
             "emptyText": "컬렉션을 입력해 생성할 수 있습니다.",
             "searchOrCreate": "검색 또는 생성",
-            "createNew": "새 컬렉션 생성"
+            "createNew": "새 컬렉션 생성",
+            "googleCalendarLabel": "구글 캘린더"
         },
         "status": {
             "scheduled": "예정",
@@ -713,6 +751,21 @@
             "languageDescription": "Calenber에서 사용할 언어를 선택합니다.",
             "timezoneLabel": "시간대",
             "timezoneDescription": "시간대 선택"
+        },
+        "profileNotification": {
+            "loading": "설정을 불러오는 중...",
+            "channelSection": "알림 채널",
+            "pushNotifications": "푸시 알림",
+            "pushNotificationsDescription": "브라우저 및 앱(PWA)에서 알림을 받습니다",
+            "emailNotifications": "이메일 알림",
+            "emailNotificationsDescription": "이메일로 알림을 받습니다",
+            "emailFrequency": "이메일 발송 빈도",
+            "emailFrequencyDescription": "이메일 알림을 얼마나 자주 받을지 설정합니다",
+            "frequencyRealtime": "즉시",
+            "frequencyDaily": "하루 요약",
+            "frequencyWeekly": "주간 요약",
+            "frequencyOff": "끄기",
+            "typeSection": "알림 종류"
         },
         "calendarData": {
             "fieldSettingsPermissionDenied": "관리자 또는 소유자만 일정 속성 설정을 변경할 수 있습니다.",
@@ -931,6 +984,21 @@
             "deleteAccountConfirmSuffix": "를 입력해 주세요.",
             "deleteAccountConfirmAria": "계정 삭제 확인",
             "deleting": "삭제 중..."
+        }
+    },
+    "notification": {
+        "unknownUser": "알 수 없는 사용자",
+        "dropdown": {
+            "trigger": "알림",
+            "title": "알림",
+            "markAllRead": "모두 읽음",
+            "empty": "새 알림이 없습니다",
+            "loadMore": "더 보기",
+            "viewAll": "모든 알림 보기"
+        },
+        "page": {
+            "title": "알림",
+            "empty": "새 알림이 없습니다"
         }
     }
 }

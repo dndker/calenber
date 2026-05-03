@@ -2,6 +2,7 @@ import { AuthSync } from "@/components/provider/auth-sync"
 import { DevServiceWorkerCleanup } from "@/components/provider/dev-service-worker-cleanup"
 import { I18nDebugProvider } from "@/components/provider/i18n-debug-provider"
 import { LocaleProvider } from "@/components/provider/locale-provider"
+import { NotificationSync } from "@/components/provider/notification-sync"
 import type { Theme } from "@/components/provider/theme-context"
 import { ThemeContextProvider } from "@/components/provider/theme-context"
 import { ThemeProvider } from "@/components/provider/theme-provider"
@@ -15,7 +16,13 @@ import {
 } from "@/lib/app-config"
 import { getServerUser } from "@/lib/auth/get-server-user"
 import { ogLocaleMap, type Locale } from "@/lib/i18n/config"
+import {
+    fetchNotifications,
+    fetchUnreadNotificationCount,
+} from "@/lib/notification/queries"
+import { createServerSupabase } from "@/lib/supabase/server"
 import { AuthStoreProvider } from "@/store/useAuthStore"
+import { NotificationStoreProvider } from "@/store/useNotificationStore"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { mapUser } from "@workspace/lib/supabase/map-user"
@@ -35,6 +42,47 @@ const fontMono = Geist_Mono({
     subsets: ["latin"],
     variable: "--font-mono",
 })
+
+const isProduction = process.env.NODE_ENV === "production"
+
+async function getInitialNotificationStoreState() {
+    const user = await getServerUser()
+    if (!user) {
+        return undefined
+    }
+
+    const supabase = await createServerSupabase()
+    const [digestsResult, unreadResult] = await Promise.allSettled([
+        fetchNotifications(supabase, { limit: 10 }),
+        fetchUnreadNotificationCount(supabase),
+    ])
+
+    const digests =
+        digestsResult.status === "fulfilled" ? digestsResult.value.digests : []
+    const hasMore =
+        digestsResult.status === "fulfilled" ? digestsResult.value.hasMore : false
+    const nextCursor =
+        digests.length > 0
+            ? new Date(digests[digests.length - 1]!.lastOccurredAt).toISOString()
+            : null
+    const fallbackUnreadCount = digests.reduce(
+        (sum, digest) => sum + digest.unreadCount,
+        0
+    )
+    const unreadCount =
+        unreadResult.status === "fulfilled"
+            ? unreadResult.value
+            : fallbackUnreadCount
+
+    return {
+        digests,
+        unreadCount,
+        nextCursor,
+        hasMore,
+        isLoading: false,
+        isInitialized: true,
+    }
+}
 
 export async function generateMetadata(): Promise<Metadata> {
     const locale = await getLocale()
@@ -81,11 +129,12 @@ export async function generateMetadata(): Promise<Metadata> {
             ],
             description: APP_DESCRIPTION,
         },
-        appleWebApp: {
-            capable: true,
-            statusBarStyle: "default",
-            title: APP_DEFAULT_TITLE,
-            startupImage: [
+        appleWebApp: isProduction
+            ? {
+                  capable: true,
+                  statusBarStyle: "default",
+                  title: APP_DEFAULT_TITLE,
+                  startupImage: [
                 // iPhone 16 Pro Max
                 {
                     url: "/splash_screens/iPhone_16_Pro_Max_landscape.png",
@@ -431,8 +480,13 @@ export async function generateMetadata(): Promise<Metadata> {
                     url: "/splash_screens/8.3__iPad_Mini_portrait.png",
                     media: "screen and (device-width: 1488px) and (device-height: 2266px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)",
                 },
-            ],
-        },
+                  ],
+              }
+            : {
+                  capable: true,
+                  statusBarStyle: "default",
+                  title: APP_DEFAULT_TITLE,
+              },
         formatDetection: {
             telephone: false,
         },
@@ -446,20 +500,26 @@ export async function generateMetadata(): Promise<Metadata> {
     }
 }
 
-export const viewport: Viewport = {
-    userScalable: false,
-    themeColor: [
-        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-        { media: "(prefers-color-scheme: dark)", color: "#0c0d0e" },
-    ],
-}
-
 function normalizeTheme(theme: string | undefined): Theme {
     if (theme === "light" || theme === "dark" || theme === "system") {
         return theme
     }
 
     return "system"
+}
+
+function getThemeColor(theme: Theme) {
+    return theme === "dark" ? "#0c0d0e" : "#ffffff"
+}
+
+export async function generateViewport(): Promise<Viewport> {
+    const cookieStore = await cookies()
+    const theme = normalizeTheme(cookieStore.get("theme")?.value)
+
+    return {
+        userScalable: false,
+        themeColor: getThemeColor(theme === "system" ? "light" : theme),
+    }
 }
 
 export default async function RootLayout({
@@ -472,9 +532,12 @@ export default async function RootLayout({
     const timeZone =
         cookieStore.get("calendar-timezone")?.value ?? "Asia/Seoul"
     const locale = (await getLocale()) as Locale
-    const messages = await getMessages()
-
-    const appUser = mapUser(await getServerUser())
+    const [messages, serverUser, initialNotificationState] = await Promise.all([
+        getMessages(),
+        getServerUser(),
+        getInitialNotificationStoreState(),
+    ])
+    const appUser = mapUser(serverUser)
 
     return (
         <html
@@ -506,9 +569,14 @@ export default async function RootLayout({
                                     <AuthStoreProvider
                                         initialState={{ user: appUser }}
                                     >
-                                        <DevServiceWorkerCleanup />
-                                        <AuthSync />
-                                        {children}
+                                        <NotificationStoreProvider
+                                            initialState={initialNotificationState}
+                                        >
+                                            <DevServiceWorkerCleanup />
+                                            <AuthSync />
+                                            <NotificationSync />
+                                            {children}
+                                        </NotificationStoreProvider>
                                     </AuthStoreProvider>
                                 </TooltipProvider>
                             </ThemeProvider>
@@ -516,8 +584,8 @@ export default async function RootLayout({
                     </I18nDebugProvider>
                 </LocaleProvider>
                 <Toaster position="bottom-center" />
-                <Analytics />
-                <SpeedInsights />
+                {isProduction ? <Analytics /> : null}
+                {isProduction ? <SpeedInsights /> : null}
             </body>
         </html>
     )

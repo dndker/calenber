@@ -26,6 +26,8 @@ export type CalendarEventRecord = {
     created_by: string | null
     updated_by: string | null
     is_locked: boolean | null
+    /** 구글 캘린더에도 저장한 경우의 구글 이벤트 ID (중복 표시 방지용) */
+    google_event_id: string | null
     created_at: string
     updated_at: string | null
     creator_name: string | null
@@ -115,6 +117,7 @@ export function mapCalendarEventRecordToCalendarEvent(
               }
             : null,
         isLocked: event.is_locked ?? false,
+        googleEventId: event.google_event_id ?? undefined,
         createdAt: new Date(event.created_at).valueOf(),
         updatedAt: new Date(event.updated_at ?? event.created_at).valueOf(),
     }

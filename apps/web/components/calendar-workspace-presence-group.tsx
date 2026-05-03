@@ -65,28 +65,26 @@ function getPresenceCursorLabel(
 
         return (
             t?.("viewingEventDate", {
-                date:
-                    dateFormats
-                        ? cursorDate.format(
-                              myDate.year() === cursorDate.year()
-                                  ? dateFormats.sameYear
-                                  : dateFormats.diffYear
-                          )
-                        : fallbackDateLabel,
-            }) ?? fallbackDateLabel
-        )
-    }
-
-    return (
-        t?.("viewingDate", {
-            date:
-                dateFormats
+                date: dateFormats
                     ? cursorDate.format(
                           myDate.year() === cursorDate.year()
                               ? dateFormats.sameYear
                               : dateFormats.diffYear
                       )
                     : fallbackDateLabel,
+            }) ?? fallbackDateLabel
+        )
+    }
+
+    return (
+        t?.("viewingDate", {
+            date: dateFormats
+                ? cursorDate.format(
+                      myDate.year() === cursorDate.year()
+                          ? dateFormats.sameYear
+                          : dateFormats.diffYear
+                  )
+                : fallbackDateLabel,
         }) ?? fallbackDateLabel
     )
 }
@@ -159,6 +157,7 @@ export function CalendarWorkspacePresenceGroup() {
             id: user.id,
             name: user.displayName,
             avatarUrl: user.avatarUrl,
+            isAnonymous: user.isAnonymous,
             avatarFallback: getAvatarGroupFallbackLabel(
                 user.displayName,
                 user.isAnonymous
@@ -206,7 +205,7 @@ export function CalendarWorkspacePresenceGroup() {
             contentClassName="min-w-47"
             label={sortedMembers.length > 0 ? t("onlineMembers") : undefined}
             trigger={
-                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
+                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg">
                     {isLoading && members.length === 0 ? (
                         <div className="flex size-8 items-center justify-center text-muted-foreground">
                             <Spinner

@@ -1,16 +1,32 @@
 "use client"
 
-import { resolvePostAuthCalendarPath } from "@/lib/calendar/resolve-post-auth-calendar-path"
 import { createBrowserSupabase } from "@workspace/lib/supabase/client"
 import { mapUser } from "@workspace/lib/supabase/map-user"
 import type { User } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
+import {
+    getRecentCalendarPathFromCookieValue,
+    RECENT_CALENDAR_COOKIE_NAME,
+} from "@/lib/calendar/recent-calendar-cookie"
 import { useAuthStore } from "@/store/useAuthStore"
 
 function sleep(ms: number) {
     return new Promise((resolve) => {
         window.setTimeout(resolve, ms)
     })
+}
+
+function getImmediatePostAuthPath() {
+    const cookieValue = document.cookie
+        .split("; ")
+        .find((cookie) => cookie.startsWith(`${RECENT_CALENDAR_COOKIE_NAME}=`))
+        ?.split("=")[1]
+
+    return (
+        getRecentCalendarPathFromCookieValue(
+            cookieValue ? decodeURIComponent(cookieValue) : null
+        ) ?? "/calendar"
+    )
 }
 
 export function useRouteToPostAuthCalendar() {
@@ -23,7 +39,7 @@ export function useRouteToPostAuthCalendar() {
             if (user) {
                 setUser(mapUser(user))
                 setLoading(false)
-                router.replace(await resolvePostAuthCalendarPath(user.id))
+                router.replace(getImmediatePostAuthPath())
                 return
             }
 
@@ -37,9 +53,7 @@ export function useRouteToPostAuthCalendar() {
                 if (session?.user) {
                     setUser(mapUser(session.user))
                     setLoading(false)
-                    router.replace(
-                        await resolvePostAuthCalendarPath(session.user.id)
-                    )
+                    router.replace(getImmediatePostAuthPath())
                     return
                 }
 

@@ -10,6 +10,10 @@ import { getMessageTranslator } from "@/lib/i18n/messages"
 import { getDefaultCalendarEventFieldSettings } from "@/lib/calendar/event-field-settings"
 import { DEFAULT_CALENDAR_LAYOUT_OPTIONS } from "@/lib/calendar/layout-options"
 import type { CalendarSummary } from "@/lib/calendar/queries"
+import {
+    getCalendarEventModalPath,
+    getCalendarEventPagePath,
+} from "@/lib/calendar/routes"
 import dayjs from "@/lib/dayjs"
 import {
     eventStatusTranslationKey,
@@ -394,16 +398,8 @@ export function buildEventMetadata({
     const title = getEventShareTitle(event, calendar, locale)
     const description = getEventShareDescription(event, calendar, locale)
     const shareUrl = modal
-        ? absoluteUrl(
-              `/calendar/${encodeURIComponent(calendarId)}?e=${encodeURIComponent(
-                  eventId
-              )}`
-          )
-        : absoluteUrl(
-              `/calendar/${encodeURIComponent(
-                  calendarId
-              )}/${encodeURIComponent(eventId)}`
-          )
+        ? absoluteUrl(getCalendarEventModalPath(calendarId, eventId))
+        : absoluteUrl(getCalendarEventPagePath(calendarId, eventId))
     const imageUrl = absoluteUrl(
         `/calendar/${encodeURIComponent(calendarId)}/${encodeURIComponent(eventId)}/opengraph-image`
     )

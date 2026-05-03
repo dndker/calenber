@@ -1,5 +1,6 @@
 import { CalendarPageContent } from "@/components/calendar/calendar-page-content"
 import {
+    getServerEventPageDataByCalendarId,
     getServerCalendarInitialData,
     getServerEventMetadataByCalendarId,
 } from "@/lib/calendar/server-queries"
@@ -64,10 +65,28 @@ export async function generateMetadata({
 
 export default async function Page({
     params,
+    searchParams,
 }: {
     params: Promise<{ calendarId: string }>
+    searchParams: Promise<{ e?: string }>
 }) {
-    await params
+    const [{ calendarId: rawCalendarId }, { e }] = await Promise.all([
+        params,
+        searchParams,
+    ])
+    const calendarId = resolveCalendarIdFromPathParam(rawCalendarId)
+    const resolvedEventId =
+        e ? (parseShortCalendarEventToken(e)?.eventId ?? e) : undefined
+    const initialEvent =
+        !resolvedEventId || calendarId === "demo"
+            ? null
+            : (
+                  await getServerEventPageDataByCalendarId(
+                      calendarId,
+                      resolvedEventId,
+                      true
+                  )
+              ).event
 
-    return <CalendarPageContent />
+    return <CalendarPageContent initialEvent={initialEvent} />
 }

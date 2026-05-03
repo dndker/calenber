@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 type GoogleButtonProps = {
+    label: string
     onComplete?: (
         result: "success" | "cancel" | "error",
         nextPath?: string
@@ -21,10 +22,11 @@ type GoogleAuthMessage = {
     error: string | null
 }
 
-export function GoogleButton({ onComplete }: GoogleButtonProps) {
+export function GoogleButton({ label, onComplete }: GoogleButtonProps) {
     const [loading, setLoading] = useState(false)
     const popupRef = useRef<Window | null>(null)
     const popupMonitorRef = useRef<number | null>(null)
+    const completedRef = useRef(false)
     const t = useDebugTranslations("auth.toast")
     const tError = useDebugTranslations("auth.errors")
 
@@ -39,6 +41,8 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
     }, [])
 
     const signin = async () => {
+        completedRef.current = false
+
         const width = 500
         const height = 600
         const screenLeft = window.screenLeft ?? window.screenX
@@ -56,6 +60,10 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
         }
 
         const handleMessage = (event: MessageEvent<GoogleAuthMessage>) => {
+            if (completedRef.current) {
+                return
+            }
+
             if (event.origin !== window.location.origin) {
                 return
             }
@@ -71,6 +79,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
                 popupMonitorRef.current = null
             }
 
+            completedRef.current = true
             popupRef.current = null
 
             if (!event.data.ok) {
@@ -80,7 +89,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             }
 
             toast.success(t("googleCompleted"))
-            onComplete?.("success", event.data.next)
+            void onComplete?.("success", event.data.next)
         }
 
         window.addEventListener("message", handleMessage)
@@ -142,11 +151,16 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
             }
 
             if (authPopup.closed) {
+                if (completedRef.current) {
+                    return
+                }
+
                 if (popupMonitorRef.current) {
                     window.clearInterval(popupMonitorRef.current)
                     popupMonitorRef.current = null
                 }
 
+                completedRef.current = true
                 popupRef.current = null
                 window.removeEventListener("message", handleMessage)
                 toast.warning(t("googleCancelled"))
@@ -191,7 +205,7 @@ export function GoogleButton({ onComplete }: GoogleButtonProps) {
                 />
                 <path d="M1 1h22v22H1z" fill="none" />
             </svg>
-            {t("google")}
+            {label}
         </Button>
     )
 }
