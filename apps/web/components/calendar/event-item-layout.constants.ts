@@ -1,18 +1,55 @@
-/**
- * 월간 뷰 이벤트 칩 기본 높이(px).
- * 예) lane 0/1/2의 실제 칩 높이는 모두 이 값을 사용한다.
- */
-export const CALENDAR_EVENT_ITEM_HEIGHT_PX = 26
+export const CALENDAR_EVENT_ITEM_HEIGHT_PX = 23
+export const MOBILE_CALENDAR_EVENT_ITEM_HEIGHT_PX = 18
 
-/**
- * 월간 뷰 이벤트 칩 lane 간 세로 간격(px).
- * 예) lane 0 -> 1로 내려갈 때 추가되는 간격.
- */
-export const CALENDAR_EVENT_ITEM_LANE_GAP_PX = 2
+export const CALENDAR_EVENT_ITEM_LANE_GAP_PX = 3
+export const MOBILE_CALENDAR_EVENT_ITEM_LANE_GAP_PX = 2
 
-/**
- * 월간 뷰 이벤트 칩 lane 한 칸 이동 시 stride(px).
- * = 높이 + lane 간격
- */
 export const CALENDAR_EVENT_ITEM_STRIDE_PX =
     CALENDAR_EVENT_ITEM_HEIGHT_PX + CALENDAR_EVENT_ITEM_LANE_GAP_PX
+export const MOBILE_CALENDAR_EVENT_ITEM_STRIDE_PX =
+    MOBILE_CALENDAR_EVENT_ITEM_HEIGHT_PX +
+    MOBILE_CALENDAR_EVENT_ITEM_LANE_GAP_PX
+
+export const CALENDAR_EVENT_ROW_TOP_OFFSET_PX = 56
+export const MOBILE_CALENDAR_EVENT_ROW_TOP_OFFSET_PX = 28
+export const CALENDAR_EVENT_ROW_BOTTOM_OFFSET_PX = 4
+export const CALENDAR_EVENT_ITEM_SIDE_GAP_PX = 4
+export const MOBILE_CALENDAR_EVENT_ITEM_SIDE_GAP_PX = 2
+export const CALENDAR_EVENT_ITEM_COLUMN_GAP_PX = 1
+export const MOBILE_CALENDAR_EVENT_ITEM_COLUMN_GAP_PX = 1
+
+export type CalendarEventItemMetrics = {
+    height: number
+    laneGap: number
+    stride: number
+    rowTopOffset: number
+    rowBottomOffset: number
+    sideGap: number
+    columnGap: number
+}
+
+export function getCalendarEventItemMetrics(
+    isMobile: boolean
+): CalendarEventItemMetrics {
+    if (isMobile) {
+        return {
+            height: MOBILE_CALENDAR_EVENT_ITEM_HEIGHT_PX,
+            laneGap: MOBILE_CALENDAR_EVENT_ITEM_LANE_GAP_PX,
+            stride: MOBILE_CALENDAR_EVENT_ITEM_STRIDE_PX,
+            rowTopOffset: MOBILE_CALENDAR_EVENT_ROW_TOP_OFFSET_PX,
+            rowBottomOffset: CALENDAR_EVENT_ROW_BOTTOM_OFFSET_PX,
+            sideGap: MOBILE_CALENDAR_EVENT_ITEM_SIDE_GAP_PX,
+            columnGap: MOBILE_CALENDAR_EVENT_ITEM_COLUMN_GAP_PX,
+        }
+    }
+
+    return {
+        height: CALENDAR_EVENT_ITEM_HEIGHT_PX,
+        laneGap: CALENDAR_EVENT_ITEM_LANE_GAP_PX,
+        stride: CALENDAR_EVENT_ITEM_STRIDE_PX,
+        rowTopOffset: CALENDAR_EVENT_ROW_TOP_OFFSET_PX,
+        rowBottomOffset: CALENDAR_EVENT_ROW_BOTTOM_OFFSET_PX,
+        sideGap: CALENDAR_EVENT_ITEM_SIDE_GAP_PX,
+        columnGap: CALENDAR_EVENT_ITEM_COLUMN_GAP_PX,
+    }
+}

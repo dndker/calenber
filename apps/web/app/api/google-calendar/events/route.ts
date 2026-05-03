@@ -9,6 +9,7 @@ import { getServerUser } from "@/lib/auth/get-server-user"
 import {
     getValidAccessToken,
     fetchAllGoogleCalendarEvents,
+    getGoogleCalendarEvent,
     createGoogleCalendarEvent,
     updateGoogleCalendarEvent,
     deleteGoogleCalendarEvent,
@@ -27,10 +28,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const googleCalendarId = searchParams.get("googleCalendarId")
     const googleAccountId = searchParams.get("googleAccountId")
+    const googleEventId = searchParams.get("googleEventId")
     const timeMin = searchParams.get("timeMin")
     const timeMax = searchParams.get("timeMax")
 
-    if (!googleCalendarId || !googleAccountId || !timeMin || !timeMax) {
+    if (!googleCalendarId || !googleAccountId) {
         return NextResponse.json({ error: "Missing required params" }, { status: 400 })
     }
 
@@ -42,6 +44,27 @@ export async function GET(request: Request) {
     }
 
     try {
+        if (googleEventId) {
+            const event = await getGoogleCalendarEvent(
+                accessToken,
+                googleCalendarId,
+                googleEventId
+            )
+
+            if (!event || event.status === "cancelled") {
+                return NextResponse.json({ event: null })
+            }
+
+            return NextResponse.json({ event })
+        }
+
+        if (!timeMin || !timeMax) {
+            return NextResponse.json(
+                { error: "Missing required params" },
+                { status: 400 }
+            )
+        }
+
         const { events } = await fetchAllGoogleCalendarEvents(
             accessToken,
             googleCalendarId,

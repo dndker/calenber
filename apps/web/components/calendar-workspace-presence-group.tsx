@@ -205,7 +205,7 @@ export function CalendarWorkspacePresenceGroup() {
             contentClassName="min-w-47"
             label={sortedMembers.length > 0 ? t("onlineMembers") : undefined}
             trigger={
-                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg px-1.5">
+                <div className="flex h-8 min-w-8 items-center justify-center rounded-lg">
                     {isLoading && members.length === 0 ? (
                         <div className="flex size-8 items-center justify-center text-muted-foreground">
                             <Spinner

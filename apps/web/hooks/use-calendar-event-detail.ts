@@ -3,9 +3,9 @@
 import {
     isCalendarEventUuid,
     isGeneratedSubscriptionEventId,
+    isGoogleCalendarSubscriptionEventId,
     parseSubscriptionCompositeEventId,
 } from "@/lib/calendar/event-id"
-import { getEventById } from "@/lib/calendar/queries"
 import { expandCalendarEventsForRange } from "@/lib/calendar/recurrence"
 import {
     KOREA_HOLIDAY_SUBSCRIPTION_ID,
@@ -17,7 +17,9 @@ import {
     KOREAN_SOLAR_TERMS_PROVIDER_KEY,
     generateKoreanSolarTermSubscriptionEvents,
 } from "@/lib/calendar/subscriptions/providers/korean-solar-terms"
-import { createBrowserSupabase } from "@/lib/supabase/client"
+import {
+    parseGoogleCalendarEventId,
+} from "@/lib/google/calendar-event-mapper"
 import type { CalendarEvent } from "@/store/calendar-store.types"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { useEffect, useMemo, useState } from "react"
@@ -51,6 +53,21 @@ function getCachedEventDetail(eventId: string) {
     }
 
     return cached.event
+}
+
+function setCachedEventDetail(eventId: string, event: CalendarEvent | null) {
+    eventDetailCache.set(eventId, {
+        event,
+        fetchedAt: Date.now(),
+    })
+}
+
+export function primeCalendarEventDetail(event: CalendarEvent | null | undefined) {
+    if (!event?.id) {
+        return
+    }
+
+    setCachedEventDetail(event.id, event)
 }
 
 export function useCalendarEventDetail({
@@ -148,12 +165,20 @@ export function useCalendarEventDetail({
     const isSubscriptionComposite = Boolean(
         eventId && parseSubscriptionCompositeEventId(eventId)
     )
+    const isGoogleSubscriptionEvent = Boolean(
+        eventId && isGoogleCalendarSubscriptionEventId(eventId)
+    )
 
     const shouldFetch = Boolean(
         eventId &&
         (isCalendarEventUuid(eventId) ||
             (isSubscriptionComposite &&
-                Boolean(activeCalendarId && activeCalendarId !== "demo"))) &&
+                Boolean(activeCalendarId && activeCalendarId !== "demo")) ||
+            Boolean(
+                isGoogleSubscriptionEvent &&
+                    activeCalendarId &&
+                    activeCalendarId !== "demo"
+            )) &&
         !storeEvent &&
         !resolvedViewEvent &&
         !resolvedInitialEvent
@@ -255,21 +280,37 @@ export function useCalendarEventDetail({
             }
         }
 
-        const supabase = createBrowserSupabase()
+        const fetchEvent = async () => {
+            if (!activeCalendarId || activeCalendarId === "demo") {
+                return null
+            }
 
-        void getEventById(supabase, eventId, {
-            silentMissing: true,
-            viewerCalendarId: activeCalendarId,
-        }).then((nextEvent) => {
+            const params = new URLSearchParams({
+                calendarId: activeCalendarId,
+                eventId,
+            })
+            const response = await fetch(
+                `/api/calendar/event-detail?${params.toString()}`
+            )
+
+            if (!response.ok) {
+                return null
+            }
+
+            const data = (await response.json()) as {
+                event?: CalendarEvent | null
+            }
+
+            return data.event ?? null
+        }
+
+        void fetchEvent().then((nextEvent) => {
             if (cancelled) {
                 return
             }
 
             if (!nextEvent) {
-                eventDetailCache.set(eventId, {
-                    event: null,
-                    fetchedAt: Date.now(),
-                })
+                setCachedEventDetail(eventId, null)
                 setRemoteState({
                     eventId,
                     event: null,
@@ -278,10 +319,7 @@ export function useCalendarEventDetail({
                 return
             }
 
-            eventDetailCache.set(eventId, {
-                event: nextEvent,
-                fetchedAt: Date.now(),
-            })
+            setCachedEventDetail(eventId, nextEvent)
             setRemoteState({
                 eventId,
                 event: nextEvent,
@@ -294,7 +332,11 @@ export function useCalendarEventDetail({
             cancelled = true
             clearTimeout(alignId)
         }
-    }, [eventId, shouldFetch, activeCalendarId])
+    }, [
+        activeCalendarId,
+        eventId,
+        shouldFetch,
+    ])
 
     const isLoading =
         shouldFetch &&

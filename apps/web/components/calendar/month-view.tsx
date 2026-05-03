@@ -1,5 +1,6 @@
 "use client"
 
+import { useIsMobile } from "@/hooks/use-mobile"
 import dayjs from "@/lib/dayjs"
 import { useCalendarStore } from "@/store/useCalendarStore"
 import { Spinner } from "@workspace/ui/components/spinner"
@@ -16,6 +17,7 @@ export default function Calendar() {
     const setViewportDate = useCalendarStore((s) => s.setViewportDate)
     const setViewportMiniDate = useCalendarStore((s) => s.setViewportMiniDate)
     const isCalendarLoading = containerHeight <= 0
+    const isMobile = useIsMobile()
 
     const onVisibleMonthChange = useCallback(
         (date: Date) => {
@@ -31,7 +33,7 @@ export default function Calendar() {
         const update = () => {
             const h = parentRef.current!.clientHeight
             if (h > 0) {
-                setContainerHeight(h)
+                setContainerHeight((prev) => (prev === h ? prev : h))
             }
         }
 
@@ -60,9 +62,9 @@ export default function Calendar() {
             >
                 {!isCalendarLoading ? (
                     <MonthList
-                        key={containerHeight}
                         parentRef={parentRef}
                         containerHeight={containerHeight}
+                        isMobile={isMobile}
                         targetDate={dayjs(selectedDate)
                             .tz(calendarTimezone)
                             .startOf("month")
@@ -70,7 +72,7 @@ export default function Calendar() {
                         onVisibleMonthChange={onVisibleMonthChange}
                     />
                 ) : (
-                    <MonthSkeleton />
+                    <MonthSkeleton isMobile={isMobile} />
                 )}
             </div>
         </div>

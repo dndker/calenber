@@ -12,13 +12,7 @@ import type { CalendarEvent } from "@/store/calendar-store.types"
 import { usePathname, useSearchParams } from "next/navigation"
 import * as React from "react"
 
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@workspace/ui/components/dialog"
+import { Root as VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -29,13 +23,27 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
-import { Drawer, DrawerContent } from "@workspace/ui/components/drawer"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@workspace/ui/components/dialog"
+import {
+    Drawer,
+    DrawerContent,
+    DrawerDescription,
+    DrawerHeader,
+    DrawerTitle,
+} from "@workspace/ui/components/drawer"
 
 import { EventPage } from "@/components/calendar/event-page"
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useEventDeleteAction } from "@/hooks/use-event-delete-action"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { EventHeader } from "./event-header"
+
+const snapPoints = [1]
 
 export const EventModal = React.memo(function EventModal({
     initialEvent,
@@ -51,6 +59,10 @@ export const EventModal = React.memo(function EventModal({
     const setActiveEventId = useCalendarStore((state) => state.setActiveEventId)
     const setViewEvent = useCalendarStore((state) => state.setViewEvent)
     const activeEventId = useCalendarStore((state) => state.activeEventId)
+    const viewEventId = useCalendarStore((state) => state.viewEvent?.id)
+    const [snap, setSnap] = React.useState<number | string | null>(
+        snapPoints[0]!
+    )
     const [portalContainer, setPortalContainer] =
         React.useState<HTMLElement | null>(null)
     const portalContainerRef = React.useRef<HTMLElement | null>(null)
@@ -88,10 +100,16 @@ export const EventModal = React.memo(function EventModal({
             return
         }
 
+        if (activeEventId && activeEventId !== urlEventId) {
+            if (viewEventId === activeEventId) {
+                return
+            }
+        }
+
         if (activeEventId !== urlEventId) {
             setActiveEventId(urlEventId)
         }
-    }, [activeEventId, setActiveEventId, setViewEvent, urlEventId])
+    }, [activeEventId, setActiveEventId, setViewEvent, urlEventId, viewEventId])
 
     const { event, isMissing } = useCalendarEventDetail({
         eventId,
@@ -159,10 +177,7 @@ export const EventModal = React.memo(function EventModal({
     }
 
     const content = (
-        <div
-            className="cb-event-page"
-            ref={handlePortalContainerRef}
-        >
+        <div className="cb-event-page" ref={handlePortalContainerRef}>
             <EventPage
                 modal
                 eventId={eventId}
@@ -255,9 +270,32 @@ export const EventModal = React.memo(function EventModal({
         <>
             <Drawer
                 open={open}
+                snapPoints={snapPoints}
+                activeSnapPoint={snap}
+                setActiveSnapPoint={setSnap}
                 onOpenChange={(nextOpen) => !nextOpen && handleClose()}
             >
-                <DrawerContent>{content}</DrawerContent>
+                <DrawerContent className="px-3.75">
+                    <DrawerHeader className="p-0 [&>.cb-event-header]:h-8 [&>.cb-event-header]:px-0">
+                        <VisuallyHidden>
+                            <DrawerTitle>{event?.title}</DrawerTitle>
+                            <DrawerDescription></DrawerDescription>
+                        </VisuallyHidden>
+
+                        {event ? (
+                            <EventHeader
+                                id={eventId}
+                                event={event}
+                                modal
+                                onDeleteEvent={handleDeleteEvent}
+                                portalContainer={portalContainer}
+                            />
+                        ) : null}
+                    </DrawerHeader>
+                    <div className="no-scrollbar overflow-y-auto pt-4">
+                        {content}
+                    </div>
+                </DrawerContent>
             </Drawer>
             <AlertDialog
                 open={isRecurringDeleteDialogOpen}
@@ -267,19 +305,19 @@ export const EventModal = React.memo(function EventModal({
                     }
                 }}
             >
-                    <AlertDialogContent size="sm">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {tDialog("recurringDeleteTitle")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {tDialog("recurringDeleteDescription")}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>
-                                {tCommon("cancel")}
-                            </AlertDialogCancel>
+                <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {tDialog("recurringDeleteTitle")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {tDialog("recurringDeleteDescription")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>
+                            {tCommon("cancel")}
+                        </AlertDialogCancel>
                         <AlertDialogAction
                             disabled={!canDeleteSingleOccurrence}
                             onClick={(dialogEvent) => {

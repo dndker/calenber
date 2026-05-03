@@ -12,16 +12,15 @@ import {
     LineChart,
     Link as LinkIcon,
     MoreHorizontal,
-    Search,
     Settings2,
     Trash,
     Trash2,
 } from "lucide-react"
 import * as React from "react"
 
+import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
 import { Button } from "@workspace/ui/components/button"
 import {
     Popover,
@@ -39,8 +38,8 @@ import {
 } from "@workspace/ui/components/sidebar"
 import Link from "next/link"
 import { CalendarWorkspacePresenceGroup } from "./calendar-workspace-presence-group"
-import ThemeSwitch from "./theme-switch"
 import { NotificationDropdown } from "./notifications/notification-dropdown"
+import ThemeSwitch from "./theme-switch"
 
 const data = [
     [
@@ -126,11 +125,9 @@ export function NavActions() {
                 </Button>
             )}
 
-            <Button variant="ghost" size="icon" className="size-8 sm:hidden">
-                <Search className="size-4.5" />
-            </Button>
-
-            <ThemeSwitch />
+            <div className="hidden md:inline-flex">
+                <ThemeSwitch />
+            </div>
 
             {isLoggedIn && (
                 <NotificationDropdown

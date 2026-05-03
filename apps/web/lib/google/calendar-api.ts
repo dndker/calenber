@@ -287,6 +287,34 @@ export async function fetchAllGoogleCalendarEvents(
     return { events, nextSyncToken: undefined }
 }
 
+export async function getGoogleCalendarEvent(
+    accessToken: string,
+    calendarId: string,
+    eventId: string
+): Promise<GoogleCalendarEvent | null> {
+    const res = await fetch(
+        `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+        {
+            headers: { Authorization: `Bearer ${accessToken}` },
+        }
+    )
+
+    if (res.status === 404 || res.status === 410) {
+        return null
+    }
+
+    if (!res.ok) {
+        const body = await res.text()
+        throw new GoogleApiError(
+            `Failed to get Google Calendar event: ${res.status}`,
+            res.status,
+            body
+        )
+    }
+
+    return res.json() as Promise<GoogleCalendarEvent>
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Write (이벤트 생성 / 수정 / 삭제)
 // ─────────────────────────────────────────────────────────────────────────────

@@ -50,15 +50,19 @@ function getHolidayDateSetForYear(year: number) {
 }
 
 export const DayCell = memo(
-    ({ day, isCurrentMonth }: { day: Date; isCurrentMonth: boolean }) => {
+    ({
+        day,
+        isCurrentMonth,
+        isMobile,
+    }: {
+        day: Date
+        isCurrentMonth: boolean
+        isMobile: boolean
+    }) => {
         const tCalendar = useDebugTranslations("calendar")
         const createEvent = useOpenEvent()
-        const {
-            calendarTz,
-            showWeekendTextColors,
-            showHolidayBackground,
-        } = useCalendarStore(
-            (s) => {
+        const { calendarTz, showWeekendTextColors, showHolidayBackground } =
+            useCalendarStore((s) => {
                 const layout = normalizeCalendarLayoutOptions(
                     s.activeCalendar?.layoutOptions
                 )
@@ -67,9 +71,7 @@ export const DayCell = memo(
                     showWeekendTextColors: layout.showWeekendTextColors,
                     showHolidayBackground: layout.showHolidayBackground,
                 }
-            },
-            shallow
-        )
+            }, shallow)
         const user = useAuthStore((s) => s.user)
 
         const isDraggingRef = useRef(false)
@@ -183,6 +185,10 @@ export const DayCell = memo(
         }, [day, setSelectedDate, setViewportMiniDate])
 
         const handleDoubleClick = () => {
+            if (isMobile) {
+                return
+            }
+
             if (
                 activeCalendar?.id !== "demo" &&
                 !canCreateCalendarEvents(activeCalendarMembership)
@@ -197,6 +203,9 @@ export const DayCell = memo(
         }
 
         const handlePointerDown = (e: React.PointerEvent) => {
+            if (isMobile) {
+                return
+            }
             // 🔥 이벤트 클릭이면 무시
             if ((e.target as HTMLElement).closest(".event-drag-row")) return
             if (
@@ -212,6 +221,9 @@ export const DayCell = memo(
         }
 
         const handlePointerEnter = () => {
+            if (isMobile) {
+                return
+            }
             // updateCellCursor()
 
             if (!isSelecting) return
@@ -220,6 +232,9 @@ export const DayCell = memo(
         }
 
         const handlePointerUp = () => {
+            if (isMobile) {
+                return
+            }
             if (!isSelecting) return
             endSelectionStore()
 
@@ -265,7 +280,7 @@ export const DayCell = memo(
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 className={cn(
-                    "group/day relative flex flex-col overflow-hidden p-3 text-sm font-medium select-none",
+                    "group/day relative flex flex-col overflow-hidden p-1 text-xs font-medium select-none md:p-3 md:text-sm",
                     isCurrentMonth
                         ? [
                               "bg-background text-foreground",
@@ -277,14 +292,17 @@ export const DayCell = memo(
                         "select-event bg-blue-50/99.5 dark:bg-blue-50/0.5"
                 )}
             >
-                <div className="flex items-center *:inline-flex *:size-8 *:items-center *:justify-center *:rounded-lg">
+                <div className="flex items-center *:inline-flex *:size-6 *:items-center *:justify-center *:rounded-lg md:*:size-8">
                     <div className="flex items-center">
                         <>
                             {!isHover && !isSelectingRange && (
                                 <Button
                                     size="icon"
                                     variant="outline"
-                                    className="hidden size-8 text-muted-foreground group-hover/day:flex"
+                                    className={cn(
+                                        "hidden size-8 text-muted-foreground group-hover/day:flex",
+                                        isMobile && "hidden!"
+                                    )}
                                     onClick={handleDoubleClick}
                                 >
                                     <PlusIcon />
@@ -293,11 +311,13 @@ export const DayCell = memo(
                             {dayOfMonth === 1 && (
                                 <span
                                     className={clsx(
-                                        "text-sm text-muted-foreground/80 group-hover/day:hidden",
+                                        "text-xs text-muted-foreground/80 group-hover/day:hidden md:text-sm",
                                         weekendDateTextClass
                                     )}
                                 >
-                                    {dayjs.tz(day, calendarTz).format(tCalendar("dateFormatMonth"))}
+                                    {dayjs
+                                        .tz(day, calendarTz)
+                                        .format(tCalendar("dateFormatMonth"))}
                                 </span>
                             )}
                         </>
@@ -331,7 +351,8 @@ export const DayCell = memo(
     },
     (prev, next) =>
         prev.day.getTime() === next.day.getTime() &&
-        prev.isCurrentMonth === next.isCurrentMonth
+        prev.isCurrentMonth === next.isCurrentMonth &&
+        prev.isMobile === next.isMobile
 )
 
 DayCell.displayName = "DayCell"

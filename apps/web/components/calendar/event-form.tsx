@@ -36,6 +36,10 @@ import type { DateRange } from "react-day-picker"
 import { Controller, useForm, useWatch, type Resolver } from "react-hook-form"
 
 import { useEventFormDraftCollectionColor } from "@/hooks/use-event-form-draft-collection-color"
+import {
+    makeGoogleCalendarEventId,
+    parseGoogleCalendarEventId,
+} from "@/lib/google/calendar-event-mapper"
 import { EventChipsCombobox } from "./event-chips-combobox"
 import { EventCollectionSettingsPanel } from "./event-collection-settings-panel"
 import {
@@ -44,10 +48,6 @@ import {
     makeGoogleCollectionOptionValue,
     parseGoogleCollectionOptionValue,
 } from "./event-form-collection-field"
-import {
-    makeGoogleCalendarEventId,
-    parseGoogleCalendarEventId,
-} from "@/lib/google/calendar-event-mapper"
 import {
     EventFormPropertyRow,
     type EventFormPropertyMenuItem,
@@ -77,6 +77,8 @@ import {
     moveCalendarEventFieldSettings,
     setCalendarEventFieldVisibility,
 } from "@/lib/calendar/event-field-settings"
+import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
+import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 import { type Locale } from "@/lib/i18n/config"
 import { getDayPickerLocale } from "@/lib/i18n/day-picker-locale"
 import { formatIntlDate } from "@/lib/i18n/intl-date"
@@ -129,8 +131,8 @@ import {
 } from "@workspace/ui/components/sidebar"
 import { Switch } from "@workspace/ui/components/switch"
 import { useLocale } from "next-intl"
-import { usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
+import { usePathname } from "next/navigation"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ContentEditor from "../editor/content-editor"
 import {
@@ -139,8 +141,6 @@ import {
     WheelPickerWrapper,
 } from "../wheel-picker"
 import { EventSubscriptionCard } from "./event-subscription-card"
-import { navigateCalendarModal } from "@/lib/calendar/modal-navigation"
-import { getCalendarModalOpenPath } from "@/lib/calendar/modal-route"
 
 const createArray = (length: number, add = 0): WheelPickerOption<number>[] =>
     Array.from({ length }, (_, i) => {
@@ -987,7 +987,7 @@ export function EventForm({
             const googleEmail =
                 typeof targetCatalog.config?.googleEmail === "string"
                     ? targetCatalog.config.googleEmail
-                    : sourceEvent.subscription?.googleEmail ?? null
+                    : (sourceEvent.subscription?.googleEmail ?? null)
 
             return {
                 ...sourceEvent,
@@ -1323,10 +1323,11 @@ export function EventForm({
 
             // collectionNames에서 구글 캘린더 옵션(__gcal__:xxx)과 일반 컬렉션을 분리
             const allCollectionNames = normalizedValues.collectionNames
-            const googleCatalogId = allCollectionNames
-                .filter(isGoogleCollectionOptionValue)
-                .map((v) => parseGoogleCollectionOptionValue(v))
-                .find((id): id is string => id !== null) ?? null
+            const googleCatalogId =
+                allCollectionNames
+                    .filter(isGoogleCollectionOptionValue)
+                    .map((v) => parseGoogleCollectionOptionValue(v))
+                    .find((id): id is string => id !== null) ?? null
             const plainCollectionNames = normalizeNames(
                 allCollectionNames.filter(
                     (v) => !isGoogleCollectionOptionValue(v)
@@ -1351,15 +1352,18 @@ export function EventForm({
                         return false
                     }
 
-                    const response = await fetch("/api/google-calendar/events", {
-                        method: "DELETE",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            googleCalendarId: sourceConfig.googleCalendarId,
-                            googleAccountId: sourceConfig.googleAccountId,
-                            googleEventId: gcalParsed.googleEventId,
-                        }),
-                    })
+                    const response = await fetch(
+                        "/api/google-calendar/events",
+                        {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                googleCalendarId: sourceConfig.googleCalendarId,
+                                googleAccountId: sourceConfig.googleAccountId,
+                                googleEventId: gcalParsed.googleEventId,
+                            }),
+                        }
+                    )
 
                     return response.ok
                 }
@@ -1368,7 +1372,10 @@ export function EventForm({
                     googleCatalogId === gcalParsed.catalogId &&
                     plainCollectionNames.length === 0
                 ) {
-                    if (sourceConfig?.googleCalendarId && sourceConfig?.googleAccountId) {
+                    if (
+                        sourceConfig?.googleCalendarId &&
+                        sourceConfig?.googleAccountId
+                    ) {
                         void fetch("/api/google-calendar/events", {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
@@ -1392,7 +1399,10 @@ export function EventForm({
                         (c) => c.id === googleCatalogId
                     )
                     const targetConfig = targetCatalog?.config as
-                        | { googleCalendarId?: string; googleAccountId?: string }
+                        | {
+                              googleCalendarId?: string
+                              googleAccountId?: string
+                          }
                         | undefined
 
                     if (
@@ -1503,25 +1513,23 @@ export function EventForm({
                     favoritedAt: event.favoritedAt,
                     status: normalizedValues.status ?? event.status,
                     authorId: user?.id ?? event.authorId,
-                    author:
-                        user
-                            ? {
-                                  id: user.id,
-                                  name: user.name,
-                                  email: user.email,
-                                  avatarUrl: user.avatarUrl,
-                              }
-                            : event.author,
+                    author: user
+                        ? {
+                              id: user.id,
+                              name: user.name,
+                              email: user.email,
+                              avatarUrl: user.avatarUrl,
+                          }
+                        : event.author,
                     updatedById: user?.id ?? event.updatedById,
-                    updatedBy:
-                        user
-                            ? {
-                                  id: user.id,
-                                  name: user.name,
-                                  email: user.email,
-                                  avatarUrl: user.avatarUrl,
-                              }
-                            : event.updatedBy,
+                    updatedBy: user
+                        ? {
+                              id: user.id,
+                              name: user.name,
+                              email: user.email,
+                              avatarUrl: user.avatarUrl,
+                          }
+                        : event.updatedBy,
                     isLocked: false,
                     createdAt: Date.now(),
                     updatedAt: Date.now(),
@@ -1892,12 +1900,11 @@ export function EventForm({
                 nextEnd = normalized.end
             } else {
                 setSchedulePickerPanel("date")
-                const timedRange =
-                    getTimedScheduleRangeAfterAllDayOff(
-                        timezone,
-                        currentValues.start,
-                        currentValues.end
-                    )
+                const timedRange = getTimedScheduleRangeAfterAllDayOff(
+                    timezone,
+                    currentValues.start,
+                    currentValues.end
+                )
                 nextStart = timedRange.start
                 nextEnd = timedRange.end
             }
@@ -2391,7 +2398,7 @@ export function EventForm({
                     return []
             }
         },
-        [activeCalendar?.id, disabled]
+        [activeCalendar?.id, disabled, tForm]
     )
 
     const renderPropertyField = (
@@ -3132,7 +3139,7 @@ export function EventForm({
             className="flex flex-col gap-6"
             onSubmit={(e) => e.preventDefault()}
         >
-            <FieldGroup className="gap-7">
+            <FieldGroup className="gap-4 md:gap-7">
                 {/* 제목 */}
                 <Controller
                     name="title"
@@ -3152,7 +3159,7 @@ export function EventForm({
                                     field.onChange(e.target.value)
                                     autoSave()
                                 }}
-                                className="h-auto w-full border-0 bg-transparent p-0 font-bold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl"
+                                className="h-auto w-full border-0 bg-transparent p-0 text-2xl font-semibold text-primary outline-0 placeholder:text-muted-foreground/70 md:text-4xl md:font-bold"
                                 disabled={disabled}
                             />
                             {/* <Input

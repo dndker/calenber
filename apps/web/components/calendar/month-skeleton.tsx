@@ -8,7 +8,7 @@ import { useCalendarStore } from "@/store/useCalendarStore"
 import { getMonthKey, getWeek } from "@/utils/calendar"
 import { WeekRow } from "./week-row"
 
-export function MonthSkeleton() {
+export function MonthSkeleton({ isMobile }: { isMobile: boolean }) {
     const calendarTimezone = useCalendarStore((s) => s.calendarTimezone)
     const weekStartsOn = useCalendarStore((s) =>
         normalizeCalendarLayoutOptions(s.activeCalendar?.layoutOptions).weekStartsOn
@@ -40,6 +40,7 @@ export function MonthSkeleton() {
                 return (
                     <WeekRow
                         key={i}
+                        isMobile={isMobile}
                         events={[]}
                         visibleWeek={visibleWeek}
                         calendarTz={calendarTimezone}

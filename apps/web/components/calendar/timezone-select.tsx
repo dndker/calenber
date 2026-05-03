@@ -1,7 +1,7 @@
 "use client"
 
-import { ClockIcon } from "lucide-react"
 import { useDebugTranslations } from "@/components/provider/i18n-debug-provider"
+import { ClockIcon } from "lucide-react"
 import { useMemo } from "react"
 
 import {
@@ -65,7 +65,10 @@ export function TimezoneSelect({
         >
             <ComboboxInput
                 placeholder={t("timezoneLabel")}
-                className={cn("w-44", className)}
+                className={cn(
+                    "w-44 [&_input]:text-sm md:[&_input]:text-base",
+                    className
+                )}
                 disabled={disabled}
             >
                 {icon && (

@@ -8,7 +8,7 @@ import { ProfileSettingsPanel } from "@/components/settings/panels/profile-setti
 import { canViewCalendarSettings } from "@/lib/calendar/permissions"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useCalendarStore } from "@/store/useCalendarStore"
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+import { Root as VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import {
     Avatar,
     AvatarFallback,

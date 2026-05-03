@@ -31,10 +31,12 @@ import {
 } from "@dnd-kit/core"
 import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual"
 import {
+    useDeferredValue,
     memo,
     startTransition,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -58,11 +60,13 @@ type VisibleWeekMeta = {
 export function MonthList({
     parentRef,
     containerHeight,
+    isMobile,
     targetDate,
     onVisibleMonthChange,
 }: {
     parentRef: React.RefObject<HTMLDivElement | null>
     containerHeight: number
+    isMobile: boolean
     targetDate?: Date
     onVisibleMonthChange?: (date: Date) => void
 }) {
@@ -91,6 +95,7 @@ export function MonthList({
     ).toDate()
     const baseDateRef = useRef(newDate)
     const prevMonthRef = useRef<string | null>(null)
+    const prevItemSizeRef = useRef<number | null>(null)
     const dragFrameRef = useRef<number | null>(null)
     const dragCursorReleaseRef = useRef<(() => void) | null>(null)
     const lastOverIdRef = useRef<string | null>(null)
@@ -117,9 +122,10 @@ export function MonthList({
         setRangeAnchorMonthKey(monthKey)
     }, [calendarTz, weekStartsOn])
 
+    const deferredContainerHeight = useDeferredValue(containerHeight)
     const itemSize = useMemo(
-        () => Math.floor(containerHeight / 5),
-        [containerHeight]
+        () => Math.floor(deferredContainerHeight / 5),
+        [deferredContainerHeight]
     )
 
     const virtualizer = useVirtualizer({
@@ -131,15 +137,30 @@ export function MonthList({
     })
     const items = virtualizer.getVirtualItems()
 
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                // delay: 50,
-                // tolerance: 5,
-                distance: 5,
-            },
-        })
-    )
+    const pointerSensor = useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 5,
+        },
+    })
+    const sensors = useSensors(pointerSensor)
+
+    useLayoutEffect(() => {
+        const scrollElement = parentRef.current
+        const prevItemSize = prevItemSizeRef.current
+        prevItemSizeRef.current = itemSize
+
+        if (!scrollElement || !prevItemSize || prevItemSize === itemSize) {
+            virtualizer.measure()
+            return
+        }
+
+        const prevRowSize = prevItemSize + 1
+        const nextRowSize = itemSize + 1
+        const anchorIndex = scrollElement.scrollTop / prevRowSize
+
+        virtualizer.measure()
+        scrollElement.scrollTop = anchorIndex * nextRowSize
+    }, [itemSize, parentRef, virtualizer])
 
     // 초기 위치
     useEffect(() => {
@@ -521,13 +542,16 @@ export function MonthList({
     )
 
     const handleDragStart = useCallback(() => {
+        if (isMobile) {
+            return
+        }
         dragCursorReleaseRef.current?.()
         dragCursorReleaseRef.current = lockCalendarBodyCursor(
             "month-list-move",
             "grabbing"
         )
         window.addEventListener("pointermove", handleDragPointerMove)
-    }, [handleDragPointerMove])
+    }, [handleDragPointerMove, isMobile])
 
     const finishDragSession = useCallback(() => {
         lastOverIdRef.current = null
@@ -542,6 +566,14 @@ export function MonthList({
 
         useCalendarStore.getState().endDrag()
     }, [handleDragPointerMove])
+
+    useEffect(() => {
+        if (!isMobile) {
+            return
+        }
+
+        finishDragSession()
+    }, [finishDragSession, isMobile])
 
     useEffect(() => {
         return () => {
@@ -580,6 +612,7 @@ export function MonthList({
                 {visibleWeekMetas.map((meta) => (
                     <WeekRow
                         key={meta.item.key}
+                        isMobile={isMobile}
                         events={
                             positionedEventsByWeek.get(meta.item.index) ??
                             EMPTY_POSITIONED_WEEK_EVENTS
@@ -596,7 +629,9 @@ export function MonthList({
                 dropAnimation={null}
                 style={{ pointerEvents: "none", willChange: "transform" }}
             >
-                <CalendarDragOverlay calendarTz={calendarTz} />
+                {!isMobile ? (
+                    <CalendarDragOverlay calendarTz={calendarTz} />
+                ) : null}
             </DragOverlay>
         </DndContext>
     )
@@ -691,6 +726,7 @@ const CalendarDragOverlay = memo(function CalendarDragOverlay({
     return (
         <EventItem
             event={draggingEvent}
+            isMobile={false}
             top={0}
             startIndex={startIndex}
             endIndex={endIndex}

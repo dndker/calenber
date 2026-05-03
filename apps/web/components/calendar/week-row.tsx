@@ -7,6 +7,7 @@ import { EventRow } from "./event-row"
 
 export const WeekRow = memo(
     ({
+        isMobile,
         events,
         start,
         size = 200,
@@ -15,6 +16,7 @@ export const WeekRow = memo(
         currentMonthKey,
         skeleton = false,
     }: {
+        isMobile: boolean
         events: PositionedCalendarEvent[]
         start?: number
         skeleton?: boolean
@@ -49,7 +51,7 @@ export const WeekRow = memo(
                         : {}
                 }
                 className={clsx(
-                    "relative grid snap-start gap-px",
+                    "relative grid snap-start gap-px motion-safe:transition-[height,transform] motion-safe:duration-150 motion-safe:ease-out",
                     showsWeekendColumns ? "grid-cols-7" : "grid-cols-5",
                     {
                         "h-1/5": skeleton,
@@ -60,6 +62,7 @@ export const WeekRow = memo(
                     <DayCell
                         key={day.toISOString()}
                         day={day}
+                        isMobile={isMobile}
                         isCurrentMonth={
                             (firstMonthKey === currentMonthKey &&
                                 getMonthKey(day, calendarTz) ===
@@ -72,6 +75,7 @@ export const WeekRow = memo(
 
                 <EventRow
                     events={events}
+                    isMobile={isMobile}
                     week={visibleWeek}
                     size={size}
                     assumeWeekScoped
@@ -80,6 +84,7 @@ export const WeekRow = memo(
         )
     },
     (prev, next) =>
+        prev.isMobile === next.isMobile &&
         prev.events === next.events &&
         prev.start === next.start &&
         prev.size === next.size &&
